@@ -4,15 +4,15 @@ import numpy as np
 import os
 
 
-def move_broad_bands():
+def move_broadbands():
 	files = glob("coadded/*", recursive=False)
 	bands = ['_U_', '_G_', '_R_', '_I_', '_Z_']
 	for file in files:
 		for b in bands:
 			if b in file:
 				split = file.split('/')
-				print('moving: '+split[0]+'/broad_bands/'+split[1])
-				os.rename(file, split[0]+'/broad_bands/'+split[1])
+				print('moving: '+split[0]+'/broadbands/'+split[1])
+				os.rename(file, split[0]+'/broadbands/'+split[1])
 
 
 def get_ndarray(filepath):
@@ -21,7 +21,7 @@ def get_ndarray(filepath):
 
 
 if __name__=='__main__':
-	files = glob("coadded/broad_bands/*")
+	files = glob("coadded/broadbands/*")
 	files.sort()
 	print(files)
 
