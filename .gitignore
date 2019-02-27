@@ -1,3 +1,5 @@
 coadded/
-*.csv
 .DS_Store
+._*
+*.csv
+*.npy
