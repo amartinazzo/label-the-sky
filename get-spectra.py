@@ -27,4 +27,6 @@ available columns are:
 https://classic.sdss.org/dr7/dm/flatFiles/spZline.html
 
 which ones would be useful for us? area? width?
+
+https://specutils.readthedocs.io/en/latest/
 '''
