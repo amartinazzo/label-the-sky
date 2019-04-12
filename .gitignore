@@ -2,4 +2,7 @@ coadded/
 .DS_Store
 ._*
 *.csv
+*.dat
 *.npy
+*.txt
+*.out
