@@ -1,8 +1,12 @@
 from astropy.io import fits
 from glob import glob
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import os
+
+
+delta = 10 # max fwhm in dataset is 19. side of image will be 2*delta
 
 
 def move_broadbands():
@@ -21,70 +25,65 @@ def get_ndarray(filepath):
 	return fits_im[1].data
 
 
-def crop_objects_in_field(arr, catalog, field_name=None, save_field=False):
-	if save_field:
-		np.save("npy_fields/{}.npy".format(field), arr, allow_pickle=False)
-
+def crop_objects_in_field(arr, catalog, field_name=None):
 	objects = catalog[catalog.field_name==field_name]
-	objects = objects[['x', 'y', 'fwhm', 'id']]
 	for ix, o in objects.iterrows():
-		delta = o['fwhm']/2
 		x0 = int(o['x'] - delta)
 		x1 = int(o['x'] + delta)
 		y0 = int(o['y'] - delta)
 		y1 = int(o['y'] + delta)
-		cropped = arr[x0:x1, y0:y1]
-		np.save("npy_objects/{}.npy".format(o.id), cropped, allow_pickle=False)
+		cropped = arr[y0:y1, x0:x1, :]
+		np.save("../raw-data/crops/{}.npy".format(o['id']), cropped, allow_pickle=False)
 
 
 if __name__=="__main__":
 	files = glob("../raw-data/coadded/*.fits.fz", recursive=True)
 	files.sort()
-	# print(files[:15])
 
-	catalog = pd.read_csv("matched_cat.csv")
-	catalog = catalog[catalog.matched]
-	print('catalog shape ', catalog.shape)
+	catalog = pd.read_csv("sloan_splus_matches.csv")
+	print(catalog.head())
+	print('catalog shape', catalog.shape)
 	catalog['field_name'] = catalog.id.apply(lambda s: s.split(".")[1])
+	#catalog['id'] = catalog['id'].apply(lambda s: s.replace('.griz',''))
 
 	'''
 	map desired depthwise position to alphabetical index
-	i.e., map 
-	0	G
-	1	I
-	2	J0378
-	3	J0395
-	4	J0410
-	5	J0430
-	6	J0515
-	7	J0660
-	8	J0861
+	i.e., map
+	0	F378
+	1	F395
+	2	F410
+	3	F430
+	4	F515
+	5	F660
+	6	F861 
+	7	G
+	8	I
 	9	R
 	10	U
 	11	Z
 
-	to U J0378 J0395 J0395 J0410 J0430 G J0515 R J0660 I J0861 Z
+	to U F378 F395 F410 F430 G F515 R F660 I F861 Z
 	'''
-	bands_order = [10, 2, 3, 4, 5, 0, 6, 9, 7, 1, 8, 11]
+	bands_order = [10, 0, 1, 2, 3, 7, 4, 9, 5, 8, 6, 11]
 	n_channels = len(bands_order)
 
 	data = get_ndarray(files[0])
 	s0, s1 = data.shape
-	arr = np.zeros((n_channels, s0, s1), dtype=np.int32)
+	arr = np.zeros((s0, s1, n_channels))
 	print('field array shape ', arr.shape)
-	arr[bands_order[0],:,:] = data
+	arr[:,:,bands_order[0]] = np.copy(data)
 	prev = files[0].split('/')[3].split('_')[0]
 
 	i=1
 	for ix, f in enumerate(files[1:]):
 		field_name = f.split('/')[3].split('_')[0]
 		if prev != field_name or ix==len(files[1:]):
-			print("cropping objects in {}".format(field_name))
-			crop_objects_in_field(arr, catalog, field_name)
-			arr = np.zeros((n_channels, s0, s1), dtype=np.int32)
+			print("cropping objects in {}".format(prev))
+			crop_objects_in_field(arr, catalog, prev)
+			arr = np.zeros((s0, s1, n_channels))
 			prev = field_name
 			i=0
 		data = get_ndarray(f)
-		arr[bands_order[i],:,:] = data
+		arr[:,:,bands_order[i]] = np.copy(data)
 		i+=1
 

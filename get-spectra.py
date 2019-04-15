@@ -9,6 +9,7 @@ import sys
 length = 3870
 
 # nohup python3 -u get-spectra.py &
+# nohup python3 -u get-spectra.py > /dev/null 2>&1 & echo $! > run.pid
 
 # get object id to start downloading from
 f = open('spectra/last_obj.txt')
@@ -30,31 +31,10 @@ object_id = cat['id'].values
 
 del cat
 
-# if i==0:
-#   # download first spectra from sdss
-#   spectra = SDSS.get_spectra(coords[0], data_release=15, timeout=600)
-
-#   # load spectra[0] data
-#   specdata = spectra[0][1].data
-#   loglamb = specdata['loglam']
-#   flux = specdata['flux']
-
-#   # initialize np arrays
-#   fluxes_arr = np.zeros((len(coords), flux.shape[0]+padding)).astype(np.float32)
-#   loglamb_arr = np.zeros((len(coords), loglamb.shape[0]+padding)).astype(np.float32)
-
-#   fluxes_arr[0] = np.pad(flux, (0, length-flux.shape[0]), 'constant')
-#   loglamb_arr[0] = np.pad(loglamb, (0, length-loglamb.shape[0]), 'constant')
-# else:
-#   fluxes_arr = np.load('spectra/fluxes.npy').astype(np.float32)
-#   loglamb_arr = np.load('spectra/loglamb.npy').astype(np.float32)
-
-
-# open text files in binary mode (allows appending)
-flux_file = open('spectra/fluxes.dat','ab')
-loglamb_file = open('spectra/loglamb.dat','ab')
-exception_file = open('spectra/exception_ids.dat', 'ab')
-no_match_file = open('spectra/no_match_ids.dat', 'ab')
+# flux_file = open('spectra/fluxes.dat','ab')
+# loglamb_file = open('spectra/loglamb.dat','ab')
+# exception_file = open('spectra/exception_ids.dat', 'ab')
+# no_match_file = open('spectra/no_match_ids.dat', 'ab')
 
 # download and store flux and wavelength data in text files
 for coord in coords[i:]:
@@ -64,17 +44,19 @@ for coord in coords[i:]:
         # no matches
         if spec is None:
             print('NONE:', i, object_id[i])
-            np.savetxt(no_match_file, np.array([i]))
-            np.savetxt(flux_file, np.zeros((1,length)))
-            np.savetxt(loglamb_file, np.zeros((1,length)))
+            # np.savetxt(no_match_file, np.array([i]))
+            # np.savetxt(flux_file, np.zeros((1,length)))
+            # np.savetxt(loglamb_file, np.zeros((1,length)))
         # match
         else:
             print('MATCH:', i, object_id[i])
             specdata = spec[0][1].data
             flux = specdata['flux']
             loglamb = specdata['loglam']
-            np.savetxt(flux_file, np.pad(flux, (0, length-flux.shape[0]), 'constant').reshape((1,length)))
-            np.savetxt(loglamb_file, np.pad(loglamb, (0, length-loglamb.shape[0]), 'constant').reshape((1,length)))
+            # with open('spectra/flux/{}.dat'.format(object_id[i]), 'xb') as f:
+            np.savetxt('spectra/flux/{}.dat'.format(object_id[i]), np.pad(flux, (0, length-flux.shape[0]), 'constant').reshape((1,length)))
+            # with open('spectra/loglamb/{}.dat'.format(object_id[i]), 'xb') as f:
+            np.savetxt('spectra/loglamb/{}.dat'.format(object_id[i]), np.pad(loglamb, (0, length-loglamb.shape[0]), 'constant').reshape((1,length)))
 
         if i%100 == 0:
             print('downloaded {}%'.format(100*i/len(coords)))
@@ -84,9 +66,9 @@ for coord in coords[i:]:
     except Exception as e:
         print(e)
         print('EXCEPTION:', i, object_id[i])
-        np.savetxt(exception_file, np.array([i]))
-        np.savetxt(flux_file, np.zeros((1,length)))
-        np.savetxt(loglamb_file, np.zeros((1,length)))
+        # np.savetxt(exception_file, np.array([i]))
+        # np.savetxt(flux_file, np.zeros((1,length)))
+        # np.savetxt(loglamb_file, np.zeros((1,length)))
         i+=1
 
 '''
