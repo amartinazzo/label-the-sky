@@ -1,11 +1,16 @@
-# from astropy import units as u
-# from glob import glob
+from glob import glob
 import pandas as pd
 import numpy as np
+import os
 import time
 
 
-# nohup python3 -u preprocess-spectra.py > spectra-preprocessing.log&
+# nohup python3 -u preprocess-spectra.py > spectra-preprocessing-pt1-v2.out&
+
+sparse_thres = 0.3
+lamb_lower = 3750
+lamb_upper = 9250
+lambs_interval = np.arange(lamb_lower, lamb_upper)
 
 
 def concat_frames(files_glob_str):
@@ -19,39 +24,104 @@ def concat_frames(files_glob_str):
 	print('frame shape', frame.shape)
 
 
-start = time.perf_counter()
-print('loading loglamb matrix')
-lambs = pd.read_csv('spectra/loglamb.dat',sep=' ', header=None)
-print('time taken (min)', (time.perf_counter()-start)/60)
+def get_unique_lambs(unique_loglambs_filepath, loglambs_filepath):
+	if os.path.exists(unique_loglambs_filepath):
+		return np.load(unique_loglambs_filepath)
+	lambs = pd.read_csv(loglambs_filepath, sep=' ', header=None)
+	lambs = lambs.values
+	lambs = np.unique(lambs)
+	lambs = lambs[lambs>0]
+	np.save(unique_loglambs_filepath, lambs)
+	return lambs
 
-lambs = lambs.values
-lambs_unique = np.unique(lambs)
-lambs_unique = lambs_unique[lambs_unique>0]
 
-base_series = pd.Series(index=lambs_unique)
+def to_angstrom(loglamb):
+	lamb = np.round(10**loglamb).astype(int)
+	lamb = lamb[(lamb>=lamb_lower) & (lamb<=lamb_upper)]
+	lamb, unique_idx = np.unique(lamb, return_index=True)
+	if lamb[0] == 1:
+		lamb = lamb[1:]
+		unique_idx = unique_idx[1:]
+	return lamb, unique_idx
 
-object_idx = pd.read_csv('spectra/object_idx.csv', header=None)
-object_idx = object_idx[1].values
 
-print('loading flux matrix')
-fluxes = pd.read_csv('spectra/fluxes.dat', sep=' ', header=None)
-fluxes = fluxes.values
-print('time taken (min)', (time.perf_counter()-start)/60)
-
-n, total_length = fluxes.shape
-
-for i in range(n):
-	print('processing', object_idx[i])
-	if lambs[i,0] == 0:
-		print('skip: zero array.')
-		continue
-	nonzero_idx = np.nonzero(lambs[i])[0]
-	if len(nonzero_idx)/total_length < 0.3:
-		print('skip: sparse series.')
-		continue
-	series = pd.Series(data=fluxes[i, nonzero_idx], index=lambs[i, nonzero_idx])
+def gen_series(flux_arr, lamb_arr, base_series):
+	series = pd.Series(data=flux_arr, index=lamb_arr)
 	series = series.combine_first(base_series)
 	series.interpolate(method='spline', order=1, limit_direction='both', inplace=True)
-	np.savetxt('spectra/flux-processed/{}.dat'.format(object_idx[i]), series.values)
+	return series
 
-print('time taken (min)', (time.perf_counter()-start)/60)
+
+def preprocess_matrices(loglambs_filepath, fluxes_filepath, objects_filepath):
+	start = time.perf_counter()
+	print('loading loglamb matrix')
+	lambs = pd.read_csv(loglambs_filepath,sep=' ', header=None)
+	lambs = lambs.values
+	print('time taken (min)', (time.perf_counter()-start)/60)
+
+	base_series = pd.Series(index=lambs_interval)
+
+	object_idx = pd.read_csv(objects_filepath, header=None)
+	object_idx = object_idx[1].values
+
+	print('loading flux matrix')
+	fluxes = pd.read_csv(fluxes_filepath, sep=' ', header=None)
+	fluxes = fluxes.values
+	print('time taken (min)', (time.perf_counter()-start)/60)
+
+	n, total_length = fluxes.shape
+
+	for i in range(n):
+		print('processing', object_idx[i])
+		if lambs[i,0] == 0:
+			print('skip: zero array.')
+			continue
+		lamb, unique_idx = to_angstrom(lambs[i])
+		if len(unique_idx)/total_length < sparse_thres:
+			print('skip: sparse series.')
+			continue
+		series = gen_series(fluxes[i, unique_idx], lamb, base_series)
+		np.savetxt('spectra/flux-processed/{}.txt'.format(object_idx[i]), series.values)
+
+	print('time taken (min)', (time.perf_counter()-start)/60)
+
+
+def preprocess_files(loglambs_folder, fluxes_folder):
+	start = time.perf_counter()
+
+	base_series = pd.Series(index=lambs_interval)
+
+	total_length = len(lambs_interval)
+	print('sequence length', total_length)
+
+	flux_files = glob(fluxes_folder)
+	loglamb_files = glob(loglambs_folder)
+	flux_files.sort()
+	loglamb_files.sort()
+
+	print('nr of spectra to process', len(flux_files))
+
+	for ix, file in enumerate(flux_files):
+		object_id = file.split('/')[-1][:-4]
+		print('processing', file)
+		flux = np.loadtxt(file)
+		lamb = np.loadtxt(loglamb_files[ix])
+		lamb, unique_idx = to_angstrom(lamb)
+
+		if len(lamb)/total_length < sparse_thres:
+			print('skip: sparse sequence.')
+			continue
+
+		series = gen_series(flux[unique_idx], lamb, base_series)
+		assert len(series)==len(base_series)
+		np.savetxt('spectra/flux-processed/{}.txt'.format(object_id), series.values)
+
+		if ix % 5000 == 0:
+			print('time taken (min)', (time.perf_counter()-start)/60)			
+
+	print('time taken (min)', (time.perf_counter()-start)/60)
+
+
+if __name__=="__main__":
+	preprocess_matrices('spectra/loglamb.dat', 'spectra/fluxes.dat', 'spectra/object_idx.csv')
+	# preprocess_files('spectra/loglamb/*', 'spectra/flux/*')
