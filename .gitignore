@@ -3,7 +3,8 @@ coadded/
 ._*
 *.csv
 *.dat
+*.log
 *.npy
-*.txt
 *.out
 *.png
+*.txt
