@@ -33,29 +33,30 @@ val_generator = DataGenerator(X_val, labels, **params)
 
 # create model
 model = Sequential()
-model.add(Conv1D(filters=32, kernel_size=20, strides=15, activation='relu', input_shape=params['dim']))
-model.add(Conv1D(filters=64, kernel_size=20, strides=15, activation='relu'))
+model.add(Conv1D(filters=32, kernel_size=20, strides=18, activation='relu', input_shape=params['dim']))
+# model.add(Conv1D(filters=64, kernel_size=20, strides=15, activation='relu'))
 # model.add(MaxPooling1D(3))
-model.add(Conv1D(filters=64, kernel_size=20, strides=15, activation='relu'))
+# model.add(Conv1D(filters=32, kernel_size=20, strides=18, activation='relu'))
 # model.add(Conv1D(filters=128, kernel_size=20, strides=15, activation='relu'))
 # model.add(GlobalAveragePooling1D())
 model.add(Dropout(0.5))
 model.add(MaxPooling1D(pool_size=1))
 model.add(Flatten())
-model.add(Dense(100, activation='relu'))
+# model.add(Dense(100, activation='relu'))
 model.add(Dense(params['n_classes'], activation='softmax'))
 print(model.summary())
 model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
 callbacks_list = [
     ModelCheckpoint(
-        filepath='best_model.{epoch:02d}-{val_loss:.2f}.h5',
+        filepath='best_model_1conv.{epoch:02d}-{val_loss:.2f}.h5',
         monitor='val_loss', save_best_only=True),
     EarlyStopping(monitor='acc', patience=1)
 ]
 
 # train
 model.fit_generator(
+	epochs=30,
 	generator=train_generator,
     validation_data=val_generator,
     use_multiprocessing=True,

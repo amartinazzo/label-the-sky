@@ -5,8 +5,6 @@ import os
 import time
 
 
-# nohup python3 -u preprocess-spectra.py > spectra-preprocessing-pt1-v2.out&
-
 sparse_thres = 0.3
 lamb_lower = 3750
 lamb_upper = 9250

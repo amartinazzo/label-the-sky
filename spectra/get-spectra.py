@@ -6,9 +6,9 @@ import numpy as np
 import pandas as pd
 import sys
 
+
 length = 3870
 
-# nohup python3 -u get-spectra.py > spectra-download.log&
 
 # get object id to start downloading from
 f = open('spectra/last_obj.txt')
