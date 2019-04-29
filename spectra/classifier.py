@@ -8,57 +8,60 @@ from sklearn.model_selection import StratifiedShuffleSplit
 import os
 
 
-os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
-os.environ['CUDA_VISIBLE_DEVICES']='1'
+def build_model(n_filters, kernel_size, strides, input_shape, n_classes):
+    model = Sequential()
+    model.add(Conv1D(
+        filters=n_filters, kernel_size=kernel_size, strides=strides, activation='relu', input_shape=input_shape))
+    model.add(Dropout(0.5))
+    model.add(MaxPooling1D(pool_size=1))
+    model.add(Flatten())
+    model.add(Dense(n_classes, activation='softmax'))
+    print(model.summary())
+    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
-class_map = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
-params = {'data_folder': '../raw-data/spectra/', 'dim': (5500,1), 'batch_size': 256, 'n_classes': 3}
+    return model
 
-# load dataset iterators
-df = pd.read_csv('train_val_set.csv')
-X = df['id'].values
-y = df['class'].apply(lambda c: class_map[c]).values
-labels = dict(zip(X, y))
-del df
 
-sss = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=0)
-train_idx, val_idx = next(sss.split(X,y))
+if __name__=='__main__':
+    os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
+    os.environ['CUDA_VISIBLE_DEVICES']='1'
 
-X_train, X_val = X[train_idx], X[val_idx]
-print('train size', len(X_train))
-print('val size', len(X_val))
+    class_map = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
+    params = {'data_folder': '../../raw-data/spectra/', 'dim': (5500,1), 'batch_size': 256, 'n_classes': 3}
 
-train_generator = DataGenerator(X_train, labels, **params)
-val_generator = DataGenerator(X_val, labels, **params)
+    # load dataset iterators
+    df = pd.read_csv('../csv/train_val_set_earlydr_spectra.csv')
+    X = df['id'].values
+    y = df['class'].apply(lambda c: class_map[c]).values
+    labels = dict(zip(X, y))
+    del df
 
-# create model
-model = Sequential()
-model.add(Conv1D(filters=32, kernel_size=20, strides=18, activation='relu', input_shape=params['dim']))
-# model.add(Conv1D(filters=64, kernel_size=20, strides=15, activation='relu'))
-# model.add(MaxPooling1D(3))
-# model.add(Conv1D(filters=32, kernel_size=20, strides=18, activation='relu'))
-# model.add(Conv1D(filters=128, kernel_size=20, strides=15, activation='relu'))
-# model.add(GlobalAveragePooling1D())
-model.add(Dropout(0.5))
-model.add(MaxPooling1D(pool_size=1))
-model.add(Flatten())
-# model.add(Dense(100, activation='relu'))
-model.add(Dense(params['n_classes'], activation='softmax'))
-print(model.summary())
-model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+    sss = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=0)
+    train_idx, val_idx = next(sss.split(X,y))
 
-callbacks_list = [
-    ModelCheckpoint(
-        filepath='best_model_1conv.{epoch:02d}-{val_loss:.2f}.h5',
-        monitor='val_loss', save_best_only=True),
-    EarlyStopping(monitor='acc', patience=1)
-]
+    X_train, X_val = X[train_idx], X[val_idx]
+    print('train size', len(X_train))
+    print('val size', len(X_val))
 
-# train
-model.fit_generator(
-	epochs=30,
-	generator=train_generator,
-    validation_data=val_generator,
-    use_multiprocessing=True,
-    workers=6,
-    verbose=2)
+    train_generator = DataGenerator(X_train, labels, **params)
+    val_generator = DataGenerator(X_val, labels, **params)
+
+    # create model
+    model = build_model(n_filters=16, kernel_size=100, strides=90, input_shape=params['dim'], n_classes=params['n_classes'])
+
+    callbacks_list = [
+        ModelCheckpoint(
+            filepath='model_1conv-{epoch:02d}-{val_loss:.2f}.h5',
+            monitor='val_loss', save_best_only=True),
+        EarlyStopping(monitor='acc', patience=1)
+    ]
+
+    # train
+    model.fit_generator(
+    	epochs=30,
+        callbacks=callbacks_list,
+    	generator=train_generator,
+        validation_data=val_generator,
+        use_multiprocessing=True,
+        workers=6,
+        verbose=2)

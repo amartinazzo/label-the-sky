@@ -3,6 +3,7 @@
 */__pycache__/*
 *.csv
 *.dat
+*.h5
 *.log
 *.npy
 *.out
