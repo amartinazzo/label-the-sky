@@ -43,7 +43,7 @@ def plot_field_rgb(filepath):
 
 
 # receives 12-band array and plots each band in grayscale + lupton composite + given rgb composite
-def plot_bands(arr):
+def plot_bands(arr, plot_trilogy=False, base_catalog='csv/sloan_splus_matches.csv'):
 	arr = np.load(filename)
 	x, y, n_bands = arr.shape
 	plt.figure()
@@ -69,20 +69,20 @@ def plot_bands(arr):
 	ax.axis('off')
 	ax.imshow(im_lupton, interpolation='nearest', cmap=plt.cm.gray_r, norm=colors.PowerNorm(0.1))
 	
-	obj_id = filename.split('/')[-1].replace('.npy','')
-	field = obj_id.split('.')[1]
-	im = cv2.imread('../raw-data/train_images/{}.trilogy.png'.format(field))
-	cat = pd.read_csv('sloan_splus_matches.csv')
-	obj = cat[cat['id'] == obj_id].iloc[0]
-	x = obj['x'] #1341
-	y = 11000 - obj['y'] #11000-3955
-	d = 10
-	obj = im[y-d:y+d,x-d:x+d]
-
-	ax = plt.subplot(4,4,b+4)
-	ax.set_title('SPLUS composite')
-	ax.axis('off')
-	ax.imshow(obj)
+	if plot_trilogy:
+		obj_id = filename.split('/')[-1].replace('.npy','')
+		field = obj_id.split('.')[1]
+		im = cv2.imread('../raw-data/train_images/{}.trilogy.png'.format(field))
+		cat = pd.read_csv(base_catalog)
+		obj = cat[cat['id'] == obj_id].iloc[0]
+		x = obj['x'] #1341
+		y = 11000 - obj['y'] #11000-3955
+		d = 10
+		obj = im[y-d:y+d,x-d:x+d]
+		ax = plt.subplot(4,4,b+4)
+		ax.set_title('SPLUS composite')
+		ax.axis('off')
+		ax.imshow(obj)
 	
 	plt.show()
 
@@ -121,7 +121,7 @@ def plot_rgb(filename):
 # plt.imshow(im)
 # plt.show()
 
-filename = '../raw-data/crops/SPLUS.STRIPE82-0003.09533.griz.npy'
+filename = '../raw-data/crops/SPLUS.STRIPE82-0058.01798.npy'
 plot_bands(filename)
 
 # f = '../raw-data/coadded/STRIPE82-0003_{}_swp.fits.fz'
