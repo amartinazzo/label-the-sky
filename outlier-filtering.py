@@ -31,7 +31,7 @@ def get_median_filtered(signal, threshold=5):
     signal[mask] = np.median(signal)
     return signal
 
-#TODO: test
+
 def get_min_max(filefolder, n_channels=12):
 	start = time()
 	files = glob(filefolder)
