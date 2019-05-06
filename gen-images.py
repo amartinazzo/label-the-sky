@@ -6,8 +6,7 @@ import os
 from time import time
 
 
-max_fwhm = 10
-delta = int(max_fwhm/2)
+delta = 16
 
 
 def move_broadbands(images_folder='../raw-data/early-dr/coadded/*'):
@@ -29,12 +28,14 @@ def get_ndarray(filepath):
 def crop_objects_in_field(arr, catalog, save_folder, field_name=None):
 	objects = catalog[catalog.field_name==field_name]
 	for ix, o in objects.iterrows():
-		x0 = int(o['x']) - delta
-		x1 = int(o['x']) + delta
-		y0 = int(o['y']) - delta
-		y1 = int(o['y']) + delta
+		d = np.ceil(np.maximum(delta, o['fwhm']/2)).astype(np.int)
+		x0 = int(o['x']) - d
+		x1 = int(o['x']) + d
+		y0 = int(o['y']) - d
+		y1 = int(o['y']) + d
 		cropped = arr[y0:y1, x0:x1, :]
-		np.save(save_folder+o['id']+'.npy', cropped, allow_pickle=False)
+		subfolder = '32x32' if d==32 else 'larger'
+		np.save('{}{}/{}.npy'.format(save_folder, subfolder, o['id']), cropped, allow_pickle=False)
 
 
 def get_bands_order():
@@ -78,8 +79,8 @@ def sweep_fields(fields_path, catalog_path, crops_folder):
 	print('catalog shape', catalog.shape)
 	catalog['field_name'] = catalog.id.apply(lambda s: s.split('.')[1])
 
-	print('filtering objects with fwhm<=', max_fwhm)
-	catalog = catalog[catalog.fwhm<=max_fwhm]
+	# print('filtering objects with fwhm<=', max_fwhm)
+	# catalog = catalog[catalog.fwhm<=max_fwhm]
 
 	bands_order = get_bands_order()
 	n_channels = len(bands_order)
