@@ -1,4 +1,5 @@
 from astropy.io import fits
+from cv2 import resize, INTER_CUBIC
 from glob import glob
 import numpy as np
 import pandas as pd
@@ -25,7 +26,15 @@ def get_ndarray(filepath):
 	return fits_im[1].data
 
 
-def crop_objects_in_field(arr, catalog, save_folder, field_name=None):
+def crop_objects_in_field(arr, catalog, save_folder, field_name):
+	'''
+	crops objects in a given field
+	receives:
+		* arr			(ndarray) 12-band full field image
+		* catalog 		(pandas table) info on objects
+		* save_folder	(str) path to folder where crops will be saved
+		* field_name	(str) name of the field to be filtered on the catalog
+	'''
 	objects = catalog[catalog.field_name==field_name]
 	for ix, o in objects.iterrows():
 		d = np.ceil(np.maximum(delta, o['fwhm']/2)).astype(np.int)
@@ -34,7 +43,7 @@ def crop_objects_in_field(arr, catalog, save_folder, field_name=None):
 		y0 = int(o['y']) - d
 		y1 = int(o['y']) + d
 		cropped = arr[y0:y1, x0:x1, :]
-		subfolder = '32x32' if d==32 else 'larger'
+		subfolder = '32x32' if d==delta else 'larger'
 		np.save('{}{}/{}.npy'.format(save_folder, subfolder, o['id']), cropped, allow_pickle=False)
 
 
@@ -65,9 +74,9 @@ def sweep_fields(fields_path, catalog_path, crops_folder):
 	'''
 	sweeps field images cropping and saving objects in fields
 	receives:
-		* fields_path	path pattern to get fits.fz field images
-		* catalog_path	catalog where x,y coordinates for objects are stored
-		* crops_folder	folder where image crops will be saved
+		* fields_path	(str) path pattern to get fits.fz field images
+		* catalog_path	(str) catalog where x,y coordinates for objects are stored
+		* crops_folder	(str) folder where image crops will be saved
 	'''
 
 	files = glob(fields_path, recursive=True)
@@ -107,10 +116,88 @@ def sweep_fields(fields_path, catalog_path, crops_folder):
 		i+=1
 
 
+def get_min_max(filefolder, n_channels=12):
+	'''
+		receives:
+			* filefolder	(str) folder pattern wherein ndarray images are
+			* n_channels	(int) number of channels in images
+		returns:
+			a tuple (minima, maxima), each an array of length=n_channels 
+					containing minima and maxima per band across all images 
+	'''
+	start = time()
+	files = glob(filefolder)
+	minima, maxima = np.zeros(n_channels), np.zeros(n_channels)
+	min_files, max_files = ['']*n_channels, ['']*n_channels
+	n_files = len(files)
+	print('nr of files', n_files)
+	for file in files:
+		im = np.load(file)
+		min_tmp = np.min(im, axis=(0,1))
+		max_tmp =  np.max(im, axis=(0,1))
+
+		msk = np.less(min_tmp, minima)
+		if msk.any():
+			minima[msk] = min_tmp[msk]
+			min_files = [file if msk[i] else min_files[i] for i in range(n_channels)]
+
+		msk = np.greater(max_tmp, maxima)
+		if msk.any():
+			maxima[msk] = max_tmp[msk]
+			max_files = [file if msk[i] else max_files[i] for i in range(n_channels)]
+
+	print('minutes taken:', int((time()-start)/60))
+	print('minima', minima)
+	print(min_files)
+	print('maxima', maxima)
+	print(max_files)
+
+	return np.floor(minima), np.ceil(maxima)
+
+
+def normalize_images(input_folder, output_folder, bounds_lower, bounds_upper):
+	'''
+	saves ndarray images resized to (32,32,n_channels) and normalized to values in [0,1]
+	receives:
+		* input_folder		(str) folder path wherein are (x,x,n_channels) ndarray images with varying shapes and value ranges
+		* output_folder		(str) folder wherein normalized images will be saved
+		* bounds_lower		(ndarray) (n_channels,) array that gives lower bounds for normalization
+		* bounds_upper		(ndarray) (n_channels,) array that gives upper bounds for normalization 
+	'''
+	files = glob(input_folder)
+	print('nr of files', len(files))
+
+	interval = bounds_upper - bounds_lower
+	interval = interval[None,None,:]
+	lower = bounds_lower[None,None,:]
+
+	start = time()
+	for file in files:
+		im = np.load(file)
+		im = im - lower
+		im = im / interval
+		if im.min() < 0 or im.max() > 1:
+			print('{} out of [0,1] range'.format(file.split('/')[-1]))
+		if im.shape[0] > 32:
+			im = resize(im, dsize=(32, 32), interpolation=INTER_CUBIC)
+			# print('{} resized'.format(file.split('/')[-1]))
+		np.save('{}{}'.format(output_folder, file.split('/')[-1]), im, allow_pickle=False)
+	print('minutes taken:', int((time()-start)/60))
+
 
 if __name__=='__main__':
-	sweep_fields(
-		fields_path='../raw-data/dr1/coadded/*/*.fz',
-		catalog_path='csv/matched_cat_dr1_filtered.csv',
-		crops_folder='../raw-data/crops/'
-		)
+	# sweep_fields(
+	# 	fields_path='../raw-data/dr1/coadded/*/*.fz',
+	# 	catalog_path='csv/matched_cat_dr1_filtered.csv',
+	# 	crops_folder='../raw-data/crops/'
+	# 	)
+
+	original_crops_path = '../raw-data/crops/original/*'
+	normalized_crops_path = '../raw-data/crops/normalized/'
+
+	# lower_bounds, upper_bounds = get_min_max(original_crops_path)
+	lower_bounds = np.array([ -27., -114., -133.,  -37., -157., -456.,  -26.,  -39., -359., -318.,   -5., -256.])
+	upper_bounds = np.array([ 181.,  636.,  959., 1051.,  949., 1750.,  256.,  270., 1955., 2219.,  117., 1413.])
+
+	normalize_images(original_crops_path, normalized_crops_path, lower_bounds, upper_bounds)
+

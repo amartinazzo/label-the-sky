@@ -5,8 +5,7 @@ import numpy as np
 from time import time
 
 
-filepattern = '../raw-data/crops/*.npy'
-file = '../raw-data/crops/SPLUS.STRIPE82-0058.01798.npy'
+file = '../raw-data/crops/original/SPLUS.STRIPE82-0058.01798.npy'
 
 
 def plot_3d(img):
@@ -31,41 +30,6 @@ def get_median_filtered(signal, threshold=5):
     signal[mask] = np.median(signal)
     return signal
 
-
-def get_min_max(filefolder, n_channels=12):
-	start = time()
-	files = glob(filefolder)
-	minima, maxima = np.zeros(n_channels), np.zeros(n_channels)
-	min_files, max_files = ['']*n_channels, ['']*n_channels
-	n_files = len(files)
-	print('nr of files', n_files)
-	for ix, file in enumerate(files):
-		im = np.load(file)
-		min_tmp = np.min(im, axis=(0,1))
-		max_tmp =  np.max(im, axis=(0,1))
-
-		msk = np.less(min_tmp, minima)
-		if msk.any():
-			minima[msk] = min_tmp[msk]
-			min_files = [file if msk[i] else min_files[i] for i in range(n_channels)]
-
-		msk = np.greater(max_tmp, maxima)
-		if msk.any():
-			maxima[msk] = max_tmp[msk]
-			max_files = [file if msk[i] else max_files[i] for i in range(n_channels)]
-		# display progress in 10% steps
-		# r = np.round(ix/n_files,2)
-		# if r>0 and r % 0.1 == 0:
-		# 	print('processed {} after {} min'.format(r, int((time()-start)/60)))
-	print('minutes taken:', int((time()-start)/60))
-
-	print('minima', minima)
-	print(min_files)
-	print('maxima', maxima)
-	print(max_files)
-
-
-get_min_max(filepattern)
 
 # print(file)
 # im = np.load(file) #channels-last; idx 7 is R

@@ -16,9 +16,9 @@ def gen_master_catalog(catalogs_path, master_catalog_file, header_file='csv/fits
 		cols = f.read().split(',')
 
 	# choose output cols and write header to master catalog (in the same order)
-	usecols = ['ID', 'RA', 'Dec', 'X', 'Y', 'MUMAX', 's2nDet', 'FWHM', 'CLASS']
+	usecols = ['ID', 'RA', 'Dec', 'X', 'Y', 'MUMAX', 's2nDet', 'FWHM', 'M_B', 'r_auto', 'CLASS']
 	with open(master_catalog_file, 'w') as f:
-		f.write('id,ra,dec,x,y,mumax,s2n,fwhm,class_rf')
+		f.write('id,ra,dec,x,y,mumax,s2n,fwhm,absolute_mag,r_mag_auto,class_rf')
 
 	for ix, file in enumerate(files):
 	    print('{}/{} processing {}...'.format(ix+1, n_files, file))
@@ -30,6 +30,7 @@ def gen_master_catalog(catalogs_path, master_catalog_file, header_file='csv/fits
 	    cat.dropna(inplace=True)
 	    int_cols = ['X', 'Y', 'CLASS']
 	    cat[int_cols] = cat[int_cols].apply(lambda x: round(x)).astype(int)
+	    cat['ID'] = cat['ID'].apply(lambda s: s.replace('.griz', ''))
 
 	    cat.to_csv(master_catalog_file, index=False, header=False, mode='a')
 
@@ -147,3 +148,7 @@ if __name__=='__main__':
 	# start = time.time()
 	# c = match_catalogs('csv/sdss_spec.csv', 'csv/splus_catalog_dr1.csv', 'csv/matched_cat_dr1.csv')
 	# print('minutes taken:', int((time.time()-start)/60))
+
+	# generate master catalog
+
+	gen_master_catalog('../raw-data/dr1/catalogs/*', 'csv/splus_catalog_dr1_mag.csv')
