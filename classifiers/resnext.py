@@ -4,7 +4,6 @@ adapted from https://github.com/titu1994/Keras-ResNeXt/blob/master/resnext.py
 
 '''
 
-
 from keras.models import Model
 from keras.layers.core import Dense, Lambda
 from keras.layers.core import Activation
@@ -14,10 +13,6 @@ from keras.layers import Input
 from keras.layers.merge import concatenate, add
 from keras.layers.normalization import BatchNormalization
 from keras.regularizers import l2
-from keras.utils.layer_utils import convert_all_kernels_in_model
-from keras.utils.data_utils import get_file
-from keras.engine.topology import get_source_inputs
-from keras.applications.imagenet_utils import _obtain_input_shape
 import keras.backend as K
 
 CIFAR_TH_WEIGHTS_PATH = ''
@@ -26,17 +21,12 @@ CIFAR_TH_WEIGHTS_PATH_NO_TOP = ''
 CIFAR_TF_WEIGHTS_PATH_NO_TOP = ''
 
 
-def ResNext(input_shape=None, depth=29, cardinality=8, width=64, weight_decay=5e-4,
-            include_top=True, weights=None, input_tensor=None,
-            pooling=None, classes=10):
+def ResNeXt(input_shape=None, depth=29, cardinality=8, width=64, weight_decay=5e-4,
+            include_top=True, input_tensor=None, pooling=None, classes=3):
     """Instantiate the ResNeXt architecture. Note that ,
         when using TensorFlow for best performance you should set
         `image_data_format="channels_last"` in your Keras config
         at ~/.keras/keras.json.
-        The model are compatible with both
-        TensorFlow and Theano. The dimension ordering
-        convention used by the model is the one
-        specified in your Keras config file.
         # Arguments
             depth: number or layers in the ResNeXt model. Can be an
                 integer or a list of integers.
@@ -73,26 +63,10 @@ def ResNext(input_shape=None, depth=29, cardinality=8, width=64, weight_decay=5e
             A Keras model instance.
         """
 
-    if weights not in {'cifar10', None}:
-        raise ValueError('The `weights` argument should be either '
-                         '`None` (random initialization) or `cifar10` '
-                         '(pre-training on CIFAR-10).')
-
-    if weights == 'cifar10' and include_top and classes != 10:
-        raise ValueError('If using `weights` as CIFAR 10 with `include_top`'
-                         ' as true, `classes` should be 10')
-
     if type(depth) == int:
         if (depth - 2) % 9 != 0:
             raise ValueError('Depth of the network must be such that (depth - 2)'
                              'should be divisible by 9.')
-
-    # Determine proper input shape
-    input_shape = _obtain_input_shape(input_shape,
-                                      default_size=32,
-                                      min_size=8,
-                                      data_format=K.image_data_format(),
-                                      require_flatten=include_top)
 
     if input_tensor is None:
         img_input = Input(shape=input_shape)
@@ -105,56 +79,7 @@ def ResNext(input_shape=None, depth=29, cardinality=8, width=64, weight_decay=5e
     x = __create_res_next(classes, img_input, include_top, depth, cardinality, width,
                           weight_decay, pooling)
 
-    # Ensure that the model takes into account
-    # any potential predecessors of `input_tensor`.
-    if input_tensor is not None:
-        inputs = get_source_inputs(input_tensor)
-    else:
-        inputs = img_input
-    # Create model.
-    model = Model(inputs, x, name='resnext')
-
-    # load weights
-    if weights == 'cifar10':
-        if (depth == 29) and (cardinality == 8) and (width == 64):
-            # Default parameters match. Weights for this model exist:
-
-            if K.image_data_format() == 'channels_first':
-                if include_top:
-                    weights_path = get_file('resnext_cifar_10_8_64_th_dim_ordering_th_kernels.h5',
-                                            CIFAR_TH_WEIGHTS_PATH,
-                                            cache_subdir='models')
-                else:
-                    weights_path = get_file('resnext_cifar_10_8_64_th_dim_ordering_th_kernels_no_top.h5',
-                                            CIFAR_TH_WEIGHTS_PATH_NO_TOP,
-                                            cache_subdir='models')
-
-                model.load_weights(weights_path)
-
-                if K.backend() == 'tensorflow':
-                    warnings.warn('You are using the TensorFlow backend, yet you '
-                                  'are using the Theano '
-                                  'image dimension ordering convention '
-                                  '(`image_dim_ordering="th"`). '
-                                  'For best performance, set '
-                                  '`image_dim_ordering="tf"` in '
-                                  'your Keras config '
-                                  'at ~/.keras/keras.json.')
-                    convert_all_kernels_in_model(model)
-            else:
-                if include_top:
-                    weights_path = get_file('resnext_cifar_10_8_64_tf_dim_ordering_tf_kernels.h5',
-                                            CIFAR_TF_WEIGHTS_PATH,
-                                            cache_subdir='models')
-                else:
-                    weights_path = get_file('resnext_cifar_10_8_64_tf_dim_ordering_tf_kernels_no_top.h5',
-                                            CIFAR_TF_WEIGHTS_PATH_NO_TOP,
-                                            cache_subdir='models')
-
-                model.load_weights(weights_path)
-
-                if K.backend() == 'theano':
-                    convert_all_kernels_in_model(model)
+    model = Model(img_input, x, name='resnext')
 
     return model
 
@@ -177,7 +102,8 @@ def __initial_conv_block(input_layer, weight_decay=5e-4):
 
 
 def __grouped_convolution_block(input_layer, grouped_channels, cardinality, strides, weight_decay=5e-4):
-    ''' Adds a grouped convolution block. It is an equivalent block from the paper
+    '''
+    Adds a grouped convolution block. It is an equivalent block from the paper
     Args:
         input: input tensor
         grouped_channels: grouped number of filters
@@ -202,7 +128,7 @@ def __grouped_convolution_block(input_layer, grouped_channels, cardinality, stri
     for c in range(cardinality):
         x = Lambda(lambda z: z[:, :, :, c * grouped_channels:(c + 1) * grouped_channels]
         if K.image_data_format() == 'channels_last' else
-        lambda z: z[:, c * grouped_channels:(c + 1) * grouped_channels, :, :])(input)
+        lambda z: z[:, c * grouped_channels:(c + 1) * grouped_channels, :, :])(input_layer)
 
         x = Conv2D(grouped_channels, (3, 3), padding='same', use_bias=False, strides=(strides, strides),
                    kernel_initializer='he_normal', kernel_regularizer=l2(weight_decay))(x)
@@ -217,7 +143,8 @@ def __grouped_convolution_block(input_layer, grouped_channels, cardinality, stri
 
 
 def __bottleneck_block(input_layer, filters=64, cardinality=8, strides=1, weight_decay=5e-4):
-    ''' Adds a bottleneck block
+    '''
+    Adds a bottleneck block
     Args:
         input: input tensor
         filters: number of output filters
@@ -245,7 +172,7 @@ def __bottleneck_block(input_layer, filters=64, cardinality=8, strides=1, weight
             init = BatchNormalization(axis=channel_axis)(init)
 
     x = Conv2D(filters, (1, 1), padding='same', use_bias=False,
-               kernel_initializer='he_normal', kernel_regularizer=l2(weight_decay))(input)
+               kernel_initializer='he_normal', kernel_regularizer=l2(weight_decay))(input_layer)
     x = BatchNormalization(axis=channel_axis)(x)
     x = Activation('relu')(x)
 
@@ -263,7 +190,8 @@ def __bottleneck_block(input_layer, filters=64, cardinality=8, strides=1, weight
 
 def __create_res_next(nb_classes, img_input, include_top, depth=29, cardinality=8, width=4,
                       weight_decay=5e-4, pooling=None):
-    ''' Creates a ResNeXt model with specified parameters
+    '''
+    Creates a ResNeXt model with specified parameters
     Args:
         nb_classes: Number of output classes
         img_input: Input tensor or layer
@@ -337,5 +265,5 @@ def __create_res_next(nb_classes, img_input, include_top, depth=29, cardinality=
 
 
 if __name__ == '__main__':
-    model = ResNext((32, 32, 3), depth=29, cardinality=8, width=64)
-model.summary()
+    model = ResNeXt((32, 32, 3), depth=29, cardinality=8, width=64)
+    model.summary()

@@ -1,13 +1,15 @@
-import numpy as np
-import sklearn.metrics as metrics
+from datagen import DataGenerator
 from keras import backend as K
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau
 from keras.optimizers import Adam
-from keras.utils import np_utils
-from resnext import ResNeXt
+import numpy as np
 import os
+import pandas as pd
+from resnext import ResNeXt
+import sklearn.metrics as metrics
+from sklearn.model_selection import StratifiedShuffleSplit
 
-batch_size = 100
+
 n_classes = 3
 n_epoch = 100
 
@@ -16,23 +18,30 @@ depth = 29
 cardinality = 8
 width = 16
 
+home_path = os.path.expanduser('~')
+
 models_dir = "image-models/"
 weights_file = "image-models/resnext-05-08.h5"
 class_map = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
-params = {'data_folder': '../../raw-data/crops/normalized', 'dim': img_dim, 'batch_size': 256, 'n_classes': 3}
+params = {'data_folder': home_path+'/raw-data/crops/normalized/', 'dim': img_dim, 'batch_size': 128, 'n_classes': 3}
+
+
+# make only 1 gpu visible
+os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
+os.environ['CUDA_VISIBLE_DEVICES']='1'
 
 # create resnext model
-model = ResNeXt(img_dim, depth=depth, cardinality=cardinality, width=width, weights=None, classes=n_classes)
+model = ResNeXt(img_dim, depth=depth, cardinality=cardinality, width=width, classes=n_classes)
 print("model created")
 
-model.summary()
+# model.summary()
 
 optimizer = Adam(lr=1e-3)
 model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=["accuracy"])
 print("finished compiling")
 
 # load dataset iterators
-df = pd.read_csv('../csv/train_val_set_earlydr_spectra.csv')
+df = pd.read_csv(home_path+'/raw-data/trainval_set_mag16-19.csv')
 X = df['id'].values
 y = df['class'].apply(lambda c: class_map[c]).values
 labels = dict(zip(X, y))
@@ -81,3 +90,9 @@ accuracy = metrics.accuracy_score(y, y_pred) * 100
 error = 100 - accuracy
 print("accuracy : ", accuracy)
 print("error : ", error)
+
+# compute confusion matrix
+cm = metrics.confusion_matrix(y, y_pred)
+cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+print('confusion matrix')
+print(cm)

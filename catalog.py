@@ -36,26 +36,22 @@ def gen_master_catalog(catalogs_path, output_file, header_file='csv/fits_header_
         cat.to_csv(output_file, index=False, header=False, mode='a')
 
 
-def filter_master_cat(master_cat_file, output_file, header_file='csv/fits_header_cols.txt'):
-    # get original cols from txt file
-    with open(header_file, 'r') as f:
-        cols = f.read().split(',')
-
-    # choose output cols and write header to master catalog (in the same order)
+def filter_master_cat(master_cat_file, output_file):
     usecols = ['ID', 'RA', 'Dec', 'X', 'Y', 'MUMAX', 's2nDet', 'FWHM', 'M_B', 'r_auto', 'CLASS']
     with open(output_file, 'w') as f:
-        f.write('id,ra,dec,x,y,mumax,s2n,fwhm,absolute_mag,r_mag_auto,class_rf')
+        f.write('id,ra,dec,x,y,mumax,s2n,fwhm,absolute_mag,r_mag_auto,class_rf\n')
 
     cat = pd.read_csv(
         master_cat_file, delimiter=' ', skipinitialspace=True, comment='#',
-        index_col=False, header=None, names=cols, usecols=usecols)
+        index_col=False, usecols=usecols)
+
     cat.dropna(inplace=True)
     int_cols = ['X', 'Y', 'CLASS']
     cat[int_cols] = cat[int_cols].apply(lambda x: round(x)).astype(int)
+    cat = cat[['ID', 'RA', 'Dec', 'X', 'Y', 'MUMAX', 's2nDet', 'FWHM', 'M_B', 'r_auto', 'CLASS']]
     cat['ID'] = cat['ID'].apply(lambda s: s.replace('.griz', ''))
 
     cat.to_csv(output_file, index=False, header=False, mode='a')
-
 
 
 def query_sdss(query_str, filename):

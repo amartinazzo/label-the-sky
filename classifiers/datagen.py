@@ -4,7 +4,7 @@ import keras
 # adapted from https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly
 
 class DataGenerator(keras.utils.Sequence):
-    def __init__(self, object_ids, labels, data_folder, batch_size=32, dim=(5500,1), n_classes=3, shuffle=True):
+    def __init__(self, object_ids, labels, data_folder, batch_size=32, dim=(5500,1), n_classes=3, shuffle=True, extension='npy'):
         self.dim = dim
         self.batch_size = batch_size
         self.labels = labels
@@ -12,6 +12,7 @@ class DataGenerator(keras.utils.Sequence):
         self.data_folder = data_folder
         self.n_classes = n_classes
         self.shuffle = shuffle
+        self.extension = extension
         self.on_epoch_end()
 
 
@@ -42,7 +43,10 @@ class DataGenerator(keras.utils.Sequence):
         y = np.empty((self.batch_size), dtype=int)
 
         for i, object_id in enumerate(list_ids_temp):
-            X[i,] = np.loadtxt(self.data_folder + object_id + '.txt').reshape(self.dim)
+            if self.extension == 'txt':
+                X[i,] = np.loadtxt(self.data_folder + object_id + '.txt').reshape(self.dim)
+            else:
+                X[i,] = np.load(self.data_folder + object_id + '.npy').reshape(self.dim)
             y[i] = self.labels[object_id]
 
         return X, keras.utils.to_categorical(y, num_classes=self.n_classes)

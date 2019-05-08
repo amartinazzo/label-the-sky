@@ -10,10 +10,12 @@ import pandas as pd
 
 matplotlib.rcParams.update({'font.size': 6})
 
+filename = '../raw-data/crops/normalized/SPLUS.STRIPE82-0042.10742.npy'
+
 
 bands = ['U', 'F378', 'F395', 'F410', 'F430', 'G', 'F515', 'R', 'F660', 'I', 'F861', 'Z']
 
-sqrt_stretcher = vis.SqrtStretch()
+stretcher = vis.LogStretch(a=1e0)
 scaler = vis.ZScaleInterval()
 
 
@@ -52,7 +54,7 @@ def plot_bands(arr, plot_trilogy=False, base_catalog='csv/sloan_splus_matches.cs
 		ax = plt.subplot(4, 4, b+1)
 		ax.set_title(bands[b])
 		data = arr[:,:,b]
-		data = sqrt_stretcher(data)
+		data = stretcher(data, clip=False)
 		vmin, vmax = scaler.get_limits(data)
 		ax.imshow(data, interpolation='nearest', cmap=plt.cm.gray_r, vmin=vmin, vmax=vmax) #norm=colors.PowerNorm(0.1))
 		ax.axis('off')
@@ -121,7 +123,6 @@ def plot_rgb(filename):
 # plt.imshow(im)
 # plt.show()
 
-filename = '../raw-data/crops/SPLUS.STRIPE82-0058.01798.npy'
 plot_bands(filename)
 
 # f = '../raw-data/coadded/STRIPE82-0003_{}_swp.fits.fz'

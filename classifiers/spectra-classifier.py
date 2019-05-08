@@ -26,11 +26,13 @@ if __name__=='__main__':
     os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
     os.environ['CUDA_VISIBLE_DEVICES']='1'
 
+    home_path = os.path.expanduser('~')
+
     class_map = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
-    params = {'data_folder': '../../raw-data/spectra/', 'dim': (5500,1), 'batch_size': 256, 'n_classes': 3}
+    params = {'data_folder': home_path+'/raw-data/spectra/', 'dim': (5500,1), 'batch_size': 256, 'n_classes': 3, 'extension': 'txt'}
 
     # load dataset iterators
-    df = pd.read_csv('../csv/train_val_set_earlydr_spectra.csv')
+    df = pd.read_csv(home_path+'/label-the-sky/csv/train_val_set_earlydr_spectra.csv')
     X = df['id'].values
     y = df['class'].apply(lambda c: class_map[c]).values
     labels = dict(zip(X, y))
