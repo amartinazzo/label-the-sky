@@ -51,9 +51,9 @@ if __name__=='__main__':
 
     callbacks_list = [
         ModelCheckpoint(
-            filepath='model_1conv-{epoch:02d}-{val_loss:.2f}.h5',
+            filepath='spectra-models/model-{epoch:02d}-{val_loss:.2f}.h5',
             monitor='val_loss', save_best_only=True),
-        EarlyStopping(monitor='acc', patience=1)
+        EarlyStopping(monitor='acc', patience=5)
     ]
 
     # train
