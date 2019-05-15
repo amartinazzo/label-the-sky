@@ -12,23 +12,20 @@ from sklearn.model_selection import StratifiedShuffleSplit
 
 
 
-mode = 'eval' # train or eval
+mode = 'train' # train or eval
+
+models_dir = "image-models/"
+weights_file = "image-models/resnext-5-bands.h5"
+class_map = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
+home_path = os.path.expanduser('~')
+params = {'data_folder': home_path+'/raw-data/crops/normalized/', 'dim': (32,32,12), 'n_classes': 3, 'bands': [0,5,7,9,11]}
 
 n_classes = 3
 n_epoch = 100
-
-img_dim = (32,32,12)
+img_dim = (32,32,5)
 depth = 29
 cardinality = 8
 width = 16
-
-home_path = os.path.expanduser('~')
-
-models_dir = "image-models/"
-weights_file = "image-models/resnext-05-08.h5"
-class_map = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
-params = {'data_folder': home_path+'/raw-data/crops/normalized/', 'dim': img_dim, 'n_classes': 3}
-
 
 # make only 1 gpu visible
 os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
