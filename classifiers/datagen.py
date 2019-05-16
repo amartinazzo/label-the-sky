@@ -5,7 +5,7 @@ import keras
 
 class DataGenerator(keras.utils.Sequence):
     def __init__(
-        self, object_ids, data_folder, labels=None, bands=None, batch_size=256, dim=(5500,1), n_classes=3, shuffle=True, extension='npy'):
+        self, object_ids, data_folder, labels=None, bands=None, batch_size=128, dim=(5500,1), n_classes=3, shuffle=True, extension='npy'):
         self.bands = bands
         self.batch_size = batch_size
         self.data_folder = data_folder

@@ -35,7 +35,7 @@ os.environ['CUDA_VISIBLE_DEVICES']='1'
 model = ResNeXt(img_dim, depth=depth, cardinality=cardinality, width=width, classes=n_classes)
 print("model created")
 
-# model.summary()
+model.summary()
 
 optimizer = Adam(lr=1e-3)
 model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=["accuracy"])
