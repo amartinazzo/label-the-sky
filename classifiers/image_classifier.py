@@ -1,4 +1,9 @@
-from datagen import DataGenerator
+import os,sys,inspect
+current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
+import datagen
+
 from keras import backend as K
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau
 from keras.optimizers import Adam
@@ -8,15 +13,12 @@ import os
 import pandas as pd
 from resnext import ResNeXt
 import sklearn.metrics as metrics
-from sklearn.model_selection import StratifiedShuffleSplit
-
 
 
 mode = 'train' # train or eval
 
 models_dir = "image-models/"
 weights_file = "image-models/resnext-all-mags-12-bands.h5"
-class_map = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
 home_path = os.path.expanduser('~')
 params = {'data_folder': home_path+'/raw-data/crops/normalized/', 'dim': (32,32,12), 'n_classes': 3}
 
@@ -26,15 +28,6 @@ img_dim = (32,32,12)
 depth = 29
 cardinality = 8
 width = 16
-
-
-def get_sets(filepath):
-    df = pd.read_csv(filepath)
-    X = df['id'].values
-    y = df['class'].apply(lambda c: class_map[c]).values
-    labels = dict(zip(X, y))
-
-    return X, y, labels
 
 # make only 1 gpu visible
 os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
@@ -56,19 +49,11 @@ X_val, y_true, labels_val = get_sets(home_path+'/raw-data/matched_cat_dr1_full_v
 print('train size', len(X_train))
 print('val size', len(X_val))
 
+import sys
+sys.path.append('..')
+from datagen import DataGenerator
 train_generator = DataGenerator(X_train, labels=labels_train, **params)
 val_generator = DataGenerator(X_val, labels=labels_val, **params)
-
-# df = pd.read_csv(home_path+'/raw-data/trainval_set_mag16-19.csv')
-# X = df['id'].values
-# y = df['class'].apply(lambda c: class_map[c]).values
-# labels = dict(zip(X, y))
-# del df
-
-# sss = StratifiedShuffleSplit(n_splits=1, test_size=0.1, random_state=0)
-# train_idx, val_idx = next(sss.split(X,y))
-
-# X_train, X_val, y_true = X[train_idx], X[val_idx], y[val_idx]
 
 if not os.path.exists(models_dir):
     os.makedirs(models_dir)

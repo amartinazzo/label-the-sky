@@ -1,9 +1,22 @@
 import numpy as np
+from pandas import read_csv
 import keras
 
-# adapted from https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly
+
+class_map = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
+
+
+def get_sets(filepath):
+    df = read_csv(filepath)
+    X = df['id'].values
+    y = df['class'].apply(lambda c: class_map[c]).values
+    labels = dict(zip(X, y))
+
+    return X, y, labels
+
 
 class DataGenerator(keras.utils.Sequence):
+    # adapted from https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly
     def __init__(
         self, object_ids, data_folder, labels=None, bands=None, batch_size=128, dim=(5500,1), n_classes=3, shuffle=True, extension='npy'):
         self.bands = bands

@@ -186,7 +186,7 @@ def gen_splits(df_filename, val_split=0.1, test_split=0.1):
     print('test set:', df_test.shape[0])
     print(df_test['class'].value_counts(normalize=True))
 
-
+# TODO
 def verify_downloaded_spectra(cat, output_file, spectra_folder):
     c = pd.read_csv(cat)
 
