@@ -15,17 +15,26 @@ from sklearn.model_selection import StratifiedShuffleSplit
 mode = 'train' # train or eval
 
 models_dir = "image-models/"
-weights_file = "image-models/resnext-5-bands.h5"
+weights_file = "image-models/resnext-all-mags-12-bands.h5"
 class_map = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
 home_path = os.path.expanduser('~')
-params = {'data_folder': home_path+'/raw-data/crops/normalized/', 'dim': (32,32,12), 'n_classes': 3, 'bands': [0,5,7,9,11]}
+params = {'data_folder': home_path+'/raw-data/crops/normalized/', 'dim': (32,32,12), 'n_classes': 3}
 
 n_classes = 3
 n_epoch = 100
-img_dim = (32,32,5)
+img_dim = (32,32,12)
 depth = 29
 cardinality = 8
 width = 16
+
+
+def get_sets(filepath):
+    df = pd.read_csv(filepath)
+    X = df['id'].values
+    y = df['class'].apply(lambda c: class_map[c]).values
+    labels = dict(zip(X, y))
+
+    return X, y, labels
 
 # make only 1 gpu visible
 os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
@@ -35,28 +44,31 @@ os.environ['CUDA_VISIBLE_DEVICES']='1'
 model = ResNeXt(img_dim, depth=depth, cardinality=cardinality, width=width, classes=n_classes)
 print("model created")
 
-model.summary()
+# model.summary()
 
 optimizer = Adam(lr=1e-3)
 model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=["accuracy"])
 print("finished compiling")
 
 # load dataset iterators
-df = pd.read_csv(home_path+'/raw-data/trainval_set_mag16-19.csv')
-X = df['id'].values
-y = df['class'].apply(lambda c: class_map[c]).values
-labels = dict(zip(X, y))
-del df
-
-sss = StratifiedShuffleSplit(n_splits=1, test_size=0.1, random_state=0)
-train_idx, val_idx = next(sss.split(X,y))
-
-X_train, X_val, y_true = X[train_idx], X[val_idx], y[val_idx]
+X_train, _, labels_train = get_sets(home_path+'/raw-data/matched_cat_dr1_full_train.csv')
+X_val, y_true, labels_val = get_sets(home_path+'/raw-data/matched_cat_dr1_full_val.csv')
 print('train size', len(X_train))
 print('val size', len(X_val))
 
-train_generator = DataGenerator(X_train, labels=labels, **params)
-val_generator = DataGenerator(X_val, labels=labels, **params)
+train_generator = DataGenerator(X_train, labels=labels_train, **params)
+val_generator = DataGenerator(X_val, labels=labels_val, **params)
+
+# df = pd.read_csv(home_path+'/raw-data/trainval_set_mag16-19.csv')
+# X = df['id'].values
+# y = df['class'].apply(lambda c: class_map[c]).values
+# labels = dict(zip(X, y))
+# del df
+
+# sss = StratifiedShuffleSplit(n_splits=1, test_size=0.1, random_state=0)
+# train_idx, val_idx = next(sss.split(X,y))
+
+# X_train, X_val, y_true = X[train_idx], X[val_idx], y[val_idx]
 
 if not os.path.exists(models_dir):
     os.makedirs(models_dir)
@@ -65,8 +77,8 @@ if os.path.exists(weights_file):
     model.load_weights(weights_file)
     print("model loaded.")
 
+# train
 if mode=='train':
-    # set model checkpoints
     lr_reducer = ReduceLROnPlateau(
         monitor='val_loss', factor=np.sqrt(0.1), cooldown=0, patience=10, min_lr=1e-6)
 
@@ -75,7 +87,6 @@ if mode=='train':
 
     callbacks = [lr_reducer, model_checkpoint]
 
-    # train model
     model.fit_generator(
         generator=train_generator,
         validation_data=val_generator,
