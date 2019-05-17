@@ -16,6 +16,8 @@ class ConvAutoEncoder:
         self.input_shape = input_shape
         self.output_dim  = output_dim
 
+        n_filters = len(filters)
+
         # define encoder architecture
         self.encoder = Sequential()
         self.encoder.add(InputLayer(input_shape))
@@ -27,17 +29,17 @@ class ConvAutoEncoder:
 
         # define decoder architecture
         self.decoder = Sequential()
-        self.decoder.add(InputLayer((1024,)))
+        self.decoder.add(InputLayer((1024,))) #original shape was (output_dim,)
         # self.decoder.add(Dense(int(filters[len(filters)-1] * input_shape[0]/(2**(len(filters))) * input_shape[1]/(2**(len(filters))))))
-        self.decoder.add(Reshape((int(input_shape[0]/(2**(len(filters)))),int(input_shape[1]/(2**(len(filters)))), filters[len(filters)-1])))
+        self.decoder.add(Reshape((int(input_shape[0]/2**n_filters), int(input_shape[1]/2**n_filters), filters[n_filters-1])))
         for i in range(1,len(filters)):
             self.decoder.add(Conv2DTranspose(filters=filters[len(filters)-i], kernel_size=kernel, strides=strideundo, activation='elu', padding='same'))
         self.decoder.add(Conv2DTranspose(filters=input_shape[2], kernel_size=kernel, strides=strideundo, activation=None, padding='same'))
 
         # compile model
         input         = Input(input_shape)
-        encode        = self.encoder(input)
-        reconstructed = self.decoder(encode)
+        encoded       = self.encoder(input)
+        reconstructed = self.decoder(encoded)
 
         self.ae = Model(inputs=input, outputs=reconstructed)
         self.ae.compile(optimizer=optimizer, loss=lossfn)
@@ -45,17 +47,17 @@ class ConvAutoEncoder:
         self.decoder.summary()
 
 
-    def fit_generator(self, train_generator, test_generator, epochs=40):
+    def fit_generator(self, train_gen, val_gen, epochs=30):
         callbacks=[
             # ReduceLROnPlateau(monitor='val_loss', factor=np.sqrt(0.1), cooldown=0, patience=10, min_lr=1e-6),
             BaseLogger()
             ]
 
         self.ae.fit_generator(        
-            generator=train_generator,
-            validation_data=val_generator,
+            generator=train_gen,
+            validation_data=val_gen,
             epochs=epochs,
-            callbacks=callbacks,
+            # callbacks=callbacks,
             verbose=2)
         # self.mse = self.ae.evaluate(test, test)
         # print('CAE MSE on validation data: ', self.mse)
@@ -74,11 +76,11 @@ class ConvAutoEncoder:
 
 
     def encode(self, data_generator):
-        return self.encoder.predict_generator(data_genetator)
+        return self.encoder.predict_generator(data_generator)
 
 
-    def decode(self, codes):
-        return self.decoder.predict(codes)
+    def decode(self, data_generator):
+        return self.decoder.predict_generator(data_generator)
 
 
 if __name__=='__main__':
@@ -101,6 +103,20 @@ if __name__=='__main__':
     print('val size', len(X_val))
     train_generator = datagen.DataGenerator(X_train, labels=labels_train, **params)
     val_generator = datagen.DataGenerator(X_val, labels=labels_val, **params)
+
+    ### debugging
+
+    # print('encoding')
+    # X_encoded = ae.encode(val_generator)
+    # print(len(X_encoded))
+    # print(X_encoded[0].shape)
+
+    # print('decoding')
+    # X_decoded = ae.decode(X_encoded)
+    # print(len(X_decoded))
+    # print(X_decoded[0].shape)
+
+    ### end debugging
 
     if mode=='train':
         # make only 1 gpu visible
