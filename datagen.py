@@ -18,12 +18,14 @@ def get_sets(filepath):
 class DataGenerator(keras.utils.Sequence):
     # adapted from https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly
     def __init__(
-        self, object_ids, data_folder, labels=None, bands=None, batch_size=128, dim=(5500,1), n_classes=3, shuffle=True, extension='npy'):
+        self, object_ids, data_folder, labels=None, mode='classifier', 
+        bands=None, batch_size=128, dim=(5500,1), n_classes=3, shuffle=True, extension='npy'):
         self.bands = bands
         self.batch_size = batch_size
         self.data_folder = data_folder
         self.extension = extension
         self.labels = labels
+        self.mode = mode
         self.n_classes = n_classes
         self.object_ids = object_ids
         self.shape_orig = dim
@@ -46,6 +48,9 @@ class DataGenerator(keras.utils.Sequence):
         indexes = self.indexes[index*self.batch_size:(index+1)*self.batch_size]
         list_ids_temp = [self.object_ids[k] for k in indexes]
         X, y = self.__data_generation(list_ids_temp)
+
+        if self.mode=='autoencoder':
+            return X, X
 
         if y is None:
             return X

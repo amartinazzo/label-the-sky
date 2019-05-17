@@ -1,5 +1,6 @@
 .DS_Store
 ._*
+__pycache__/*
 */__pycache__/*
 *.csv
 *.dat

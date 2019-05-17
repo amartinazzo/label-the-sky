@@ -5,7 +5,7 @@ sys.path.insert(0, parent_dir)
 import datagen
 
 from keras import backend as K
-from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau
+from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from keras.optimizers import Adam
 from keras.utils import to_categorical
 import numpy as np
@@ -19,6 +19,7 @@ mode = 'train' # train or eval
 
 models_dir = "image-models/"
 weights_file = "image-models/resnext-all-mags-12-bands.h5"
+save_file = "image-models/resnext-all-mags-12-bands-more-epochs.h5"
 home_path = os.path.expanduser('~')
 params = {'data_folder': home_path+'/raw-data/crops/normalized/', 'dim': (32,32,12), 'n_classes': 3}
 
@@ -44,16 +45,13 @@ model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=["ac
 print("finished compiling")
 
 # load dataset iterators
-X_train, _, labels_train = get_sets(home_path+'/raw-data/matched_cat_dr1_full_train.csv')
-X_val, y_true, labels_val = get_sets(home_path+'/raw-data/matched_cat_dr1_full_val.csv')
+X_train, _, labels_train = datagen.get_sets(home_path+'/raw-data/matched_cat_dr1_full_train.csv')
+X_val, y_true, labels_val = datagen.get_sets(home_path+'/raw-data/matched_cat_dr1_full_val.csv')
 print('train size', len(X_train))
 print('val size', len(X_val))
 
-import sys
-sys.path.append('..')
-from datagen import DataGenerator
-train_generator = DataGenerator(X_train, labels=labels_train, **params)
-val_generator = DataGenerator(X_val, labels=labels_val, **params)
+train_generator = datagen.DataGenerator(X_train, labels=labels_train, **params)
+val_generator = datagen.DataGenerator(X_val, labels=labels_val, **params)
 
 if not os.path.exists(models_dir):
     os.makedirs(models_dir)
@@ -66,11 +64,11 @@ if os.path.exists(weights_file):
 if mode=='train':
     lr_reducer = ReduceLROnPlateau(
         monitor='val_loss', factor=np.sqrt(0.1), cooldown=0, patience=10, min_lr=1e-6)
-
     model_checkpoint = ModelCheckpoint(
       weights_file, monitor="val_acc", save_best_only=True, save_weights_only=True, mode='auto')
+    early_stop = EarlyStopping(monitor='val_acc', patience=10)
 
-    callbacks = [lr_reducer, model_checkpoint]
+    callbacks = [lr_reducer, model_checkpoint, early_stop]
 
     model.fit_generator(
         generator=train_generator,
@@ -80,9 +78,11 @@ if mode=='train':
         verbose=2)
 
 # make inferences on model
-pred_generator = DataGenerator(X_val, batch_size=len(y_true)//8, shuffle=False, **params)
+print('predicting')
+pred_generator = datagen.DataGenerator(X_val, batch_size=len(y_true)//8, shuffle=False, **params)
 y_pred = model.predict_generator(pred_generator)
 y_pred = np.argmax(y_pred, axis=1)
+y_true = y_true[:len(y_pred)]
 
 print('y_true shape', y_true.shape)
 print('y_pred shape', y_pred.shape)

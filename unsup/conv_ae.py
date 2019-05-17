@@ -29,7 +29,7 @@ class ConvAutoEncoder:
 
         # define decoder architecture
         self.decoder = Sequential()
-        self.decoder.add(InputLayer((1024,))) #original shape was (output_dim,)
+        self.decoder.add(InputLayer((1024,))) # TODO generalize for any output_dim
         # self.decoder.add(Dense(int(filters[len(filters)-1] * input_shape[0]/(2**(len(filters))) * input_shape[1]/(2**(len(filters))))))
         self.decoder.add(Reshape((int(input_shape[0]/2**n_filters), int(input_shape[1]/2**n_filters), filters[n_filters-1])))
         for i in range(1,len(filters)):
@@ -79,8 +79,8 @@ class ConvAutoEncoder:
         return self.encoder.predict_generator(data_generator)
 
 
-    def decode(self, data_generator):
-        return self.decoder.predict_generator(data_generator)
+    def decode(self, encoded):
+        return self.decoder.predict(encoded)
 
 
 if __name__=='__main__':
@@ -92,29 +92,31 @@ if __name__=='__main__':
 
     mode='train'
     
-    ae = ConvAutoEncoder(input_shape=(32,32,12), output_dim=1000)
+    ae = ConvAutoEncoder(input_shape=(32,32,12), output_dim=1024)
 
     home_path = os.path.expanduser('~')
-    params = {'data_folder': home_path+'/raw-data/crops/normalized/', 'dim': (32,32,12), 'n_classes': 3, 'batch_size': 512}
+    params = {
+        'data_folder': home_path+'/raw-data/crops/normalized/', 'dim': (32,32,12),
+        'n_classes': 3, 'batch_size': 512, 'mode':'autoencoder'}
 
-    X_train, _, labels_train = datagen.get_sets(home_path+'/raw-data/matched_cat_dr1_full_train.csv')
-    X_val, y_true, labels_val = datagen.get_sets(home_path+'/raw-data/matched_cat_dr1_full_val.csv')
+    X_train, _, _ = datagen.get_sets(home_path+'/raw-data/matched_cat_dr1_full_train.csv')
+    X_val, _, _ = datagen.get_sets(home_path+'/raw-data/matched_cat_dr1_full_val.csv')
     print('train size', len(X_train))
     print('val size', len(X_val))
-    train_generator = datagen.DataGenerator(X_train, labels=labels_train, **params)
-    val_generator = datagen.DataGenerator(X_val, labels=labels_val, **params)
+    train_generator = datagen.DataGenerator(X_train, **params)
+    val_generator = datagen.DataGenerator(X_val, **params)
 
     ### debugging
 
-    # print('encoding')
-    # X_encoded = ae.encode(val_generator)
-    # print(len(X_encoded))
-    # print(X_encoded[0].shape)
+    print('encoding')
+    X_encoded = ae.encode(val_generator)
+    print(len(X_encoded))
+    print(X_encoded[0].shape)
 
-    # print('decoding')
-    # X_decoded = ae.decode(X_encoded)
-    # print(len(X_decoded))
-    # print(X_decoded[0].shape)
+    print('decoding')
+    X_decoded = ae.decode(X_encoded)
+    print(len(X_decoded))
+    print(X_decoded[0].shape)
 
     ### end debugging
 
