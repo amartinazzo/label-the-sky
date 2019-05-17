@@ -49,7 +49,7 @@ class ConvAutoEncoder:
 
     def fit_generator(self, train_gen, val_gen, epochs=30):
         callbacks=[
-            # ReduceLROnPlateau(monitor='val_loss', factor=np.sqrt(0.1), cooldown=0, patience=10, min_lr=1e-6),
+            ReduceLROnPlateau(monitor='val_loss', factor=np.sqrt(0.1), cooldown=0, patience=10, min_lr=1e-6),
             BaseLogger()
             ]
 
@@ -57,7 +57,7 @@ class ConvAutoEncoder:
             generator=train_gen,
             validation_data=val_gen,
             epochs=epochs,
-            # callbacks=callbacks,
+            callbacks=callbacks,
             verbose=2)
         # self.mse = self.ae.evaluate(test, test)
         # print('CAE MSE on validation data: ', self.mse)
