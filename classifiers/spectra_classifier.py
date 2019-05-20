@@ -1,64 +1,65 @@
-from datagen import DataGenerator
+import os,sys,inspect
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))))
+import datagen
+from models import dense_net
 import numpy as np
 import pandas as pd
 from keras.callbacks import ModelCheckpoint, EarlyStopping
 from keras.models import Sequential
 from keras.layers import Conv1D, Dense, Dropout, Flatten, GlobalAveragePooling1D, MaxPooling1D
-from sklearn.model_selection import StratifiedShuffleSplit
+from models import _1d_conv_net
+from sklearn.metrics import confusion_matrix
 import os
 
 
-def build_model(n_filters, kernel_size, strides, input_shape, n_classes):
-    model = Sequential()
-    model.add(Conv1D(
-        filters=n_filters, kernel_size=kernel_size, strides=strides, activation='relu', input_shape=input_shape))
-    model.add(Dropout(0.5))
-    model.add(MaxPooling1D(pool_size=1))
-    model.add(Flatten())
-    model.add(Dense(n_classes, activation='softmax'))
-    print(model.summary())
-    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+mode = 'train' # train or eval
+weights_file = None #'spectra-models/model_1conv-05-0.27.h5'
+save_file = 'classifiers/spectra-models/dense-64_05-20.h5'
 
-    return model
+os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
+os.environ['CUDA_VISIBLE_DEVICES']='1'
+
+home_path = os.path.expanduser('~')
+
+class_map = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
+
+params = {
+    'batch_size': 256,
+    'data_folder': home_path+'/raw-data/spectra/',
+    'dim': (5500,),
+    'extension': 'txt',
+    'n_classes': 3
+}
 
 
-if __name__=='__main__':
-    os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
-    os.environ['CUDA_VISIBLE_DEVICES']='1'
+# load dataset iterators
 
-    home_path = os.path.expanduser('~')
+X_train, _, labels_train = datagen.get_sets('csv/matched_cat_early-dr_filtered_train.csv')
+X_val, y_true, labels_val = datagen.get_sets('csv/matched_cat_early-dr_filtered_val.csv')
+print('train size', len(X_train))
+print('val size', len(X_val))
 
-    class_map = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
-    params = {'data_folder': home_path+'/raw-data/spectra/', 'dim': (5500,1), 'batch_size': 256, 'n_classes': 3, 'extension': 'txt'}
+train_generator = datagen.DataGenerator(X_train, labels=labels_train, **params)
+val_generator = datagen.DataGenerator(X_val, labels=labels_val, **params)
 
-    # load dataset iterators
-    df = pd.read_csv(home_path+'/label-the-sky/csv/train_val_set_earlydr_spectra.csv')
-    X = df['id'].values
-    y = df['class'].apply(lambda c: class_map[c]).values
-    labels = dict(zip(X, y))
-    del df
+# create model
 
-    sss = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=0)
-    train_idx, val_idx = next(sss.split(X,y))
+# model = _1d_conv_net(
+#     n_filters=16, kernel_size=100, strides=90, input_shape=params['dim'], n_classes=params['n_classes'])
 
-    X_train, X_val = X[train_idx], X[val_idx]
-    print('train size', len(X_train))
-    print('val size', len(X_val))
+model = dense_net(input_shape=params['dim'], width=64)
+model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+if weights_file is not None:
+    model.load_weights(model_name)
 
-    train_generator = DataGenerator(X_train, labels, **params)
-    val_generator = DataGenerator(X_val, labels, **params)
+# train
 
-    # create model
-    model = build_model(n_filters=16, kernel_size=100, strides=90, input_shape=params['dim'], n_classes=params['n_classes'])
-
+if mode=='train':
     callbacks_list = [
-        ModelCheckpoint(
-            filepath='spectra-models/model-{epoch:02d}-{val_loss:.2f}.h5',
-            monitor='val_loss', save_best_only=True),
-        EarlyStopping(monitor='acc', patience=5)
+        ModelCheckpoint(filepath=save_file, monitor='val_loss', save_best_only=True),
+        EarlyStopping(monitor='val_acc', patience=5)
     ]
 
-    # train
     model.fit_generator(
     	epochs=30,
         callbacks=callbacks_list,
@@ -67,3 +68,23 @@ if __name__=='__main__':
         use_multiprocessing=True,
         workers=6,
         verbose=2)
+
+# evaluate
+
+print('predicting')
+y_pred = model.predict_generator(
+    val_generator,
+    use_multiprocessing=True,
+    workers=6,
+    verbose=2)
+
+y_pred = np.argmax(y_pred, axis=1)
+print(y_true[:10])
+print(y_pred[:10])
+print(y_true.shape, y_pred.shape)
+
+cm = confusion_matrix(y_true, y_pred)
+cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+
+print('confusion matrix')
+print(cm)

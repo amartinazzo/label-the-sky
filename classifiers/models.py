@@ -1,6 +1,5 @@
 '''
-ResNeXt for Keras.
-adapted from https://github.com/titu1994/Keras-ResNeXt/blob/master/resnext.py
+resnext adapted from https://github.com/titu1994/Keras-ResNeXt/blob/master/resnext.py
 
 '''
 
@@ -21,7 +20,34 @@ CIFAR_TH_WEIGHTS_PATH_NO_TOP = ''
 CIFAR_TF_WEIGHTS_PATH_NO_TOP = ''
 
 
-def ResNeXt(input_shape=None, depth=29, cardinality=8, width=64, weight_decay=5e-4,
+def dense_net(input_shape, width=64, n_layers=2, n_classes=3):
+    inputs = Input(shape=input_shape)
+    x = Dense(width, activation='relu')(inputs)
+    for i in range(n_layers-1):
+        x = Dense(width, activation='relu')(x)
+    outputs = Dense(n_classes, activation='softmax')(x)
+
+    model = Model(inputs, outputs)
+    model.summary()
+    # model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+
+    return model
+
+
+def _1d_conv_net(n_filters, kernel_size, strides, input_shape, n_classes):
+    model = Sequential()
+    model.add(Conv1D(
+        filters=n_filters, kernel_size=kernel_size, strides=strides, activation='relu', input_shape=input_shape))
+    model.add(Dropout(0.5))
+    model.add(MaxPooling1D(pool_size=1))
+    model.add(Flatten())
+    model.add(Dense(n_classes, activation='softmax'))
+    model.summary()
+
+    return model
+
+
+def resnext(input_shape=None, depth=29, cardinality=8, width=64, weight_decay=5e-4,
             include_top=True, input_tensor=None, pooling=None, classes=3):
     """Instantiate the ResNeXt architecture. Note that ,
         when using TensorFlow for best performance you should set
@@ -265,5 +291,5 @@ def __create_res_next(nb_classes, img_input, include_top, depth=29, cardinality=
 
 
 if __name__ == '__main__':
-    model = ResNeXt((32, 32, 3), depth=29, cardinality=8, width=64)
+    model = resnext((32, 32, 3), depth=29, cardinality=8, width=64)
     model.summary()

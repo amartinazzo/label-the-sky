@@ -1,9 +1,6 @@
 import os,sys,inspect
-current_dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
-parent_dir = os.path.dirname(current_dir)
-sys.path.insert(0, parent_dir)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))))
 import datagen
-
 from keras import backend as K
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from keras.optimizers import Adam
@@ -11,7 +8,7 @@ from keras.utils import to_categorical
 import numpy as np
 import os
 import pandas as pd
-from resnext import ResNeXt
+from models import resnext
 import sklearn.metrics as metrics
 
 
@@ -35,7 +32,7 @@ os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
 os.environ['CUDA_VISIBLE_DEVICES']='1'
 
 # create resnext model
-model = ResNeXt(img_dim, depth=depth, cardinality=cardinality, width=width, classes=n_classes)
+model = resnext(img_dim, depth=depth, cardinality=cardinality, width=width, classes=n_classes)
 print("model created")
 
 # model.summary()
@@ -62,11 +59,11 @@ if os.path.exists(weights_file):
 
 # train
 if mode=='train':
-    lr_reducer = ReduceLROnPlateau(
-        monitor='val_loss', factor=np.sqrt(0.1), cooldown=0, patience=10, min_lr=1e-6)
-    model_checkpoint = ModelCheckpoint(
-      weights_file, monitor="val_acc", save_best_only=True, save_weights_only=True, mode='auto')
-    early_stop = EarlyStopping(monitor='val_acc', patience=10)
+    callbacks = [
+        ReduceLROnPlateau(monitor='val_loss', factor=np.sqrt(0.1), cooldown=0, patience=10, min_lr=1e-6),
+        ModelCheckpoint(save_file, monitor="val_acc", save_best_only=True, save_weights_only=True, mode='auto'),
+        EarlyStopping(monitor='val_acc', patience=10)
+    ]
 
     callbacks = [lr_reducer, model_checkpoint, early_stop]
 

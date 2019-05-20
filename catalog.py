@@ -22,6 +22,10 @@ cols = [
     'class', 'subclass'
 ]
 
+orig_cols = [
+    'ID', 'RA', 'Dec', 'X', 'Y', 'ISOarea', 's2nDet', 'PhotoFlag', 'FWHM', 'MUMAX', 'A', 'B', 'THETA', 'FlRadDet', 'KrRadDet', 'uJAVA_auto', 'euJAVA_auto', 's2n_uJAVA_auto', 'uJAVA_petro', 'euJAVA_petro', 's2n_uJAVA_petro', 'uJAVA_aper', 'euJAVA_aper', 's2n_uJAVA_aper', 'F378_auto', 'eF378_auto', 's2n_F378_auto', 'F378_petro', 'eF378_petro', 's2n_F378_petro', 'F378_aper', 'eF378_aper', 's2n_F378_aper', 'F395_auto', 'eF395_auto', 's2n_F395_auto', 'F395_petro', 'eF395_petro', 's2n_F395_petro', 'F395_aper', 'eF395_aper', 's2n_F395_aper', 'F410_auto', 'eF410_auto', 's2n_F410_auto', 'F410_petro', 'eF410_petro', 's2n_F410_petro', 'F410_aper', 'eF410_aper', 's2n_F410_aper', 'F430_auto', 'eF430_auto', 's2n_F430_auto', 'F430_petro', 'eF430_petro', 's2n_F430_petro', 'F430_aper', 'eF430_aper', 's2n_F430_aper', 'g_auto', 'eg_auto', 's2n_g_auto', 'g_petro', 'eg_petro', 's2n_g_petro', 'g_aper', 'eg_aper', 's2n_g_aper', 'F515_auto', 'eF515_auto', 's2n_F515_auto', 'F515_petro', 'eF515_petro', 's2n_F515_petro', 'F515_aper', 'eF515_aper', 's2n_F515_aper', 'r_auto', 'er_auto', 's2n_r_auto', 'r_petro', 'er_petro', 's2n_r_petro', 'r_aper', 'er_aper', 's2n_r_aper', 'F660_auto', 'eF660_auto', 's2n_F660_auto', 'F660_petro', 'eF660_petro', 's2n_F660_petro', 'F660_aper', 'eF660_aper', 's2n_F660_aper', 'i_auto', 'ei_auto', 's2n_i_auto', 'i_petro', 'ei_petro', 's2n_i_petro', 'i_aper', 'ei_aper', 's2n_i_aper', 'F861_auto', 'eF861_auto', 's2n_F861_auto', 'F861_petro', 'eF861_petro', 's2n_F861_petro', 'F861_aper', 'eF861_aper', 's2n_F861_aper', 'z_auto', 'ez_auto', 's2n_z_auto', 'z_petro', 'ez_petro', 's2n_z_petro', 'z_aper', 'ez_aper', 's2n_z_aper', 'zb', 'zb_Min', 'zb_Max', 'Tb', 'Odds', 'Chi2', 'M_B', 'Stell_Mass', 'CLASS', 'PROB_GAL', 'PROB_STAR'
+]
+
 
 def gen_master_catalog(catalogs_path, output_file, header_file='csv/fits_header_cols.txt'):
     '''
@@ -44,11 +48,11 @@ def gen_master_catalog(catalogs_path, output_file, header_file='csv/fits_header_
 
         cat = pd.read_csv(file,
             delimiter=' ', skipinitialspace=True, comment='#', index_col=False,
-            header=None, names=cols, usecols=usecols)
+            header=None, names=orig_cols, usecols=usecols)
         cat.dropna(inplace=True)
-        int_cols = ['x', 'x', 'class_rf']
+        int_cols = ['X', 'Y', 'CLASS']
         cat[int_cols] = cat[int_cols].apply(lambda x: round(x)).astype(int)
-        cat['id'] = cat['id'].apply(lambda s: s.replace('.griz', ''))
+        cat['ID'] = cat['ID'].apply(lambda s: s.replace('.griz', ''))
 
         cat.to_csv(output_file, index=False, header=False, mode='a')
 
@@ -163,6 +167,11 @@ def gen_splits(df_filename, val_split=0.1, test_split=0.1):
     df = pd.read_csv(df_filename)
     np.random.seed(0)
 
+    print('shape', df.shape)
+    if 'has_spectra' in df.columns:
+        df = df[df.has_spectra]
+        print('shape after filtering only with spectra', df.shape)
+
     msk = np.random.rand(len(df)) > test_split
     df_trainval = df[msk]
     df_test = df[~msk]
@@ -186,10 +195,14 @@ def gen_splits(df_filename, val_split=0.1, test_split=0.1):
     print('test set:', df_test.shape[0])
     print(df_test['class'].value_counts(normalize=True))
 
-# TODO
-def verify_downloaded_spectra(cat, output_file, spectra_folder):
-    c = pd.read_csv(cat)
 
+def add_downloaded_spectra_col(cat, spectra_folder):
+    spectra = glob(spectra_folder)
+    spectra = [s.split('/')[-1][:-4] for s in spectra]
+    print(spectra[:10])
+    c = pd.read_csv(cat)
+    c['has_spectra'] = c['id'].apply(lambda s: s in spectra)
+    c.to_csv(cat, index=False)
 
 
 if __name__=='__main__':
@@ -213,26 +226,29 @@ if __name__=='__main__':
     # query_sdss(photo_query, 'sdss_photo_{}.csv')
     # query_sdss(spec_query, 'csv/sdss_spec.csv')
 
-    splus_cat = 'csv/splus_catalog_dr1.csv'
-    sloan_cat = 'csv/sdss_spec.csv'
-    matched_cat ='csv/matched_cat_dr1.csv'
-    filtered_cat = 'csv/matched_cat_dr1_filtered.csv'
+    # splus_cat = 'csv/splus_catalog_early-dr.csv'
+    # sloan_cat = 'csv/sdss_spec.csv'
+    # matched_cat ='csv/matched_cat_early-dr.csv'
+    filtered_cat = 'csv/matched_cat_early-dr_filtered.csv'
 
-    # generate master catalog
-    print('generating master splus catalog')
-    start = time.time()
-    filter_master_catalog('../raw-data/dr1/SPLUS_STRIPE82_master_catalog_dr_march2019.cat', splus_cat)
-    print('minutes taken:', int((time.time()-start)/60))
+    # # generate master catalog
+    # print('generating master splus catalog')
+    # start = time.time()
+    # gen_master_catalog('../raw-data/early-dr/catalogs/*', splus_cat)
+    # #filter_master_catalog('../raw-data/dr1/SPLUS_STRIPE82_master_catalog_dr_march2019.cat', splus_cat)
+    # print('minutes taken:', int((time.time()-start)/60))
 
-    # match catalogs
-    print('matching splus and sloan catalogs')
-    start = time.time()
-    c = match_catalogs(sloan_cat, splus_cat, matched_cat)
-    print('minutes taken:', int((time.time()-start)/60))
+    # # match catalogs
+    # print('matching splus and sloan catalogs')
+    # start = time.time()
+    # c = match_catalogs(sloan_cat, splus_cat, matched_cat)
+    # print('minutes taken:', int((time.time()-start)/60))
 
-    # filter catalog
-    print('filtering matched catalog')
-    gen_filtered_catalog(matched_cat, filtered_cat)
+    # # filter catalog
+    # print('filtering matched catalog')
+    # gen_filtered_catalog(matched_cat, filtered_cat)
+
+    add_downloaded_spectra_col(filtered_cat, '../raw-data/spectra/*')
 
     print('generating train-val-test splits')
     gen_splits(filtered_cat)
