@@ -8,8 +8,8 @@ import os
 
 
 mode = 'train' # train or eval
-mag_thres = [16, 19]
-width = 1024
+mag_thres = None #[16, 19]
+width = 512
 
 
 mag_str = 'all-mags' if mag_thres is None else 'mag{}-{}'.format(mag_thres[0], mag_thres[1])

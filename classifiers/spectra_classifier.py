@@ -11,11 +11,10 @@ from sklearn.metrics import confusion_matrix
 mode = 'train' # train or eval
 filters = {'r': [16, 19]}
 width = 64
-layers = 1
 
 weights_file = None #'spectra-models/model_1conv-05-0.27.h5'
 filter_str = 'all-mags' if filters is None else 'mag{}-{}'.format(filters['r'][0], filters['r'][1])
-save_file = 'classifiers/spectra-models/dense_{}_{}_{}.h5'.format(filter_str, width, layers)
+save_file = 'classifiers/spectra-models/dense_{}_{}.h5'.format(filter_str, width)
 
 os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
 os.environ['CUDA_VISIBLE_DEVICES']='0'
@@ -48,7 +47,7 @@ val_generator = datagen.DataGenerator(X_val, labels=labels_val, **params)
 # model = _1d_conv_net(
 #     n_filters=16, kernel_size=100, strides=90, input_shape=params['dim'], n_classes=params['n_classes'])
 
-model = dense_net(input_shape=params['dim'], width=width, n_layers=layers)
+model = dense_net(input_shape=params['dim'], width=width)
 model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 if weights_file is not None:
     model.load_weights(weights_file)
