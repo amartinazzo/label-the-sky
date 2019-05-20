@@ -6,8 +6,23 @@ import keras
 class_map = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
 
 
-def get_sets(filepath):
+def get_sets(filepath, filters=None):
+    """
+    receives:
+    * filepath      path to csv file with id values and class strings
+    * filters       dict with optional min-max values, e.g. {'feature1': [min1, max1], 'feature2': [min2, max2]}
+
+    returns: (X, y, labels) triplet, where
+    * X is a list of object ids
+    * y are integer-valued labels
+    * labels is a dict mapping each id to its label, e.g. {'x1': 0, 'x2': 1, ...}
+    """
     df = read_csv(filepath)
+    print('original set size', df.shape)
+    if filters is not None:
+        for key, val in filters.items():
+            df = df[df[key].between(val[0], val[1])]
+        print('set size after filters', df.shape)
     X = df['id'].values
     y = df['class'].apply(lambda c: class_map[c]).values
     labels = dict(zip(X, y))

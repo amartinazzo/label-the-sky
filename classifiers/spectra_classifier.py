@@ -1,23 +1,24 @@
 import os,sys,inspect
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))))
 import datagen
-from models import dense_net
+from keras.callbacks import ModelCheckpoint, EarlyStopping
+from models import _1d_conv_net, dense_net
 import numpy as np
 import pandas as pd
-from keras.callbacks import ModelCheckpoint, EarlyStopping
-from keras.models import Sequential
-from keras.layers import Conv1D, Dense, Dropout, Flatten, GlobalAveragePooling1D, MaxPooling1D
-from models import _1d_conv_net
 from sklearn.metrics import confusion_matrix
-import os
 
 
 mode = 'train' # train or eval
+filters = {'r': [16, 19]}
+width = 64
+layers = 1
+
 weights_file = None #'spectra-models/model_1conv-05-0.27.h5'
-save_file = 'classifiers/spectra-models/dense-64_05-20.h5'
+filter_str = 'all-mags' if filters is None else 'mag{}-{}'.format(filters['r'][0], filters['r'][1])
+save_file = 'classifiers/spectra-models/dense_{}_{}_{}.h5'.format(filter_str, width, layers)
 
 os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
-os.environ['CUDA_VISIBLE_DEVICES']='1'
+os.environ['CUDA_VISIBLE_DEVICES']='0'
 
 home_path = os.path.expanduser('~')
 
@@ -34,8 +35,8 @@ params = {
 
 # load dataset iterators
 
-X_train, _, labels_train = datagen.get_sets('csv/matched_cat_early-dr_filtered_train.csv')
-X_val, y_true, labels_val = datagen.get_sets('csv/matched_cat_early-dr_filtered_val.csv')
+X_train, _, labels_train = datagen.get_sets('csv/matched_cat_early-dr_filtered_train.csv', filters=filters)
+X_val, y_true, labels_val = datagen.get_sets('csv/matched_cat_early-dr_filtered_val.csv', filters=filters)
 print('train size', len(X_train))
 print('val size', len(X_val))
 
@@ -47,10 +48,10 @@ val_generator = datagen.DataGenerator(X_val, labels=labels_val, **params)
 # model = _1d_conv_net(
 #     n_filters=16, kernel_size=100, strides=90, input_shape=params['dim'], n_classes=params['n_classes'])
 
-model = dense_net(input_shape=params['dim'], width=64)
+model = dense_net(input_shape=params['dim'], width=width, n_layers=layers)
 model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 if weights_file is not None:
-    model.load_weights(model_name)
+    model.load_weights(weights_file)
 
 # train
 
@@ -65,18 +66,12 @@ if mode=='train':
         callbacks=callbacks_list,
     	generator=train_generator,
         validation_data=val_generator,
-        use_multiprocessing=True,
-        workers=6,
         verbose=2)
 
 # evaluate
 
 print('predicting')
-y_pred = model.predict_generator(
-    val_generator,
-    use_multiprocessing=True,
-    workers=6,
-    verbose=2)
+y_pred = model.predict_generator(val_generator, verbose=2)
 
 y_pred = np.argmax(y_pred, axis=1)
 print(y_true[:10])
