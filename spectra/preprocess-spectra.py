@@ -120,6 +120,67 @@ def preprocess_files(loglambs_folder, fluxes_folder):
 	print('time taken (min)', (time.perf_counter()-start)/60)
 
 
+def get_min_max(filefolder):
+	'''
+		receives:
+			* filefolder	(str) folder pattern wherein txt spectra are
+		returns:
+			a tuple (minimum, maximum) 
+	'''
+	start = time.perf_counter()
+	files = glob(filefolder)
+	minimum, maximum = 1000, 0
+	min_file, max_file = '', ''
+	n_files = len(files)
+	print('nr of files', n_files)
+	for file in files:
+		spectra = np.loadtxt(file)
+		min_tmp = np.min(spectra)
+		max_tmp =  np.max(spectra)
+
+		if min_tmp < minimum:
+			minimum = min_tmp
+			min_file = file
+
+		if max_tmp > maximum:
+			maximum = max_tmp
+			max_file = file
+
+	print('minutes taken:', int((time.perf_counter()-start)/60))
+	print('minimum : {} at {}'.format(minimum, min_files))
+	print('maximum : {} at {}'.format(maximum, max_files))
+
+	return np.floor(minimum), np.ceil(maximum)
+
+
+def normalize(input_folder, output_folder, bound_lower, bound_upper):
+	'''
+	saves spectra normalized to values in [0,1]
+	receives:
+		* input_folder		(str) folder path wherein are 1-d arrays in txt files with varying ranges
+		* output_folder		(str) folder wherein normalized txt will be saved
+		* bounds_lower		(float) lower bound for normalization
+		* bounds_upper		(float) upper bound for normalization 
+	'''
+	files = glob(input_folder)
+	print('nr of files', len(files))
+
+	interval = bound_upper - bound_lower
+	lower = bound_lower
+
+	start = time()
+	for file in files:
+		spectra = np.loadtxt(file)
+		spectra = spectra - lower
+		spectra = spectra / interval
+		if spectra.min() < 0 or spectra.max() > 1:
+			print('{} out of [0,1] range'.format(file.split('/')[-1]))
+		np.savetxt('{}{}'.format(output_folder, file.split('/')[-1]), spectra)
+	print('minutes taken:', int((time()-start)/60))
+
+
 if __name__=="__main__":
-	preprocess_matrices('spectra/loglamb.dat', 'spectra/fluxes.dat', 'spectra/object_idx.csv')
+	# preprocess_matrices('spectra/loglamb.dat', 'spectra/fluxes.dat', 'spectra/object_idx.csv')
 	# preprocess_files('spectra/loglamb/*', 'spectra/flux/*')
+
+	get_min_max('../raw-data/spectra/*')

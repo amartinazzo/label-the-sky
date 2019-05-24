@@ -25,6 +25,7 @@ def get_sets(filepath, filters=None):
         print('set size after filters', df.shape)
     X = df['id'].values
     y = df['class'].apply(lambda c: class_map[c]).values
+    print(df['class'].value_counts(normalize=True))
     labels = dict(zip(X, y))
 
     return X, y, labels

@@ -8,11 +8,11 @@ import pandas as pd
 from sklearn.metrics import confusion_matrix
 
 
-mode = 'train' # train or eval
-filters = {'r': [16, 19]}
+mode = 'eval' # train or eval
+filters = None #{'r': [16, 19]}
 width = 64
 
-weights_file = None #'spectra-models/model_1conv-05-0.27.h5'
+weights_file = 'classifiers/spectra-models/dense_all-mags_64.h5'
 filter_str = 'all-mags' if filters is None else 'mag{}-{}'.format(filters['r'][0], filters['r'][1])
 save_file = 'classifiers/spectra-models/dense_{}_{}.h5'.format(filter_str, width)
 
@@ -24,7 +24,6 @@ home_path = os.path.expanduser('~')
 class_map = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
 
 params = {
-    'batch_size': 256,
     'data_folder': home_path+'/raw-data/spectra/',
     'dim': (5500,),
     'extension': 'txt',
@@ -70,9 +69,11 @@ if mode=='train':
 # evaluate
 
 print('predicting')
-y_pred = model.predict_generator(val_generator, verbose=2)
+pred_generator = datagen.DataGenerator(X_val, batch_size=len(y_true)//8, shuffle=False, **params)
+y_pred = model.predict_generator(pred_generator, verbose=2)
 
 y_pred = np.argmax(y_pred, axis=1)
+y_true = y_true[:len(y_pred)]
 print(y_true[:10])
 print(y_pred[:10])
 print(y_true.shape, y_pred.shape)

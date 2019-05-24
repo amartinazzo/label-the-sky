@@ -15,13 +15,14 @@ import sklearn.metrics as metrics
 mode = 'train' # train or eval
 
 models_dir = "image-models/"
-weights_file = "image-models/resnext-all-mags-12-bands.h5"
-save_file = "image-models/resnext-all-mags-12-bands-more-epochs.h5"
+weights_file = None #"image-models/resnext-all-mags-12-bands.h5"
+save_file = "image-models/resnext-all-mags-12-bands.h5"
 home_path = os.path.expanduser('~')
 params = {'data_folder': home_path+'/raw-data/crops/normalized/', 'dim': (32,32,12), 'n_classes': 3}
+class_weights = {0: 2, 1: 2.5, 2: 10} # 1/class_proportion
 
 n_classes = 3
-n_epoch = 100
+n_epoch = 150
 img_dim = (32,32,12)
 depth = 29
 cardinality = 8
@@ -72,6 +73,7 @@ if mode=='train':
         validation_data=val_generator,
         epochs=n_epoch,
         callbacks=callbacks,
+        class_weight=class_weights,
         verbose=2)
 
 # make inferences on model
