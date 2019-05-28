@@ -29,8 +29,8 @@ cardinality = 8
 width = 16
 
 # make only 1 gpu visible
-os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
-os.environ['CUDA_VISIBLE_DEVICES']='1'
+# os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
+# os.environ['CUDA_VISIBLE_DEVICES']='1'
 
 # create resnext model
 model = resnext(img_dim, depth=depth, cardinality=cardinality, width=width, classes=n_classes)
@@ -43,8 +43,8 @@ model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=["ac
 print("finished compiling")
 
 # load dataset iterators
-X_train, _, labels_train = datagen.get_sets(home_path+'/raw-data/matched_cat_dr1_full_train.csv')
-X_val, y_true, labels_val = datagen.get_sets(home_path+'/raw-data/matched_cat_dr1_full_val.csv')
+X_train, _, labels_train = datagen.get_sets(home_path+'/raw-data/dr1_full_train.csv')
+X_val, y_true, labels_val = datagen.get_sets(home_path+'/raw-data/dr1_full_val.csv')
 print('train size', len(X_train))
 print('val size', len(X_val))
 
@@ -54,32 +54,31 @@ val_generator = datagen.DataGenerator(X_val, labels=labels_val, **params)
 if not os.path.exists(models_dir):
     os.makedirs(models_dir)
 
-if os.path.exists(weights_file):
-    model.load_weights(weights_file)
-    print("model loaded.")
+#if os.path.exists(weights_file):
+#    model.load_weights(weights_file)
+#    print("model loaded.")
 
 # train
 if mode=='train':
     callbacks = [
         ReduceLROnPlateau(monitor='val_loss', factor=np.sqrt(0.1), cooldown=0, patience=10, min_lr=1e-6),
         ModelCheckpoint(save_file, monitor="val_acc", save_best_only=True, save_weights_only=True, mode='auto'),
-        EarlyStopping(monitor='val_acc', patience=10)
+        #EarlyStopping(monitor='val_acc', patience=10)
     ]
 
-    callbacks = [lr_reducer, model_checkpoint, early_stop]
-
     model.fit_generator(
+	steps_per_epoch=len(X_train)//256,
         generator=train_generator,
         validation_data=val_generator,
+	validation_steps=len(X_val)//256,
         epochs=n_epoch,
         callbacks=callbacks,
-        class_weight=class_weights,
         verbose=2)
 
 # make inferences on model
 print('predicting')
-pred_generator = datagen.DataGenerator(X_val, batch_size=len(y_true)//8, shuffle=False, **params)
-y_pred = model.predict_generator(pred_generator)
+pred_generator = datagen.DataGenerator(X_val, batch_size=len(y_true)//64, shuffle=False, **params)
+y_pred = model.predict_generator(pred_generator, steps=64)
 y_pred = np.argmax(y_pred, axis=1)
 y_true = y_true[:len(y_pred)]
 
