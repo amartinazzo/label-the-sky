@@ -7,17 +7,17 @@ from sklearn.metrics import confusion_matrix
 import os
 
 
-mode = 'train' # train or eval
+mode = 'eval-mags' # train or eval
 mag_thres = None #[16, 19]
 width = 512
 
 
 mag_str = 'all-mags' if mag_thres is None else 'mag{}-{}'.format(mag_thres[0], mag_thres[1])
-save_file = 'classifiers/catalog-models/dense_{}_{}.h5'.format(mag_str, width)
-weights_file = None
+# save_file = 'classifiers/catalog-models/dense_{}_{}.h5'.format(mag_str, width)
+weights_file = 'classifiers/catalog-models/dense_all-mags_512.h5'
 
 os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
-os.environ['CUDA_VISIBLE_DEVICES']='0'
+os.environ['CUDA_VISIBLE_DEVICES']='1'
 
 class_map = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
 
@@ -25,7 +25,7 @@ mag_cols = ['u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z'
 print('magnitude interval', mag_thres)
 
 
-def load_dataset(csv_file):
+def load_dataset(csv_file, mag_thres=None):
     df = pd.read_csv(csv_file)
     if mag_thres is not None:
         df = df[df.r.between(mag_thres[0], mag_thres[1])]
@@ -68,18 +68,22 @@ if mode=='train':
         callbacks=callbacks_list,
         verbose=2)
 
+elif mode=='eval-mags':
+    model.load_weights(save_file)
+
+
 # evaluate
+else:
+    print('predicting')
+    model.load_weights(save_file)
+    y_pred = model.predict(X_val, verbose=2)
 
-print('predicting')
-model.load_weights(save_file)
-y_pred = model.predict(X_val, verbose=2)
+    y_pred = np.argmax(y_pred, axis=1)
+    y_true = np.argmax(y_val, axis=1)
+    print(y_true.shape, y_pred.shape)
 
-y_pred = np.argmax(y_pred, axis=1)
-y_true = np.argmax(y_val, axis=1)
-print(y_true.shape, y_pred.shape)
+    cm = confusion_matrix(y_true, y_pred)
+    cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
 
-cm = confusion_matrix(y_true, y_pred)
-cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-
-print('confusion matrix')
-print(cm)
+    print('confusion matrix')
+    print(cm)
