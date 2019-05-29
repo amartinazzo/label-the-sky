@@ -35,7 +35,7 @@ class DataGenerator(keras.utils.Sequence):
     # adapted from https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly
     def __init__(
         self, object_ids, data_folder, labels=None, mode='classifier', 
-        bands=None, batch_size=64, dim=(5500,1), n_classes=3, shuffle=True, extension='npy'):
+        bands=None, batch_size=128, dim=(5500,1), n_classes=3, shuffle=True, extension='npy'):
         self.bands = bands
         self.batch_size = batch_size
         self.data_folder = data_folder
@@ -56,7 +56,7 @@ class DataGenerator(keras.utils.Sequence):
 
     def __len__(self):
         # define the number of batches per epoch
-        return int(np.floor(len(self.object_ids) / self.batch_size))
+        return np.maximum(len(self.object_ids) // self.batch_size, 1)
 
 
     def __getitem__(self, index):
