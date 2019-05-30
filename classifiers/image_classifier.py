@@ -12,7 +12,7 @@ from models import resnext
 import sklearn.metrics as metrics
 
 
-mode = 'eval-mags' # train or eval-mags
+mode = 'train' # train or eval-mags
 
 n_classes = 3
 n_epoch = 100
@@ -26,8 +26,8 @@ cardinality = 8
 width = 16
 
 models_dir = 'classifiers/image-models/'
-weights_file = 'classifiers/image-models/resnext-05-08.h5'
-# save_file = 'classifiers/image-models/resnext-all-mags-12-bands.h5'
+weights_file = None #'classifiers/image-models/resnext-05-08.h5'
+save_file = 'classifiers/image-models/resnext-all-mags-12-bands-0529.h5'
 home_path = os.path.expanduser('~')
 params = {'data_folder': home_path+'/raw-data/crops/normalized/', 'dim': (32,32,12), 'n_classes': 3}
 class_weights = {0: 2, 1: 2.5, 2: 10} # 1/class_proportion
@@ -58,7 +58,7 @@ val_generator = datagen.DataGenerator(X_val, labels=labels_val, batch_size=batch
 if not os.path.exists(models_dir):
     os.makedirs(models_dir)
 
-if os.path.exists(weights_file):
+if weights_file is not None and os.path.exists(weights_file):
    model.load_weights(weights_file)
    print('model weights loaded!')
 

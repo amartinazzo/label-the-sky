@@ -44,8 +44,8 @@ for coord in coords[i:]:
             specdata = spec[0][1].data
             flux = specdata['flux']
             loglamb = specdata['loglam']
-            np.savetxt('spectra/flux/{}.dat'.format(object_id[i]), np.pad(flux, (0, length-flux.shape[0]), 'constant').reshape((1,length)))
-            np.savetxt('spectra/loglamb/{}.dat'.format(object_id[i]), np.pad(loglamb, (0, length-loglamb.shape[0]), 'constant').reshape((1,length)))
+            np.savetxt('spectra/flux_dr1/{}.dat'.format(object_id[i]), np.pad(flux, (0, length-flux.shape[0]), 'constant').reshape((1,length)))
+            np.savetxt('spectra/loglamb_dr1/{}.dat'.format(object_id[i]), np.pad(loglamb, (0, length-loglamb.shape[0]), 'constant').reshape((1,length)))
 
         if i%100 == 0:
             print('downloaded {}%'.format(100*i/len(coords)))

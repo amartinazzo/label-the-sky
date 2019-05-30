@@ -226,10 +226,10 @@ if __name__=='__main__':
     # query_sdss(photo_query, 'sdss_photo_{}.csv')
     # query_sdss(spec_query, 'csv/sdss_spec.csv')
 
-    # splus_cat = 'csv/splus_catalog_early-dr.csv'
-    # sloan_cat = 'csv/sdss_spec.csv'
-    # matched_cat ='csv/matched_cat_early-dr.csv'
-    filtered_cat = 'csv/matched_cat_early-dr_filtered.csv'
+    splus_cat = 'csv/matched_cat_early-dr_filtered.csv'
+    sloan_cat = 'csv/matched_cat_dr1.csv'
+    matched_cat ='csv/matched_cat_early-dr_dr1.csv'
+    # filtered_cat = 'csv/matched_cat_early-dr_filtered.csv'
 
     # # generate master catalog
     # print('generating master splus catalog')
@@ -239,16 +239,16 @@ if __name__=='__main__':
     # print('minutes taken:', int((time.time()-start)/60))
 
     # # match catalogs
-    # print('matching splus and sloan catalogs')
-    # start = time.time()
-    # c = match_catalogs(sloan_cat, splus_cat, matched_cat)
-    # print('minutes taken:', int((time.time()-start)/60))
+    print('matching catalogs')
+    start = time.time()
+    c = match_catalogs(sloan_cat, splus_cat, matched_cat)
+    print('minutes taken:', int((time.time()-start)/60))
 
     # # filter catalog
     # print('filtering matched catalog')
     # gen_filtered_catalog(matched_cat, filtered_cat)
 
-    add_downloaded_spectra_col(filtered_cat, '../raw-data/spectra/*')
+    # add_downloaded_spectra_col(filtered_cat, '../raw-data/spectra/*')
 
-    print('generating train-val-test splits')
-    gen_splits(filtered_cat)
+    # print('generating train-val-test splits')
+    # gen_splits(filtered_cat)
