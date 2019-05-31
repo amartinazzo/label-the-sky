@@ -89,7 +89,10 @@ class DataGenerator(keras.utils.Sequence):
 
         for i, object_id in enumerate(list_ids_temp):
             if self.extension == 'txt':
-                X[i,] = np.loadtxt(self.data_folder + object_id + '.txt').reshape(self.shape)
+                spec = np.loadtxt(self.data_folder + object_id + '.txt').reshape(self.shape)
+                spec = spec + 30000 # min = -30000
+                spec = spec / 43000 # max = 13000; interval = 13000 - (-30000) = 43000
+                X[i,] = spec
             else:
                 if self.bands is not None:
                     arr = np.load(self.data_folder + object_id + '.npy').reshape(self.shape_orig)

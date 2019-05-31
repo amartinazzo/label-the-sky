@@ -1,23 +1,23 @@
 from models import dense_net
 import numpy as np
 import pandas as pd
-from keras.callbacks import ModelCheckpoint, EarlyStopping
+from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 from keras.utils import to_categorical
 from sklearn.metrics import accuracy_score, confusion_matrix
 import os
 
 
 mode = 'train' # train or eval
-mag_thres = None #[16, 19]
-width = 512
+mag_thres = [16, 19]
+width = 1024
 
 
 mag_str = 'all-mags' if mag_thres is None else 'mag{}-{}'.format(mag_thres[0], mag_thres[1])
-save_file = 'classifiers/catalog-models/dense_{}_{}_0529.h5'.format(mag_str, width)
+save_file = 'classifiers/catalog-models/dense_{}_{}_0530_200epoches.h5'.format(mag_str, width)
 weights_file = None #'classifiers/catalog-models/dense_all-mags_512.h5'
 
-# os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
-# os.environ['CUDA_VISIBLE_DEVICES']='1'
+os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
+os.environ['CUDA_VISIBLE_DEVICES']='-1'
 
 class_map = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
 mag_cols = ['u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z']
@@ -27,12 +27,18 @@ home_path = os.path.expanduser('~')
 
 def load_dataset(csv_file, mag_thres=None):
     df = pd.read_csv(csv_file)
+    print(df['class'].value_counts(normalize=True))
+    y = df['class'].map(lambda s: class_map[s]).values
     if mag_thres is not None:
         df = df[df.r.between(mag_thres[0], mag_thres[1])]
-    print(df['class'].value_counts(normalize=True))
-    X = df[mag_cols].values
-    y = df['class'].map(lambda s: class_map[s]).values
     y = to_categorical(y, num_classes=len(class_map))
+    df = df[mag_cols]
+    df.replace(-99, 0, inplace=True)
+    df.replace(99, 35, inplace=True)
+    print(df.agg([min, max]))
+    X = df.values
+    # X = X - 0
+    X = X / 35
 
     return X, y
 
@@ -56,15 +62,16 @@ if weights_file is not None:
 
 if mode=='train':
     callbacks_list = [
+        ReduceLROnPlateau(monitor='val_loss', factor=np.sqrt(0.1), cooldown=0, patience=10, min_lr=1e-6),
         ModelCheckpoint(filepath=save_file, monitor='val_loss', save_best_only=True),
-        # EarlyStopping(monitor='val_loss', patience=10)
+        EarlyStopping(monitor='val_loss', patience=20)
     ]
 
     model.fit(
         x=X_train,
         y=y_train,
         validation_data=(X_val, y_val),
-    	epochs=100,
+    	epochs=200,
         callbacks=callbacks_list,
         verbose=2)
 

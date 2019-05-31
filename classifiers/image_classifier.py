@@ -15,26 +15,26 @@ import sklearn.metrics as metrics
 mode = 'train' # train or eval-mags
 
 n_classes = 3
-n_epoch = 100
+n_epoch = 200
 img_dim = (32,32,12)
 
 # images are stored in float64 (8 bytes per pixel)
 # one image is 32*32*12*8/10e6 ~= 0.1 MB
-batch_size = 256
+batch_size = 128
 depth = 29
 cardinality = 8
 width = 16
 
 models_dir = 'classifiers/image-models/'
-weights_file = None #'classifiers/image-models/resnext-05-08.h5'
-save_file = 'classifiers/image-models/resnext-all-mags-12-bands-0529.h5'
+weights_file = 'classifiers/image-models/resnext-all-mags-12-bands-0529.h5'
+save_file = 'classifiers/image-models/resnext-all-mags-12-bands-0530_200epc.h5'
 home_path = os.path.expanduser('~')
 params = {'data_folder': home_path+'/raw-data/crops/normalized/', 'dim': (32,32,12), 'n_classes': 3}
 class_weights = {0: 2, 1: 2.5, 2: 10} # 1/class_proportion
 
 # make only 1 gpu visible
 os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
-os.environ['CUDA_VISIBLE_DEVICES']='1'
+os.environ['CUDA_VISIBLE_DEVICES']='0'
 
 # create resnext model
 model = resnext(img_dim, depth=depth, cardinality=cardinality, width=width, classes=n_classes)
@@ -42,7 +42,7 @@ print('model created')
 
 # model.summary()
 
-optimizer = Adam(lr=1e-3)
+optimizer = Adam(lr=1e-5)
 model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
 print('finished compiling')
 
@@ -67,7 +67,7 @@ if mode=='train':
     callbacks = [
         ReduceLROnPlateau(monitor='val_loss', factor=np.sqrt(0.1), cooldown=0, patience=10, min_lr=1e-6),
         ModelCheckpoint(save_file, monitor='val_acc', save_best_only=True, save_weights_only=True, mode='auto'),
-        #EarlyStopping(monitor='val_acc', patience=10)
+        EarlyStopping(monitor='val_acc', patience=20)
     ]
 
     model.fit_generator(
@@ -78,6 +78,28 @@ if mode=='train':
         epochs=n_epoch,
         callbacks=callbacks,
         verbose=2)
+
+    print('predicting')
+    model.load_weights(save_file)
+    pred_generator = datagen.DataGenerator(X_val, shuffle=False, **params)
+    y_pred = model.predict_generator(pred_generator, steps=len(y_true)//batch_size)
+    y_pred = np.argmax(y_pred, axis=1)
+    y_true = y_true[:len(y_pred)]
+
+    print('y_true shape', y_true.shape)
+    print('y_pred shape', y_pred.shape)
+
+    # compute accuracy
+    accuracy = metrics.accuracy_score(y_true, y_pred) * 100
+    error = 100 - accuracy
+    print('accuracy : ', accuracy)
+    print('error : ', error)
+
+    # compute confusion matrix
+    cm = metrics.confusion_matrix(y_true, y_pred)
+    cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+    print('confusion matrix')
+    print(cm)
 
 elif mode=='eval-mags':
     mag_min = 9

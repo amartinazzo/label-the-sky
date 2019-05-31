@@ -3,11 +3,10 @@ resnext adapted from https://github.com/titu1994/Keras-ResNeXt/blob/master/resne
 
 '''
 
-from keras.models import Model
-from keras.layers.core import Dense, Lambda
-from keras.layers.core import Activation
-from keras.layers.convolutional import Conv2D
-from keras.layers.pooling import GlobalAveragePooling2D, GlobalMaxPooling2D, MaxPooling2D
+from keras.models import Model, Sequential
+from keras.layers.core import Activation, Dense, Lambda, Flatten
+from keras.layers.convolutional import Conv1D, Conv2D
+from keras.layers.pooling import GlobalAveragePooling2D, GlobalMaxPooling2D, MaxPooling2D, MaxPooling1D
 from keras.layers import Input
 from keras.layers.merge import concatenate, add
 from keras.layers.normalization import BatchNormalization
@@ -34,12 +33,13 @@ def dense_net(input_shape, width=64, n_layers=2, n_classes=3):
     return model
 
 
-def _1d_conv_net(n_filters, kernel_size, strides, input_shape, n_classes):
+def _1d_conv_net(n_filters, kernel_size, strides, input_shape, n_classes, width):
     model = Sequential()
     model.add(Conv1D(
         filters=n_filters, kernel_size=kernel_size, strides=strides, activation='relu', input_shape=input_shape))
     model.add(MaxPooling1D(pool_size=1))
     model.add(Flatten())
+    model.add(Dense(width, activation='relu'))
     model.add(Dense(n_classes, activation='softmax'))
     model.summary()
 

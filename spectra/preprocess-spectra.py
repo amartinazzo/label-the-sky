@@ -147,8 +147,8 @@ def get_min_max(filefolder):
 			max_file = file
 
 	print('minutes taken:', int((time.perf_counter()-start)/60))
-	print('minimum : {} at {}'.format(minimum, min_files))
-	print('maximum : {} at {}'.format(maximum, max_files))
+	print('minimum : {} at {}'.format(minimum, min_file))
+	print('maximum : {} at {}'.format(maximum, max_file))
 
 	return np.floor(minimum), np.ceil(maximum)
 
@@ -184,3 +184,4 @@ if __name__=="__main__":
 	# preprocess_files('spectra/loglamb/*', 'spectra/flux/*')
 
 	get_min_max('../raw-data/spectra/*')
+	# normalize('../raw-data/spectra/*', '../raw-data/spectra-normalized/')
