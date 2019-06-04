@@ -7,14 +7,14 @@ from sklearn.metrics import accuracy_score, confusion_matrix
 import os
 
 
-mode = 'train' # train or eval
+mode = 'eval-mags' # train or eval
 mag_thres = [16, 19]
 width = 1024
 
 
 mag_str = 'all-mags' if mag_thres is None else 'mag{}-{}'.format(mag_thres[0], mag_thres[1])
-save_file = 'classifiers/catalog-models/dense_{}_{}_0530_200epoches.h5'.format(mag_str, width)
-weights_file = None #'classifiers/catalog-models/dense_all-mags_512.h5'
+# save_file = 'classifiers/catalog-models/dense_{}_{}_0530_200epoches.h5'.format(mag_str, width)
+weights_file = 'classifiers/catalog-models/dense_mag16-19_1024_0530_200epoches.h5'
 
 os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
 os.environ['CUDA_VISIBLE_DEVICES']='-1'
@@ -27,10 +27,10 @@ home_path = os.path.expanduser('~')
 
 def load_dataset(csv_file, mag_thres=None):
     df = pd.read_csv(csv_file)
-    print(df['class'].value_counts(normalize=True))
-    y = df['class'].map(lambda s: class_map[s]).values
     if mag_thres is not None:
         df = df[df.r.between(mag_thres[0], mag_thres[1])]
+    print(df['class'].value_counts(normalize=True))
+    y = df['class'].map(lambda s: class_map[s]).values
     y = to_categorical(y, num_classes=len(class_map))
     df = df[mag_cols]
     df.replace(-99, 0, inplace=True)

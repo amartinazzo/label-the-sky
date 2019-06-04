@@ -33,13 +33,12 @@ def dense_net(input_shape, width=64, n_layers=2, n_classes=3):
     return model
 
 
-def _1d_conv_net(n_filters, kernel_size, strides, input_shape, n_classes, width):
+def _1d_conv_net(n_filters, kernel_size, strides, input_shape, n_classes):
     model = Sequential()
     model.add(Conv1D(
         filters=n_filters, kernel_size=kernel_size, strides=strides, activation='relu', input_shape=input_shape))
     model.add(MaxPooling1D(pool_size=1))
     model.add(Flatten())
-    model.add(Dense(width, activation='relu'))
     model.add(Dense(n_classes, activation='softmax'))
     model.summary()
 

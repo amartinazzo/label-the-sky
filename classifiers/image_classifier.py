@@ -12,7 +12,7 @@ from models import resnext
 import sklearn.metrics as metrics
 
 
-mode = 'train' # train or eval-mags
+mode = 'eval' # train or eval-mags
 
 n_classes = 3
 n_epoch = 200
@@ -26,8 +26,8 @@ cardinality = 8
 width = 16
 
 models_dir = 'classifiers/image-models/'
-weights_file = 'classifiers/image-models/resnext-all-mags-12-bands-0529.h5'
-save_file = 'classifiers/image-models/resnext-all-mags-12-bands-0530_200epc.h5'
+weights_file = 'classifiers/image-models/resnext-all-mags-12-bands-0530_200epc.h5'
+# save_file = 'classifiers/image-models/resnext_depth11.h5'
 home_path = os.path.expanduser('~')
 params = {'data_folder': home_path+'/raw-data/crops/normalized/', 'dim': (32,32,12), 'n_classes': 3}
 class_weights = {0: 2, 1: 2.5, 2: 10} # 1/class_proportion
@@ -147,19 +147,20 @@ elif mode=='eval-mags':
 else:
     # make inferences on model
     print('predicting')
-    pred_generator = datagen.DataGenerator(X_val, shuffle=False, **params)
-    y_pred = model.predict_generator(pred_generator, steps=len(y_true)//batch_size)
+    X_val, y_true, _ = datagen.get_sets(home_path+'/raw-data/dr1_full_val.csv', filters={'r': (21,22)})
+    pred_generator = datagen.DataGenerator(X_val, shuffle=False, batch_size=1, **params)
+    y_pred = model.predict_generator(pred_generator, steps=len(y_true))
     y_pred = np.argmax(y_pred, axis=1)
-    y_true = y_true[:len(y_pred)]
 
-    print('y_true shape', y_true.shape)
-    print('y_pred shape', y_pred.shape)
+    preds_correct = y_pred==y_true
+
+    x_miss = X_val[~preds_correct]
+    print('missclasified', len(x_miss))
+    print(x_miss)
 
     # compute accuracy
     accuracy = metrics.accuracy_score(y_true, y_pred) * 100
-    error = 100 - accuracy
     print('accuracy : ', accuracy)
-    print('error : ', error)
 
     # compute confusion matrix
     cm = metrics.confusion_matrix(y_true, y_pred)

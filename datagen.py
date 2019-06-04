@@ -83,7 +83,7 @@ class DataGenerator(keras.utils.Sequence):
 
     def __data_generation(self, list_ids_temp):
         # generate data containing batch_size samples
-        X = np.empty((self.batch_size, *self.shape))
+        X = np.empty((self.batch_size,)+self.shape)
         if self.labels is not None:
             y = np.empty((self.batch_size), dtype=int)
 

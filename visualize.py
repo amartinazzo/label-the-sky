@@ -112,6 +112,19 @@ def plot_rgb(filename):
 	plt.show()
 
 
+def magnitude_hist(filename):
+	cat = pd.read_csv(filename)
+	classes = cat['class'].unique()
+	print(classes)
+	for c in classes:
+		cat.loc[cat['class']==c, 'r'].hist(bins=100, alpha=0.7)
+	plt.legend(classes)
+	plt.xlabel('MAGNITUDE')
+	plt.ylabel('# OF SAMPLES')
+	plt.show()
+
+
+
 # files = glob("../raw-data/coadded/*", recursive=True)
 # im_path = files[0]
 # print(im_path)
@@ -123,7 +136,9 @@ def plot_rgb(filename):
 # plt.imshow(im)
 # plt.show()
 
+file = '../raw-data/crops/SPLUS.STRIPE82-0033.05627.npy'
 plot_bands(filename)
 
 # f = '../raw-data/coadded/STRIPE82-0003_{}_swp.fits.fz'
 # plot_field_rgb(f)
+# magnitude_hist('csv/matched_cat_dr1.csv')
