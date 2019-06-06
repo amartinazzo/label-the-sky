@@ -4,7 +4,7 @@ resnext adapted from https://github.com/titu1994/Keras-ResNeXt/blob/master/resne
 '''
 
 from keras.models import Model, Sequential
-from keras.layers.core import Activation, Dense, Lambda, Flatten
+from keras.layers.core import Activation, Dense, Dropout, Lambda, Flatten
 from keras.layers.convolutional import Conv1D, Conv2D
 from keras.layers.pooling import GlobalAveragePooling2D, GlobalMaxPooling2D, MaxPooling2D, MaxPooling1D
 from keras.layers import Input
@@ -37,6 +37,7 @@ def _1d_conv_net(n_filters, kernel_size, strides, input_shape, n_classes):
     model = Sequential()
     model.add(Conv1D(
         filters=n_filters, kernel_size=kernel_size, strides=strides, activation='relu', input_shape=input_shape))
+    model.add(Dropout(0.5))
     model.add(MaxPooling1D(pool_size=1))
     model.add(Flatten())
     model.add(Dense(n_classes, activation='softmax'))

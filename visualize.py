@@ -10,7 +10,7 @@ import pandas as pd
 
 matplotlib.rcParams.update({'font.size': 6})
 
-filename = '../raw-data/crops/normalized/SPLUS.STRIPE82-0042.10742.npy'
+filename = '../raw-data/crops/original/SPLUS.STRIPE82-0033.05627.npy'
 
 
 bands = ['U', 'F378', 'F395', 'F410', 'F430', 'G', 'F515', 'R', 'F660', 'I', 'F861', 'Z']
@@ -45,46 +45,37 @@ def plot_field_rgb(filepath):
 
 
 # receives 12-band array and plots each band in grayscale + lupton composite + given rgb composite
-def plot_bands(arr, plot_trilogy=False, base_catalog='csv/sloan_splus_matches.csv'):
+def plot_bands(arr, plot_composites=False, znorm=True, base_catalog='csv/matched_cat_dr1.csv'):
 	arr = np.load(filename)
+	if znorm:
+		arr = arr - np.mean(arr, axis=(0,1))
+		arr = arr / np.std(arr, axis=(0,1),  ddof=1)
+
 	x, y, n_bands = arr.shape
 	plt.figure()
 	plt.suptitle(filename)
 	for b in range(n_bands):
-		ax = plt.subplot(4, 4, b+1)
+		ax = plt.subplot(4, 3, b+1)
 		ax.set_title(bands[b])
 		data = arr[:,:,b]
 		data = stretcher(data, clip=False)
 		vmin, vmax = scaler.get_limits(data)
+		print(vmin,vmax)
 		ax.imshow(data, interpolation='nearest', cmap=plt.cm.gray_r, vmin=vmin, vmax=vmax) #norm=colors.PowerNorm(0.1))
 		ax.axis('off')
 	
-	im_lupton = make_lupton_rgb(arr[:,:,9], arr[:,:,7], arr[:,:,5], stretch=0.5) #750 rgu 975 gri
-	ax = plt.subplot(4,4,b+2)
-	ax.set_title('our gri composite')
-	ax.axis('off')
-	ax.imshow(im_lupton, interpolation='nearest', cmap=plt.cm.gray_r, norm=colors.PowerNorm(0.1))
-
-	im_lupton = make_lupton_rgb(arr[:,:,7], arr[:,:,5], arr[:,:,0], stretch=0.5) #750 rgu
-	ax = plt.subplot(4,4,b+3)
-	ax.set_title('our rgu composite')
-	ax.axis('off')
-	ax.imshow(im_lupton, interpolation='nearest', cmap=plt.cm.gray_r, norm=colors.PowerNorm(0.1))
-	
-	if plot_trilogy:
-		obj_id = filename.split('/')[-1].replace('.npy','')
-		field = obj_id.split('.')[1]
-		im = cv2.imread('../raw-data/train_images/{}.trilogy.png'.format(field))
-		cat = pd.read_csv(base_catalog)
-		obj = cat[cat['id'] == obj_id].iloc[0]
-		x = obj['x'] #1341
-		y = 11000 - obj['y'] #11000-3955
-		d = 10
-		obj = im[y-d:y+d,x-d:x+d]
-		ax = plt.subplot(4,4,b+4)
-		ax.set_title('SPLUS composite')
+	if plot_composites:
+		im_lupton = make_lupton_rgb(arr[:,:,9], arr[:,:,7], arr[:,:,5], stretch=0.5) #750 rgu 975 gri
+		ax = plt.subplot(4,3,b+2)
+		ax.set_title('our gri composite')
 		ax.axis('off')
-		ax.imshow(obj)
+		ax.imshow(im_lupton, interpolation='nearest', cmap=plt.cm.gray_r, norm=colors.PowerNorm(0.1))
+
+		im_lupton = make_lupton_rgb(arr[:,:,7], arr[:,:,5], arr[:,:,0], stretch=0.5) #750 rgu
+		ax = plt.subplot(4,4,b+3)
+		ax.set_title('our rgu composite')
+		ax.axis('off')
+		ax.imshow(im_lupton, interpolation='nearest', cmap=plt.cm.gray_r, norm=colors.PowerNorm(0.1))
 	
 	plt.show()
 
@@ -136,7 +127,6 @@ def magnitude_hist(filename):
 # plt.imshow(im)
 # plt.show()
 
-file = '../raw-data/crops/SPLUS.STRIPE82-0033.05627.npy'
 plot_bands(filename)
 
 # f = '../raw-data/coadded/STRIPE82-0003_{}_swp.fits.fz'

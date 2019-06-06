@@ -12,25 +12,25 @@ from models import resnext
 import sklearn.metrics as metrics
 
 
-mode = 'eval' # train or eval-mags
+mode = 'train' # train or eval-mags
 
 n_classes = 3
-n_epoch = 200
+n_epoch = 300
 img_dim = (32,32,12)
 
 # images are stored in float64 (8 bytes per pixel)
 # one image is 32*32*12*8/10e6 ~= 0.1 MB
-batch_size = 128
+batch_size = 256
 depth = 29
-cardinality = 8
+cardinality = 4
 width = 16
 
 models_dir = 'classifiers/image-models/'
-weights_file = 'classifiers/image-models/resnext-all-mags-12-bands-0530_200epc.h5'
-# save_file = 'classifiers/image-models/resnext_depth11.h5'
+weights_file = None #'classifiers/image-models/resnext_depth11_card4_300epc.h5'
+save_file = 'classifiers/image-models/resnext_depth29_card4_300epc_weights.h5'
 home_path = os.path.expanduser('~')
 params = {'data_folder': home_path+'/raw-data/crops/normalized/', 'dim': (32,32,12), 'n_classes': 3}
-class_weights = {0: 2, 1: 2.5, 2: 10} # 1/class_proportion
+class_weights = {0: 1, 1: 1.25, 2: 5} # 1/class_proportion
 
 # make only 1 gpu visible
 os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
@@ -42,7 +42,7 @@ print('model created')
 
 # model.summary()
 
-optimizer = Adam(lr=1e-5)
+optimizer = Adam(lr=1e-4)
 model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
 print('finished compiling')
 
@@ -70,14 +70,18 @@ if mode=='train':
         EarlyStopping(monitor='val_acc', patience=20)
     ]
 
-    model.fit_generator(
-        # steps_per_epoch=len(X_train)//batch_size,
+    history = model.fit_generator(
+        steps_per_epoch=len(X_train)//batch_size,
         generator=train_generator,
         validation_data=val_generator,
-        # validation_steps=len(X_val)//batch_size,
+        validation_steps=len(X_val)//batch_size,
         epochs=n_epoch,
         callbacks=callbacks,
+        class_weight=class_weights,
         verbose=2)
+
+    print('loss', history.history['loss'])
+    print('val_loss', history.history['val_loss'])
 
     print('predicting')
     model.load_weights(save_file)
@@ -148,12 +152,16 @@ else:
     # make inferences on model
     print('predicting')
     X_val, y_true, _ = datagen.get_sets(home_path+'/raw-data/dr1_full_val.csv', filters={'r': (21,22)})
+    idx = list(X_val).index('SPLUS.STRIPE82-0033.05627')
+    X_val = [X_val[idx]]
+    y_true = [y_true[idx]]
+    print(X_val, y_true)
     pred_generator = datagen.DataGenerator(X_val, shuffle=False, batch_size=1, **params)
     y_pred = model.predict_generator(pred_generator, steps=len(y_true))
+    print(y_pred)
     y_pred = np.argmax(y_pred, axis=1)
 
     preds_correct = y_pred==y_true
-
     x_miss = X_val[~preds_correct]
     print('missclasified', len(x_miss))
     print(x_miss)

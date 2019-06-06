@@ -155,6 +155,37 @@ def get_min_max(filefolder, n_channels=12):
 	return np.floor(minima), np.ceil(maxima)
 
 
+def get_mean_var(filefolder, n_channels=12):
+	'''
+		receives:
+			* filefolder	(str) folder pattern wherein ndarray images are
+			* n_channels	(int) number of channels in images
+		returns:
+			a tuple (mean, var), each an array of length=n_channels 
+					containing mean and variance per band across all images
+		reference:
+			https://www.researchgate.net/post/How_to_combine_standard_deviations_for_three_groups
+	'''
+	start = time()
+	files = glob(filefolder)
+	mean, var = np.zeros(n_channels), np.zeros(n_channels)
+	n_files = len(files)
+	print('nr of files', n_files)
+	for file in files:
+		im = np.load(file)
+		mean = mean + np.mean(im, axis=(0,1))
+		var =  var + np.std(im, axis=(0,1))
+
+	mean = mean/n_files
+	var = var/n_files
+
+	print('minutes taken:', int((time()-start)/60))
+	print('means', mean)
+	print('variances', var)
+
+	return mean, var
+
+
 def normalize_images(input_folder, output_folder, bounds_lower, bounds_upper):
 	'''
 	saves ndarray images resized to (32,32,n_channels) and normalized to values in [0,1]
@@ -185,6 +216,28 @@ def normalize_images(input_folder, output_folder, bounds_lower, bounds_upper):
 	print('minutes taken:', int((time()-start)/60))
 
 
+def z_norm_images(input_folder, output_folder):
+	'''
+	saves ndarray images resized to (32,32,n_channels) and normalized by their z-score: x-mean/std
+	receives:
+		* input_folder		(str) folder path wherein are (x,x,n_channels) ndarray images with varying shapes and value ranges
+		* output_folder		(str) folder wherein normalized images will be saved
+	'''
+	files = glob(input_folder)
+	print('nr of files', len(files))
+
+	start = time()
+	for file in files:
+		im = np.load(file)
+		im = im - np.mean(im, axis=(0,1))
+		im = im / np.std(im, axis=(0,1))
+		if im.shape[0] > 32:
+			im = resize(im, dsize=(32, 32), interpolation=INTER_CUBIC)
+			# print('{} resized'.format(file.split('/')[-1]))
+		np.save('{}{}'.format(output_folder, file.split('/')[-1]), im, allow_pickle=False)
+	print('minutes taken:', int((time()-start)/60))
+
+
 if __name__=='__main__':
 	# sweep_fields(
 	# 	fields_path='../raw-data/dr1/coadded/*/*.fz',
@@ -196,8 +249,9 @@ if __name__=='__main__':
 	normalized_crops_path = '../raw-data/crops/normalized/'
 
 	# lower_bounds, upper_bounds = get_min_max(original_crops_path)
-	lower_bounds = np.array([ -27., -114., -133.,  -37., -157., -456.,  -26.,  -39., -359., -318.,   -5., -256.])
-	upper_bounds = np.array([ 181.,  636.,  959., 1051.,  949., 1750.,  256.,  270., 1955., 2219.,  117., 1413.])
+	# lower_bounds = np.array([ -27., -114., -133.,  -37., -157., -456.,  -26.,  -39., -359., -318.,   -5., -256.])
+	# upper_bounds = np.array([ 181.,  636.,  959., 1051.,  949., 1750.,  256.,  270., 1955., 2219.,  117., 1413.])
 
-	normalize_images(original_crops_path, normalized_crops_path, lower_bounds, upper_bounds)
+	# normalize_images(original_crops_path, normalized_crops_path, lower_bounds, upper_bounds)
 
+	mean, var = get_mean_var(original_crops_path)

@@ -8,12 +8,12 @@ import pandas as pd
 from sklearn.metrics import accuracy_score, confusion_matrix
 
 
-mode = 'eval-mags' # train or eval
+mode = 'train' # train or eval
 filters = None #{'r': [16, 19]}
 
-weights_file = 'classifiers/spectra-models/model_1conv.h5'
+weights_file = None #'classifiers/spectra-models/model_1conv.h5'
 filter_str = 'all-mags' if filters is None else 'mag{}-{}'.format(filters['r'][0], filters['r'][1])
-# save_file = 'classifiers/spectra-models/dense_{}_{}_0530.h5'.format(filter_str, width)
+save_file = 'classifiers/spectra-models/conv1d_kernel100_stride90.h5'
 
 os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
 os.environ['CUDA_VISIBLE_DEVICES']='0'
@@ -43,7 +43,7 @@ val_generator = datagen.DataGenerator(X_val, labels=labels_val, **params)
 # create model
 
 model = _1d_conv_net(
-    n_filters=32, kernel_size=20, strides=18, input_shape=params['dim'], n_classes=params['n_classes'])
+    n_filters=16, kernel_size=100, strides=90, input_shape=params['dim'], n_classes=params['n_classes'])
 
 # model = dense_net(input_shape=params['dim'], width=width)
 model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
@@ -59,12 +59,16 @@ if mode=='train':
         EarlyStopping(monitor='val_acc', patience=10)
     ]
 
-    model.fit_generator(
+    history = model.fit_generator(
     	epochs=100,
+        steps_per_epoch=len(X_train)//128,
         callbacks=callbacks_list,
     	generator=train_generator,
         validation_data=val_generator,
+        validation_steps=len(X_val)//128,
         verbose=2)
+
+    print(history)
 
 elif mode=='eval-mags':
     mag_min = 9
