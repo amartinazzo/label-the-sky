@@ -3,10 +3,14 @@ from astropy.io import fits
 from astropy.visualization import make_lupton_rgb
 import cv2
 import matplotlib
+from matplotlib.collections import PathCollection
+from matplotlib.legend_handler import HandlerPathCollection
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import numpy as np
 import pandas as pd
+from utils import get_sets
+
 
 matplotlib.rcParams.update({'font.size': 6})
 
@@ -115,6 +119,22 @@ def magnitude_hist(filename):
 	plt.show()
 
 
+def update_legend_marker(handle, orig):
+    handle.update_from(orig)
+    handle.set_sizes([64])
+    handle.set_alpha(1)
+
+
+def plot_2d_embedding(X, y, filepath, format_='png', labels=['galaxy', 'star', 'qso']):
+	plt.clf()
+	colors = ['m', 'b', 'y']
+	for c in np.unique(y):
+		X_c = X[y==c]
+		plt.scatter(X_c[:,0], X_c[:,1], c=colors[c], s=0.5, marker='.', alpha=0.1, label=labels[c])
+	plt.legend(handler_map={PathCollection : HandlerPathCollection(update_func=update_legend_marker)})
+	plt.setp(plt.gcf().get_axes(), xticks=[], yticks=[])
+	plt.savefig(filepath+'.'+format_, format=format_)
+
 
 # files = glob("../raw-data/coadded/*", recursive=True)
 # im_path = files[0]
@@ -127,8 +147,18 @@ def magnitude_hist(filename):
 # plt.imshow(im)
 # plt.show()
 
-plot_bands(filename)
+# plot_bands(filename)
 
 # f = '../raw-data/coadded/STRIPE82-0003_{}_swp.fits.fz'
 # plot_field_rgb(f)
 # magnitude_hist('csv/matched_cat_dr1.csv')
+
+csv_file = 'csv/matched_cat_dr1.csv'
+tsne_file = 'dr1_features_tsne.npy'
+umap_file = 'dr1_features_umap.npy'
+_, y_true, _ = get_sets(csv_file)
+X_umap = np.load(umap_file)
+X_tsne = np.load(tsne_file)
+plot_2d_embedding(X_umap, y_true, 'umap')
+plot_2d_embedding(X_tsne, y_true, 'tsne')
+print('saved embedding figures')

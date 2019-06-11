@@ -1,6 +1,5 @@
 import os,sys,inspect
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))))
-import datagen
 from keras import backend as K
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from keras.optimizers import Adam
@@ -10,6 +9,7 @@ import os
 import pandas as pd
 from models import resnext
 import sklearn.metrics as metrics
+import utils
 
 
 mode = 'train' # train or eval-mags
@@ -47,8 +47,8 @@ model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['ac
 print('finished compiling')
 
 # load dataset iterators
-X_train, _, labels_train = datagen.get_sets(home_path+'/raw-data/dr1_full_train.csv')
-X_val, y_true, labels_val = datagen.get_sets(home_path+'/raw-data/dr1_full_val.csv')
+X_train, _, labels_train = utils.get_sets(home_path+'/raw-data/dr1_full_train.csv')
+X_val, y_true, labels_val = utils.get_sets(home_path+'/raw-data/dr1_full_val.csv')
 print('train size', len(X_train))
 print('val size', len(X_val))
 
@@ -116,7 +116,7 @@ elif mode=='eval-mags':
     acc2 = []
     for ix in range(len(intervals)-1):
         filters = {'r': (intervals[ix], intervals[ix+1])}
-        X_val, y_true, _ = datagen.get_sets(home_path+'/raw-data/dr1_full_val.csv', filters=filters)
+        X_val, y_true, _ = utils.get_sets(home_path+'/raw-data/dr1_full_val.csv', filters=filters)
         if X_val.shape[0] == 0:
             continue
         print('predicting for [{}, {}]'.format(intervals[ix], intervals[ix+1]))
@@ -151,7 +151,7 @@ elif mode=='eval-mags':
 else:
     # make inferences on model
     print('predicting')
-    X_val, y_true, _ = datagen.get_sets(home_path+'/raw-data/dr1_full_val.csv', filters={'r': (21,22)})
+    X_val, y_true, _ = utils.get_sets(home_path+'/raw-data/dr1_full_val.csv', filters={'r': (21,22)})
     idx = list(X_val).index('SPLUS.STRIPE82-0033.05627')
     X_val = [X_val[idx]]
     y_true = [y_true[idx]]

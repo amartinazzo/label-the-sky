@@ -1,11 +1,11 @@
 import os,sys,inspect
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))))
-import datagen
 from keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 from models import _1d_conv_net, dense_net
 import numpy as np
 import pandas as pd
 from sklearn.metrics import accuracy_score, confusion_matrix
+import utils
 
 
 mode = 'train' # train or eval
@@ -32,8 +32,8 @@ params = {
 
 # load dataset iterators
 
-X_train, _, labels_train = datagen.get_sets('csv/matched_cat_early-dr_filtered_train.csv', filters=filters)
-X_val, y_true, labels_val = datagen.get_sets('csv/matched_cat_early-dr_filtered_val.csv', filters=filters)
+X_train, _, labels_train = utils.get_sets('csv/matched_cat_early-dr_filtered_train.csv', filters=filters)
+X_val, y_true, labels_val = utils.get_sets('csv/matched_cat_early-dr_filtered_val.csv', filters=filters)
 print('train size', len(X_train))
 print('val size', len(X_val))
 
@@ -81,7 +81,7 @@ elif mode=='eval-mags':
     acc2 = []
     for ix in range(len(intervals)-1):
         filters = {'r': (intervals[ix], intervals[ix+1])}
-        X_val, y_true, _ = datagen.get_sets('csv/matched_cat_early-dr_filtered_val.csv', filters=filters)
+        X_val, y_true, _ = utils.get_sets('csv/matched_cat_early-dr_filtered_val.csv', filters=filters)
         if X_val.shape[0] == 0:
             continue
         print('predicting for [{}, {}]'.format(intervals[ix], intervals[ix+1]))
