@@ -5,8 +5,8 @@ from MulticoreTSNE import MulticoreTSNE as TSNE
 import numpy as np
 import os
 import pandas as pd
-from sklearn.cluster import DBSCAN
-from sklearn.preprocessing import StandardScaler
+from hdbscan import HDBSCAN
+from sklearn.preprocessing import MinMaxScaler
 from time import time
 from umap import UMAP
 from utils import get_sets
@@ -50,7 +50,7 @@ if not os.path.exists(features_file):
 	model.load_weights(weights_file, by_name=True, skip_mismatch=True)
 	print('model weights loaded!')
 
-	X, y_true, _ = datagen.get_sets(csv_file)
+	X, y_true, _ = get_sets(csv_file)
 	X_generator = datagen.DataGenerator(X, batch_size=1, shuffle=False, **params)
 	print('extracting features')
 	X_features = model.predict_generator(X_generator, steps=len(X), verbose=1)
@@ -65,7 +65,7 @@ if not os.path.exists(features_file):
 	print('saved feature matrix')
 
 else:
-	_, y_true, _ = datagen.get_sets(csv_file)
+	_, y_true, _ = get_sets(csv_file)
 	X_features = np.load(features_file)
 
 print('features max', X_features.max())
@@ -77,8 +77,9 @@ print('features shape', X_features.shape)
 
 if run_clustering:
 	start = time()
-	# X_features = StandardScaler().fit_transform(X_features)
-	clustering = DBSCAN(eps=10, min_samples=2, n_jobs=-1).fit(X_features)
+	scaler = MinMaxScaler()
+	X_features = scaler.fit_transform(X_features)
+	clustering = HDBSCAN(core_dist_n_jobs=-1).fit(X_features)
 	print('minutes taken:', int((time()-start)/60))
 
 	y_cluster = clustering.labels_

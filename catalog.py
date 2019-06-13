@@ -78,6 +78,17 @@ def filter_master_catalog(master_cat_file, output_file):
     cat.to_csv(output_file, index=False, header=False, mode='a')
 
 
+def gen_diff_catalog(master_cat_file, matched_cat_file, diff_cat_file):
+    df_master = pd.read_csv(master_cat_file)
+    print('master shape', df_master.shape)
+    df_matched = pd.read_csv(matched_cat_file)
+    print('matched shape', df_matched.shape)
+    matched_obj = df_matched['id'].values
+    df_diff = df_master[~df_master['id'].isin(matched_obj)]
+    print('diff shape', df_diff.shape)
+    df_diff.to_csv(diff_cat_file, index=False)
+
+
 def query_sdss(query_str, filename):
     objid = -1
     cnt = 0
@@ -239,10 +250,10 @@ if __name__=='__main__':
     # print('minutes taken:', int((time.time()-start)/60))
 
     # # match catalogs
-    print('matching catalogs')
-    start = time.time()
-    c = match_catalogs(sloan_cat, splus_cat, matched_cat)
-    print('minutes taken:', int((time.time()-start)/60))
+    # print('matching catalogs')
+    # start = time.time()
+    # c = match_catalogs(sloan_cat, splus_cat, matched_cat)
+    # print('minutes taken:', int((time.time()-start)/60))
 
     # # filter catalog
     # print('filtering matched catalog')
@@ -252,3 +263,5 @@ if __name__=='__main__':
 
     # print('generating train-val-test splits')
     # gen_splits(filtered_cat)
+
+    gen_diff_catalog('csv/splus_catalog_dr1.csv', 'csv/matched_cat_dr1.csv', 'csv/diff_cat_dr1.csv')

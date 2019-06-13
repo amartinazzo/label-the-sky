@@ -26,7 +26,7 @@ def get_ndarray(filepath):
 	return fits_im[1].data
 
 
-def crop_objects_in_field(arr, catalog, save_folder, field_name):
+def crop_objects_in_field(arr, catalog, save_folder, field_name, subfolders=False):
 	'''
 	crops objects in a given field
 	receives:
@@ -43,8 +43,12 @@ def crop_objects_in_field(arr, catalog, save_folder, field_name):
 		y0 = int(o['y']) - d
 		y1 = int(o['y']) + d
 		cropped = arr[y0:y1, x0:x1, :]
-		subfolder = '32x32' if d==delta else 'larger'
-		np.save('{}{}/{}.npy'.format(save_folder, subfolder, o['id']), cropped, allow_pickle=False)
+		if subfolders:
+			subfolder = '32x32' if d==delta else 'larger'
+			save_path = save_folder+subfolder
+		else:
+			save_path = save_folder
+		np.save('{}/{}.npy'.format(save_path, o['id']), cropped, allow_pickle=False)
 
 
 def get_bands_order():
@@ -249,9 +253,17 @@ if __name__=='__main__':
 	normalized_crops_path = '../raw-data/crops/normalized/'
 
 	# lower_bounds, upper_bounds = get_min_max(original_crops_path)
-	# lower_bounds = np.array([ -27., -114., -133.,  -37., -157., -456.,  -26.,  -39., -359., -318.,   -5., -256.])
-	# upper_bounds = np.array([ 181.,  636.,  959., 1051.,  949., 1750.,  256.,  270., 1955., 2219.,  117., 1413.])
 
-	# normalize_images(original_crops_path, normalized_crops_path, lower_bounds, upper_bounds)
-
-	mean, var = get_mean_var(original_crops_path)
+	lower_bounds = np.array([ -27., -114., -133.,  -37., -157., -456.,  -26.,  -39., -359., -318.,   -5., -256.])
+	upper_bounds = np.array([ 181.,  636.,  959., 1051.,  949., 1750.,  256.,  270., 1955., 2219.,  117., 1413.])
+	sweep_fields(
+		fields_path='../raw-data/dr1/coadded/*/*.fz',
+		catalog_path='csv/diff_cat_dr1.csv',
+		crops_folder='../raw-data/crops/unsup_normalized/'
+		)
+	normalize_images(
+		'../raw-data/crops/unsup_normalized',
+		'../raw-data/crops/unsup_normalized',
+		lower_bounds,
+		upper_bounds
+		)
