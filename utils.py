@@ -8,7 +8,7 @@ from sklearn.utils.multiclass import unique_labels
 class_map = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
 
 
-def get_sets(filepath, filters=None):
+def get_sets(filepath, filters=None, obj_list=None):
     """
     receives:
     * filepath      path to csv file with id values and class strings
@@ -24,13 +24,17 @@ def get_sets(filepath, filters=None):
     if filters is not None:
         for key, val in filters.items():
             df = df[df[key].between(val[0], val[1])]
-        print('set size after filters', df.shape)
+            print('set size after filters', df.shape)
+    if obj_list is not None:
+        df = df[df['id'].isin(obj_list)]
+        print('set size after crossing with folder files', df.shape)
     X = df['id'].values
-    y = df['class'].apply(lambda c: class_map[c]).values
-    print(df['class'].value_counts(normalize=True))
-    labels = dict(zip(X, y))
-
-    return X, y, labels
+    if 'class' in df.columns:
+        y = df['class'].apply(lambda c: class_map[c]).values
+        print(df['class'].value_counts(normalize=True))
+        labels = dict(zip(X, y))
+        return X, y, labels
+    return X, None, None
 
 
 def plot_confusion_matrix(y_true, y_pred, classes,

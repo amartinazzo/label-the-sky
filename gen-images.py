@@ -249,20 +249,20 @@ if __name__=='__main__':
 	# 	crops_folder='../raw-data/crops/'
 	# 	)
 
-	original_crops_path = '../raw-data/crops/original/*'
-	normalized_crops_path = '../raw-data/crops/normalized/'
+	# original_crops_path = '../raw-data/crops/original/*'
+	# normalized_crops_path = '../raw-data/crops/normalized/'
 
 	# lower_bounds, upper_bounds = get_min_max(original_crops_path)
 
 	lower_bounds = np.array([ -27., -114., -133.,  -37., -157., -456.,  -26.,  -39., -359., -318.,   -5., -256.])
 	upper_bounds = np.array([ 181.,  636.,  959., 1051.,  949., 1750.,  256.,  270., 1955., 2219.,  117., 1413.])
-	sweep_fields(
-		fields_path='../raw-data/dr1/coadded/*/*.fz',
-		catalog_path='csv/diff_cat_dr1.csv',
-		crops_folder='../raw-data/crops/unsup_normalized/'
-		)
+	# sweep_fields(
+	# 	fields_path='../raw-data/dr1/coadded/*/*.fz',
+	# 	catalog_path='csv/diff_cat_dr1.csv',
+	# 	crops_folder='../raw-data/crops/unsup_normalized/'
+	# 	)
 	normalize_images(
-		'../raw-data/crops/unsup_normalized',
+		'../raw-data/crops/unsup_normalized/*',
 		'../raw-data/crops/unsup_normalized',
 		lower_bounds,
 		upper_bounds
