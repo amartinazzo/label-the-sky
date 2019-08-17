@@ -123,9 +123,9 @@ def sweep_fields(fields_path, catalog_path, crops_folder):
 		field_name = f.split('/')[-1].split('_')[0]
 		if prev != field_name or ix==len(files[1:]):
 			print('{} min. cropping objects in {}'.format(int((time()-start)/60), prev))
-			objects_df = catalog[catalog.field_name==field_name].reset_index()
+			objects_df = catalog[catalog.field_name==prev].reset_index()
 			Parallel(n_jobs=8, prefer='threads')(delayed(
-				crop_object_in_field)(ix, arr, objects_df, crops_folder, field_name, True) for ix in range(objects_df.index.max()))
+				crop_object_in_field)(ix, arr, objects_df, crops_folder, prev, True) for ix in range(objects_df.index.max()))
 			arr = np.zeros((s0, s1, n_channels))
 			prev = field_name
 			i=0
