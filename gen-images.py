@@ -32,12 +32,13 @@ def get_ndarray(filepath):
 	return fits_im[1].data
 
 
-def crop_object_in_field(arr, object_row, save_folder, field_name, asinh=True):
+def crop_object_in_field(ix, arr, objects_df, save_folder, field_name, asinh=True):
 	'''
 	crops object in a given field
 	receives:
+		* ix            (int) index of object to be cropped in objects_df
 		* arr			(ndarray) 12-band full field image
-		* object_row 	(pandas Series) object to be cropped
+		* objects_df 	(pandas DataFrame) full objects table
 		* save_folder	(str) path to folder where crops will be saved
 		* field_name	(str) name of the field to be filtered on the catalog
 
@@ -45,18 +46,21 @@ def crop_object_in_field(arr, object_row, save_folder, field_name, asinh=True):
 	d=3 is good for larger objects (inspected visually) but yields too many resizes
 	'''
 	# d = np.ceil(np.maximum(delta, 0.5*o['fwhm'])).astype(np.int)
-	d = np.ceil(np.maximum(delta, 1*o['FWHM'])).astype(np.int)
-	x0 = np.maximum(0, int(o['X']) - d)
-	x1 = np.minimum(10999, int(o['X']) + d)
-	y0 = np.maximum(0, int(o['Y']) - d)
-	y1 = np.minimum(10999, int(o['Y']) + d)
+	row = objects_df.loc[ix]
+	d = np.ceil(np.maximum(delta, 1*row['FWHM'])).astype(np.int)
+	x0 = np.maximum(0, int(row['X']) - d)
+	x1 = np.minimum(10999, int(row['X']) + d)
+	y0 = np.maximum(0, int(row['Y']) - d)
+	y1 = np.minimum(10999, int(row['Y']) + d)
 	im = arr[y0:y1, x0:x1, :]
 	if im.shape[0] != 32 or im.shape[1] != 32:
 		im = resize(im, dsize=(32, 32), interpolation=INTER_CUBIC)
-		print('{} resized'.format(o['ID']))
+		print('{} resized'.format(row['ID']))
 	if asinh:
 		im = asinh_transform(im, clip=False)
-	np.save('{}/{}.npy'.format(save_folder, o['ID']), im, allow_pickle=False)
+	np.save('{}/{}.npy'.format(save_folder, row['ID']), im, allow_pickle=False)
+
+	return 0
 
 
 def get_bands_order():
@@ -119,9 +123,9 @@ def sweep_fields(fields_path, catalog_path, crops_folder):
 		field_name = f.split('/')[-1].split('_')[0]
 		if prev != field_name or ix==len(files[1:]):
 			print('{} min. cropping objects in {}'.format(int((time()-start)/60), prev))
-			objects_df = catalog[catalog.field_name==field_name]
-			Parallel(n_jobs=n_cores)(delayed(
-				crop_object_in_field)(ix, arr, row, crops_folder, prev) for ix, row in objects_df.iterrows())
+			objects_df = catalog[catalog.field_name==field_name].reset_index()
+			Parallel(n_jobs=8, prefer='threads')(delayed(
+				crop_object_in_field)(ix, arr, objects_df, crops_folder, field_name, True) for ix in range(objects_df.index.max()))
 			arr = np.zeros((s0, s1, n_channels))
 			prev = field_name
 			i=0
