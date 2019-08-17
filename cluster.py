@@ -1,7 +1,7 @@
-from classifiers.models import resnext
-from datagen import DataGenerator
+#from classifiers.models import resnext
+#from datagen import DataGenerator
 from glob import glob
-from keras.optimizers import Adam
+#from keras.optimizers import Adam
 from MulticoreTSNE import MulticoreTSNE as TSNE
 import numpy as np
 import os
@@ -14,16 +14,17 @@ from utils import get_sets
 
 
 clusters_file = 'dr1_diff_dbscan.npy'
-csv_file = 'csv/diff_cat_dr1.csv' #'csv/matched_cat_dr1.csv'
-features_file = 'dr1_diff_features.npy'
-tsne_file = 'dr1_diff_features_tsne.npy'
-umap_file = 'dr1_diff_features_umap.npy'
+csv_file = 'csv/matched_cat_dr1.csv'
+features_labeled = 'dr1_features.npy'
+features_unlabeled = 'dr1_diff_features.npy'
+tsne_file = 'dr1_full_features_tsne.npy'
+umap_file = 'dr1_full_features_umap.npy'
 run_clustering = False
 run_embeddings = True
 
 # extract features
 
-if not os.path.exists(features_file):
+if not os.path.exists(features_labeled):
 	batch_size = 256
 	cardinality = 4
 	depth = 29
@@ -64,21 +65,25 @@ if not os.path.exists(features_file):
 	print(X_features.shape)
 	print(X_features.dtype)
 
-	np.save(features_file, X_features)
+	np.save(features_labeled, X_features)
 	print('saved feature matrix')
 
 else:
-	_, y_true, _ = get_sets(csv_file)
-	X_features = np.load(features_file)
+	X = np.load(features_labeled)
+	X_unlabeled = np.load(features_unlabeled)
+	print('labeled shape', X.shape)
+	print('unlabeled shape', X_unlabeled.shape)
+	X = np.vstack((X, X_unlabeled))
+	del X_unlabeled
+	print('full shape', X.shape)
 
-print('features max', X_features.max())
-print('features min', X_features.min())
-print('y_true shape', y_true.shape)
-print('features shape', X_features.shape)
+print('features max', X.max())
+print('features min', X.min())
 
 # cluster
 
 if run_clustering:
+	_, y_true, _ = get_sets(csv_file)
 	start = time()
 	scaler = MinMaxScaler()
 	X_features = scaler.fit_transform(X_features)
@@ -95,11 +100,11 @@ if run_clustering:
 if run_embeddings:
 	print('embedding with UMAP')
 	start = time()
-	X_umap = UMAP().fit_transform(X_features)
+	X_umap = UMAP().fit_transform(X)
 	np.save(umap_file, X_umap)
 	print('minutes taken:', int((time()-start)/60))
 	print('embedding with T-SNE')
 	start = time()
-	X_tsne = TSNE(n_jobs=-1).fit_transform(X_features)
+	X_tsne = TSNE(n_jobs=-1).fit_transform(X)
 	np.save(tsne_file, X_tsne)
 	print('minutes taken:', int((time()-start)/60))

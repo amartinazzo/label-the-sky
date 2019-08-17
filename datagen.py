@@ -55,8 +55,10 @@ class DataGenerator(keras.utils.Sequence):
     def __data_generation(self, list_ids_temp):
         # generate data containing batch_size samples
         X = np.empty((self.batch_size,)+self.shape)
-        if self.labels is not None:
+        if self.mode=='classifier':
             y = np.empty((self.batch_size), dtype=int)
+        elif self.mode=='magnitudes':
+            y = np.zeros((self.batch_size, self.n_classes), dtype=float)
 
         for i, object_id in enumerate(list_ids_temp):
             if self.extension == 'txt':
@@ -70,11 +72,14 @@ class DataGenerator(keras.utils.Sequence):
                     arr = arr[:,:,self.bands]
                     X[i,] = arr
                 else:
+                    im = np.load(self.data_folder + object_id + '.npy')
                     X[i,] = np.load(self.data_folder + object_id + '.npy').reshape(self.shape)
             if self.labels is not None:
-                y[i] = self.labels[object_id]
+                y[i,] = np.array(self.labels[object_id])
 
         if self.labels is None:
             return X, None
+        elif self.mode=='magnitudes':
+            return X, y
 
         return X, keras.utils.to_categorical(y, num_classes=self.n_classes)

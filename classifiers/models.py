@@ -47,7 +47,7 @@ def _1d_conv_net(n_filters, kernel_size, strides, input_shape, n_classes):
 
 
 def resnext(input_shape=None, depth=29, cardinality=8, width=64, weight_decay=5e-4,
-            include_top=True, input_tensor=None, pooling=None, classes=3):
+            top_layer=True, input_tensor=None, pooling=None, classes=3):
     """Instantiate the ResNeXt architecture. Note that ,
         when using TensorFlow for best performance you should set
         `image_data_format="channels_last"` in your Keras config
@@ -58,20 +58,19 @@ def resnext(input_shape=None, depth=29, cardinality=8, width=64, weight_decay=5e
             cardinality: the size of the set of transformations
             width: multiplier to the ResNeXt width (number of filters)
             weight_decay: weight decay (l2 norm)
-            include_top: whether to include the fully-connected
-                layer at the top of the network.
+            top_layer: include top layer (boolean)
             weights: `None` (random initialization)
             input_tensor: optional Keras tensor (i.e. output of `layers.Input()`)
                 to use as image input for the model.
             input_shape: optional shape tuple, only to be specified
-                if `include_top` is False (otherwise the input shape
+                if `top_layer` is None (otherwise the input shape
                 has to be `(32, 32, 3)` (with `tf` dim ordering)
                 or `(3, 32, 32)` (with `th` dim ordering).
                 It should have exactly 3 inputs channels,
                 and width and height should be no smaller than 8.
                 E.g. `(200, 200, 3)` would be one valid value.
             pooling: Optional pooling mode for feature extraction
-                when `include_top` is `False`.
+                when `top_layer` is `None`.
                 - `None` means that the output of the model will be
                     the 4D tensor output of the
                     last convolutional layer.
@@ -82,7 +81,7 @@ def resnext(input_shape=None, depth=29, cardinality=8, width=64, weight_decay=5e
                 - `max` means that global max pooling will
                     be applied.
             classes: optional number of classes to classify images
-                into, only to be specified if `include_top` is True, and
+                into, only to be specified if `top_layer` is not `None`, and
                 if no `weights` argument is specified.
         # Returns
             A Keras model instance.
@@ -101,7 +100,7 @@ def resnext(input_shape=None, depth=29, cardinality=8, width=64, weight_decay=5e
         else:
             img_input = input_tensor
 
-    x = __create_res_next(classes, img_input, include_top, depth, cardinality, width,
+    x = __create_res_next(classes, img_input, top_layer, depth, cardinality, width,
                           weight_decay, pooling)
 
     model = Model(img_input, x, name='resnext')
@@ -213,14 +212,13 @@ def __bottleneck_block(input_layer, filters=64, cardinality=8, strides=1, weight
     return x
 
 
-def __create_res_next(nb_classes, img_input, include_top, depth=29, cardinality=8, width=4,
-                      weight_decay=5e-4, pooling=None):
+def __create_res_next(nb_classes, img_input, top_layer, 
+                        depth=29, cardinality=8, width=4, weight_decay=5e-4, pooling=None):
     '''
     Creates a ResNeXt model with specified parameters
     Args:
         nb_classes: Number of output classes
         img_input: Input tensor or layer
-        include_top: Flag to include the last dense layer
         depth: Depth of the network. Can be an positive integer or a list
                Compute N = (n - 2) / 9.
                For a depth of 56, n = 56, N = (56 - 2) / 9 = 6
@@ -229,8 +227,7 @@ def __create_res_next(nb_classes, img_input, include_top, depth=29, cardinality=
                Increasing cardinality improves classification accuracy,
         width: Width of the network.
         weight_decay: weight_decay (l2 norm)
-        pooling: Optional pooling mode for feature extraction
-            when `include_top` is `False`.
+        pooling: Optional pooling mode for feature extraction there is no top layer.
             - `None` means that the output of the model will be
                 the 4D tensor output of the
                 last convolutional layer.
@@ -276,7 +273,7 @@ def __create_res_next(nb_classes, img_input, include_top, depth=29, cardinality=
                 x = __bottleneck_block(x, filters_list[block_idx], cardinality, strides=1,
                                        weight_decay=weight_decay)
 
-    if include_top:
+    if top_layer is not None:
         x = GlobalAveragePooling2D()(x)
         x = Dense(nb_classes, use_bias=False, kernel_regularizer=l2(weight_decay),
                   kernel_initializer='he_normal', activation='softmax')(x)

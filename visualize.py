@@ -14,7 +14,7 @@ from utils import get_sets
 
 matplotlib.rcParams.update({'font.size': 6})
 
-filename = '../raw-data/crops/original/SPLUS.STRIPE82-0033.05627.npy'
+# filename = '../raw-data/unsup_normalized/SPLUS.STRIPE82-0001.00003.npy'
 
 
 bands = ['U', 'F378', 'F395', 'F410', 'F430', 'G', 'F515', 'R', 'F660', 'I', 'F861', 'Z']
@@ -49,7 +49,7 @@ def plot_field_rgb(filepath):
 
 
 # receives 12-band array and plots each band in grayscale + lupton composite + given rgb composite
-def plot_bands(arr, plot_composites=False, znorm=True, base_catalog='csv/matched_cat_dr1.csv'):
+def plot_bands(filename, plot_composites=True, znorm=True, base_catalog='csv/splus_catalog_dr1.csv'):
 	arr = np.load(filename)
 	if znorm:
 		arr = arr - np.mean(arr, axis=(0,1))
@@ -125,13 +125,17 @@ def update_legend_marker(handle, orig):
     handle.set_alpha(1)
 
 
-def plot_2d_embedding(X, y, filepath, format_='png', labels=['galaxy', 'star', 'qso']):
-	plt.clf()
-	colors = ['m', 'b', 'y']
-	for c in np.unique(y):
-		X_c = X[y==c]
-		plt.scatter(X_c[:,0], X_c[:,1], c=colors[c], s=0.5, marker='.', alpha=0.1, label=labels[c])
-	plt.legend(handler_map={PathCollection : HandlerPathCollection(update_func=update_legend_marker)})
+def plot_2d_embedding(X, y, filepath, format_='png', clear=True, labels=['galaxy', 'star', 'qso', 'unknown']):
+	if clear:
+		plt.clf()
+	if y is not None:
+		colors = ['m', 'b', 'y', 'k']
+		for c in [3,0,1,2]: #np.unique(y):
+			X_c = X[y==c]
+			plt.scatter(X_c[:,0], X_c[:,1], c=colors[c], s=0.1, marker='.', alpha=0.01, label=labels[c])
+		plt.legend(handler_map={PathCollection : HandlerPathCollection(update_func=update_legend_marker)})
+	else:
+		plt.scatter(X[:,0], X[:,1], c='k', s=0.1, marker='.', alpha=0.01) #c=k => black
 	plt.setp(plt.gcf().get_axes(), xticks=[], yticks=[])
 	plt.savefig(filepath+'.'+format_, format=format_)
 
@@ -153,12 +157,34 @@ def plot_2d_embedding(X, y, filepath, format_='png', labels=['galaxy', 'star', '
 # plot_field_rgb(f)
 # magnitude_hist('csv/matched_cat_dr1.csv')
 
-csv_file = 'csv/matched_cat_dr1.csv'
-tsne_file = 'dr1_features_tsne.npy'
-umap_file = 'dr1_features_umap.npy'
-_, y_true, _ = get_sets(csv_file)
-X_umap = np.load(umap_file)
-X_tsne = np.load(tsne_file)
-plot_2d_embedding(X_umap, y_true, 'umap')
-plot_2d_embedding(X_tsne, y_true, 'tsne')
-print('saved embedding figures')
+# cat_labeled = 'csv/matched_cat_dr1.csv'
+# cat_unlabeled = 'csv/diff_cat_dr1.csv' #'csv/matched_cat_dr1.csv'
+# _, y_true, _ = get_sets(cat_labeled)
+
+# tsne
+# labeled = 'dr1_features_tsne.npy'
+# unlabeled = 'dr1_diff_features_tsne.npy'
+# X_labeled = np.load(labeled)
+# X_unlabeled = np.load(unlabeled)
+# X = np.vstack((X_labeled, X_unlabeled))
+# X = np.load('dr1_full_features_tsne.npy')
+# y = np.zeros((X.shape[0],), dtype=np.int8)
+# print(X.shape, y.shape)
+# y[:] = 3
+# y[:y_true.shape[0]] = y_true
+# plot_2d_embedding(X, y, 'tsne0728')
+# plot_2d_embedding(X_unlabeled, None, 'tsne0727')
+# plot_2d_embedding(X_labeled, y_true, 'tsne0727', clear=False)
+
+# umap
+# labeled = 'dr1_features_umap.npy'
+# unlabeled = 'dr1_diff_features_umap.npy'
+# X_labeled = np.load(labeled)
+# X_unlabeled = np.load(unlabeled)
+# X = np.vstack((X_labeled, X_unlabeled))
+# X = np.load('dr1_full_features_umap.npy')
+# plot_2d_embedding(X, y, 'umap0728')
+# plot_2d_embedding(X_unlabeled, None, 'umap0727')
+# plot_2d_embedding(X_labeled, y_true, 'umap0727', clear=False)
+
+# print('saved embedding figures')

@@ -1,17 +1,16 @@
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.io import ascii
-from astroquery.sdss import SDSS
+# from astroquery.sdss import SDSS
 from glob import glob
 import numpy as np
 import pandas as pd
 import time
 
 usecols = [
-    'ID', 'RA', 'Dec', 'X', 'Y', 'MUMAX', 's2nDet', 'FWHM',
+    'ID', 'RA', 'Dec', 'X', 'Y', 'MUMAX', 's2nDet', 'PhotoFlag', 'nDet_auto', 'FWHM',
     'uJAVA_auto', 'F378_auto', 'F395_auto', 'F410_auto', 'F430_auto', 'g_auto',
-    'F515_auto', 'r_auto', 'F660_auto', 'i_auto', 'F861_auto', 'z_auto',
-    'CLASS'
+    'F515_auto', 'r_auto', 'F660_auto', 'i_auto', 'F861_auto', 'z_auto'
 ]
 
 usecols_str = "id,ra,dec,x,y,mumax,s2n,fwhm,u,f378,f395,f410,f430,g,f515,r,f660,i,f861,z,class_rf\n"
@@ -49,13 +48,13 @@ def gen_master_catalog(catalogs_path, output_file, header_file='csv/fits_header_
         cat = pd.read_csv(file,
             delimiter=' ', skipinitialspace=True, comment='#', index_col=False,
             header=None, names=orig_cols, usecols=usecols)
+
         cat.dropna(inplace=True)
         int_cols = ['X', 'Y', 'CLASS']
         cat[int_cols] = cat[int_cols].apply(lambda x: round(x)).astype(int)
         cat['ID'] = cat['ID'].apply(lambda s: s.replace('.griz', ''))
 
         cat.to_csv(output_file, index=False, header=False, mode='a')
-
 
 def filter_master_catalog(master_cat_file, output_file):
     '''
@@ -174,7 +173,7 @@ def gen_filtered_catalog(cat, output_file, spectra_folder=None):
     c.to_csv(output_file, index=False)
 
 
-def gen_splits(df_filename, val_split=0.1, test_split=0.1):
+def gen_splits(df_filename, val_split=0.01, test_split=0.1):
     df = pd.read_csv(df_filename)
     np.random.seed(0)
 
@@ -200,11 +199,11 @@ def gen_splits(df_filename, val_split=0.1, test_split=0.1):
     df_test.to_csv(base_filename + '_test.csv', index=False)
 
     print('train set:', df_train.shape[0])
-    print(df_train['class'].value_counts(normalize=True))
+    # print(df_train['class'].value_counts(normalize=True))
     print('val set:', df_val.shape[0])
-    print(df_val['class'].value_counts(normalize=True))
+    # print(df_val['class'].value_counts(normalize=True))
     print('test set:', df_test.shape[0])
-    print(df_test['class'].value_counts(normalize=True))
+    # print(df_test['class'].value_counts(normalize=True))
 
 
 def add_downloaded_spectra_col(cat, spectra_folder):
@@ -237,10 +236,10 @@ if __name__=='__main__':
     # query_sdss(photo_query, 'sdss_photo_{}.csv')
     # query_sdss(spec_query, 'csv/sdss_spec.csv')
 
-    splus_cat = 'csv/matched_cat_early-dr_filtered.csv'
-    sloan_cat = 'csv/matched_cat_dr1.csv'
-    matched_cat ='csv/matched_cat_early-dr_dr1.csv'
-    # filtered_cat = 'csv/matched_cat_early-dr_filtered.csv'
+    splus_cat = 'csv/splus_catalog_dr1.csv'
+    sloan_cat = 'csv/sdss_spec.csv'
+    matched_cat ='csv/matched_cat_dr1.csv'
+    filtered_cat = 'csv/matched_cat_dr1_filtered.csv'
 
     # # generate master catalog
     # print('generating master splus catalog')
@@ -264,4 +263,6 @@ if __name__=='__main__':
     # print('generating train-val-test splits')
     # gen_splits(filtered_cat)
 
-    gen_diff_catalog('csv/splus_catalog_dr1.csv', 'csv/matched_cat_dr1.csv', 'csv/diff_cat_dr1.csv')
+    # gen_diff_catalog('csv/splus_catalog_dr1.csv', 'csv/matched_cat_dr1.csv', 'csv/diff_cat_dr1.csv')
+
+    # gen_splits('csv/splus_catalog_dr1_preprocessed.csv')

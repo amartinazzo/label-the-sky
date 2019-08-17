@@ -8,11 +8,13 @@ from sklearn.utils.multiclass import unique_labels
 class_map = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
 
 
-def get_sets(filepath, filters=None, obj_list=None):
+def get_sets(filepath, filters=None, obj_list=None, mode=None):
     """
     receives:
     * filepath      path to csv file with id values and class strings
     * filters       dict with optional min-max values, e.g. {'feature1': [min1, max1], 'feature2': [min2, max2]}
+    * obj_list      list of object ids (used to check existing files)
+    * mode          'classes' to return class labels or 'magnitudes' to return 12 magnitudes; other string values will return None for y/labels
 
     returns: (X, y, labels) triplet, where
     * X is a list of object ids
@@ -31,10 +33,15 @@ def get_sets(filepath, filters=None, obj_list=None):
     X = df['id'].values
     if 'class' in df.columns:
         y = df['class'].apply(lambda c: class_map[c]).values
-        print(df['class'].value_counts(normalize=True))
         labels = dict(zip(X, y))
-        return X, y, labels
-    return X, None, None
+        # print(df['class'].value_counts(normalize=True))
+    elif mode=='magnitudes':
+        y = df[['u', 'f378', 'f395', 'f410', 'f430', 'g', 'f515', 'r', 'f660', 'i', 'f861', 'z']].values
+        labels = dict(zip(X, y))
+    else:
+        y = None
+        labels = None
+    return X, y, labels
 
 
 def plot_confusion_matrix(y_true, y_pred, classes,

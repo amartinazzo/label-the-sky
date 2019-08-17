@@ -1,9 +1,9 @@
 import os,sys,inspect
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))))
+from datagen import DataGenerator
 from keras import backend as K
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from keras.optimizers import Adam
-from keras.utils import to_categorical
 import numpy as np
 import os
 import pandas as pd
@@ -14,6 +14,7 @@ import utils
 
 mode = 'train' # train or eval-mags
 
+task = 'classification' # classification or regression (magnitudes)
 n_classes = 3
 n_epoch = 300
 img_dim = (32,32,12)
@@ -21,20 +22,28 @@ img_dim = (32,32,12)
 # images are stored in float64 (8 bytes per pixel)
 # one image is 32*32*12*8/10e6 ~= 0.1 MB
 batch_size = 256
-depth = 29
 cardinality = 4
+data_mode = 'classifier'
+depth = 29
+loss = 'categorical_crossentropy' #'mean_squared_error'
 width = 16
+
 
 models_dir = 'classifiers/image-models/'
 weights_file = None #'classifiers/image-models/resnext_depth11_card4_300epc.h5'
-save_file = 'classifiers/image-models/resnext_depth29_card4_300epc_weights.h5'
+save_file = 'classifiers/image-models/resnext_depth29_card4_300eph_asinh.h5'
+#'classifiers/image-models/resnext_depth29_card4_300epc_regression_smallset.h5'
+
 home_path = os.path.expanduser('~')
-params = {'data_folder': home_path+'/raw-data/crops/normalized/', 'dim': (32,32,12), 'n_classes': 3}
+params = {'data_folder': home_path+'/raw-data/crops_asinh/',
+            'dim': (32,32,12), 'n_classes': n_classes, 'mode': data_mode}
 class_weights = {0: 1, 1: 1.25, 2: 5} # 1/class_proportion
 
 # make only 1 gpu visible
 os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
 os.environ['CUDA_VISIBLE_DEVICES']='0'
+
+###
 
 # create resnext model
 model = resnext(img_dim, depth=depth, cardinality=cardinality, width=width, classes=n_classes)
@@ -43,17 +52,17 @@ print('model created')
 # model.summary()
 
 optimizer = Adam(lr=1e-4)
-model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
+model.compile(loss=loss, optimizer=optimizer, metrics=['accuracy'])
 print('finished compiling')
 
 # load dataset iterators
-X_train, _, labels_train = utils.get_sets(home_path+'/raw-data/dr1_full_train.csv')
-X_val, y_true, labels_val = utils.get_sets(home_path+'/raw-data/dr1_full_val.csv')
+X_train, _, labels_train = utils.get_sets('csv/matched_cat_dr1_train.csv', mode=data_mode)
+X_val, y_true, labels_val = utils.get_sets('csv/matched_cat_dr1_val.csv', mode=data_mode)
 print('train size', len(X_train))
 print('val size', len(X_val))
 
-train_generator = datagen.DataGenerator(X_train, labels=labels_train, batch_size=batch_size, **params)
-val_generator = datagen.DataGenerator(X_val, labels=labels_val, batch_size=batch_size, **params)
+train_generator = DataGenerator(X_train, labels=labels_train, batch_size=batch_size, **params)
+val_generator = DataGenerator(X_val, labels=labels_val, batch_size=batch_size, **params)
 
 if not os.path.exists(models_dir):
     os.makedirs(models_dir)
@@ -66,8 +75,8 @@ if weights_file is not None and os.path.exists(weights_file):
 if mode=='train':
     callbacks = [
         ReduceLROnPlateau(monitor='val_loss', factor=np.sqrt(0.1), cooldown=0, patience=10, min_lr=1e-6),
-        ModelCheckpoint(save_file, monitor='val_acc', save_best_only=True, save_weights_only=True, mode='auto'),
-        EarlyStopping(monitor='val_acc', patience=20)
+        ModelCheckpoint(save_file, monitor='val_loss', save_best_only=True, save_weights_only=True, mode='min'),
+        EarlyStopping(monitor='val_loss', patience=20)
     ]
 
     history = model.fit_generator(
@@ -77,33 +86,33 @@ if mode=='train':
         validation_steps=len(X_val)//batch_size,
         epochs=n_epoch,
         callbacks=callbacks,
-        class_weight=class_weights,
         verbose=2)
 
     print('loss', history.history['loss'])
     print('val_loss', history.history['val_loss'])
 
-    print('predicting')
-    model.load_weights(save_file)
-    pred_generator = datagen.DataGenerator(X_val, shuffle=False, **params)
-    y_pred = model.predict_generator(pred_generator, steps=len(y_true)//batch_size)
-    y_pred = np.argmax(y_pred, axis=1)
-    y_true = y_true[:len(y_pred)]
+    if task=='classification':
+        print('predicting')
+        model.load_weights(save_file)
+        pred_generator = DataGenerator(X_val, shuffle=False, **params)
+        y_pred = model.predict_generator(pred_generator, steps=len(y_true)//batch_size)
+        y_pred = np.argmax(y_pred, axis=1)
+        y_true = y_true[:len(y_pred)]
 
-    print('y_true shape', y_true.shape)
-    print('y_pred shape', y_pred.shape)
+        print('y_true shape', y_true.shape)
+        print('y_pred shape', y_pred.shape)
 
-    # compute accuracy
-    accuracy = metrics.accuracy_score(y_true, y_pred) * 100
-    error = 100 - accuracy
-    print('accuracy : ', accuracy)
-    print('error : ', error)
+        # compute accuracy
+        accuracy = metrics.accuracy_score(y_true, y_pred) * 100
+        error = 100 - accuracy
+        print('accuracy : ', accuracy)
+        print('error : ', error)
 
-    # compute confusion matrix
-    cm = metrics.confusion_matrix(y_true, y_pred)
-    cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-    print('confusion matrix')
-    print(cm)
+        # compute confusion matrix
+        cm = metrics.confusion_matrix(y_true, y_pred)
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        print('confusion matrix')
+        print(cm)
 
 elif mode=='eval-mags':
     mag_min = 9
@@ -120,7 +129,7 @@ elif mode=='eval-mags':
         if X_val.shape[0] == 0:
             continue
         print('predicting for [{}, {}]'.format(intervals[ix], intervals[ix+1]))
-        pred_generator = datagen.DataGenerator(X_val, shuffle=False, batch_size=1, **params)
+        pred_generator = DataGenerator(X_val, shuffle=False, batch_size=1, **params)
         y_pred = model.predict_generator(pred_generator)
         # print(y_pred[:10])
         y_pred = np.argmax(y_pred, axis=1)
@@ -156,7 +165,7 @@ else:
     X_val = [X_val[idx]]
     y_true = [y_true[idx]]
     print(X_val, y_true)
-    pred_generator = datagen.DataGenerator(X_val, shuffle=False, batch_size=1, **params)
+    pred_generator = DataGenerator(X_val, shuffle=False, batch_size=1, **params)
     y_pred = model.predict_generator(pred_generator, steps=len(y_true))
     print(y_pred)
     y_pred = np.argmax(y_pred, axis=1)

@@ -1,6 +1,9 @@
 from astropy.io import fits
+from astropy.visualization import AsinhStretch
 from cv2 import resize, INTER_CUBIC
 from glob import glob
+from joblib import Parallel, delayed
+import multiprocessing
 import numpy as np
 import pandas as pd
 import os
@@ -8,6 +11,9 @@ from time import time
 
 
 delta = 16
+asinh_transform = AsinhStretch()
+
+n_cores = multiprocessing.cpu_count()
 
 
 def move_broadbands(images_folder='../raw-data/early-dr/coadded/*'):
@@ -26,29 +32,31 @@ def get_ndarray(filepath):
 	return fits_im[1].data
 
 
-def crop_objects_in_field(arr, catalog, save_folder, field_name, subfolders=False):
+def crop_object_in_field(arr, object_row, save_folder, field_name, asinh=True):
 	'''
-	crops objects in a given field
+	crops object in a given field
 	receives:
 		* arr			(ndarray) 12-band full field image
-		* catalog 		(pandas table) info on objects
+		* object_row 	(pandas Series) object to be cropped
 		* save_folder	(str) path to folder where crops will be saved
 		* field_name	(str) name of the field to be filtered on the catalog
+
+	for an object with fwhm =~ 2, 32x32 px is a good fit
+	d=3 is good for larger objects (inspected visually) but yields too many resizes
 	'''
-	objects = catalog[catalog.field_name==field_name]
-	for ix, o in objects.iterrows():
-		d = np.ceil(np.maximum(delta, o['fwhm']/2)).astype(np.int)
-		x0 = int(o['x']) - d
-		x1 = int(o['x']) + d
-		y0 = int(o['y']) - d
-		y1 = int(o['y']) + d
-		cropped = arr[y0:y1, x0:x1, :]
-		if subfolders:
-			subfolder = '32x32' if d==delta else 'larger'
-			save_path = save_folder+subfolder
-		else:
-			save_path = save_folder
-		np.save('{}/{}.npy'.format(save_path, o['id']), cropped, allow_pickle=False)
+	# d = np.ceil(np.maximum(delta, 0.5*o['fwhm'])).astype(np.int)
+	d = np.ceil(np.maximum(delta, 1*o['FWHM'])).astype(np.int)
+	x0 = np.maximum(0, int(o['X']) - d)
+	x1 = np.minimum(10999, int(o['X']) + d)
+	y0 = np.maximum(0, int(o['Y']) - d)
+	y1 = np.minimum(10999, int(o['Y']) + d)
+	im = arr[y0:y1, x0:x1, :]
+	if im.shape[0] != 32 or im.shape[1] != 32:
+		im = resize(im, dsize=(32, 32), interpolation=INTER_CUBIC)
+		print('{} resized'.format(o['ID']))
+	if asinh:
+		im = asinh_transform(im, clip=False)
+	np.save('{}/{}.npy'.format(save_folder, o['ID']), im, allow_pickle=False)
 
 
 def get_bands_order():
@@ -90,7 +98,7 @@ def sweep_fields(fields_path, catalog_path, crops_folder):
 	catalog = pd.read_csv(catalog_path)
 	print(catalog.head())
 	print('catalog shape', catalog.shape)
-	catalog['field_name'] = catalog.id.apply(lambda s: s.split('.')[1])
+	catalog['field_name'] = catalog['ID'].apply(lambda s: s.split('.')[1])
 
 	# print('filtering objects with fwhm<=', max_fwhm)
 	# catalog = catalog[catalog.fwhm<=max_fwhm]
@@ -111,7 +119,9 @@ def sweep_fields(fields_path, catalog_path, crops_folder):
 		field_name = f.split('/')[-1].split('_')[0]
 		if prev != field_name or ix==len(files[1:]):
 			print('{} min. cropping objects in {}'.format(int((time()-start)/60), prev))
-			crop_objects_in_field(arr, catalog, crops_folder, prev)
+			objects_df = catalog[catalog.field_name==field_name]
+			Parallel(n_jobs=n_cores)(delayed(
+				crop_object_in_field)(ix, arr, row, crops_folder, prev) for ix, row in objects_df.iterrows())
 			arr = np.zeros((s0, s1, n_channels))
 			prev = field_name
 			i=0
@@ -213,9 +223,6 @@ def normalize_images(input_folder, output_folder, bounds_lower, bounds_upper):
 		im = im / interval
 		if im.min() < 0 or im.max() > 1:
 			print('{} out of [0,1] range'.format(file.split('/')[-1]))
-		if im.shape[0] > 32:
-			im = resize(im, dsize=(32, 32), interpolation=INTER_CUBIC)
-			# print('{} resized'.format(file.split('/')[-1]))
 		np.save('{}{}'.format(output_folder, file.split('/')[-1]), im, allow_pickle=False)
 	print('minutes taken:', int((time()-start)/60))
 
@@ -243,27 +250,27 @@ def z_norm_images(input_folder, output_folder):
 
 
 if __name__=='__main__':
-	# sweep_fields(
-	# 	fields_path='../raw-data/dr1/coadded/*/*.fz',
-	# 	catalog_path='csv/matched_cat_dr1_filtered.csv',
-	# 	crops_folder='../raw-data/crops/'
-	# 	)
+	sweep_fields(
+		fields_path='../raw-data/dr1/coadded/*/*.fz',
+		catalog_path='csv/dr1_cat_flag0.csv',
+		crops_folder='../raw-data/crops_asinh_1fwhm/'
+		)
 
 	# original_crops_path = '../raw-data/crops/original/*'
 	# normalized_crops_path = '../raw-data/crops/normalized/'
 
 	# lower_bounds, upper_bounds = get_min_max(original_crops_path)
 
-	lower_bounds = np.array([ -27., -114., -133.,  -37., -157., -456.,  -26.,  -39., -359., -318.,   -5., -256.])
-	upper_bounds = np.array([ 181.,  636.,  959., 1051.,  949., 1750.,  256.,  270., 1955., 2219.,  117., 1413.])
+	# lower_bounds = np.array([ -27., -114., -133.,  -37., -157., -456.,  -26.,  -39., -359., -318.,   -5., -256.])
+	# upper_bounds = np.array([ 181.,  636.,  959., 1051.,  949., 1750.,  256.,  270., 1955., 2219.,  117., 1413.])
 	# sweep_fields(
 	# 	fields_path='../raw-data/dr1/coadded/*/*.fz',
 	# 	catalog_path='csv/diff_cat_dr1.csv',
 	# 	crops_folder='../raw-data/crops/unsup_normalized/'
 	# 	)
-	normalize_images(
-		'../raw-data/crops/unsup_normalized/*',
-		'../raw-data/crops/unsup_normalized',
-		lower_bounds,
-		upper_bounds
-		)
+	# normalize_images(
+	# 	'../raw-data/crops/unsup_normalized/*',
+	# 	'../raw-data/crops/unsup_normalized',
+	# 	lower_bounds,
+	# 	upper_bounds
+	# 	)
