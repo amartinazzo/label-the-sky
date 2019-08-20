@@ -121,7 +121,7 @@ def sweep_fields(fields_path, catalog_path, crops_folder):
 	i=1
 	for ix, f in enumerate(files[1:]):
 		field_name = f.split('/')[-1].split('_')[0]
-		if prev != field_name or ix==len(files[1:]):
+		if prev != field_name or field_name=='STRIPE82-0170':
 			print('{} min. cropping objects in {}'.format(int((time()-start)/60), prev))
 			objects_df = catalog[catalog.field_name==prev].reset_index()
 			Parallel(n_jobs=8, prefer='threads')(delayed(
@@ -234,7 +234,7 @@ def normalize_images(input_folder, output_folder, bounds_lower, bounds_upper):
 def z_norm_images(input_folder, output_folder):
 	'''
 	saves ndarray images resized to (32,32,n_channels) and normalized by their z-score: x-mean/std
-	receives:
+	receives:e
 		* input_folder		(str) folder path wherein are (x,x,n_channels) ndarray images with varying shapes and value ranges
 		* output_folder		(str) folder wherein normalized images will be saved
 	'''
@@ -256,7 +256,7 @@ def z_norm_images(input_folder, output_folder):
 if __name__=='__main__':
 	sweep_fields(
 		fields_path='../raw-data/dr1/coadded/*/*.fz',
-		catalog_path='csv/dr1_cat_flag0.csv',
+		catalog_path='csv/dr1_flag0.csv',
 		crops_folder='../raw-data/crops_asinh_1fwhm/'
 		)
 

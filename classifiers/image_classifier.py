@@ -14,8 +14,8 @@ import utils
 
 mode = 'train' # train or eval-mags
 
-task = 'classification' # classification or regression (magnitudes)
-n_classes = 3
+task = 'regression' # classification or regression (magnitudes)
+n_classes = 12
 n_epoch = 300
 img_dim = (32,32,12)
 
@@ -23,19 +23,19 @@ img_dim = (32,32,12)
 # one image is 32*32*12*8/10e6 ~= 0.1 MB
 batch_size = 256
 cardinality = 4
-data_mode = 'classifier'
+data_mode = 'magnitudes' #classifier or magnitudes
 depth = 29
-loss = 'categorical_crossentropy' #'mean_squared_error'
+loss = 'mean_absolute_error' #'categorical_crossentropy'
 width = 16
 
 
 models_dir = 'classifiers/image-models/'
 weights_file = None #'classifiers/image-models/resnext_depth11_card4_300epc.h5'
-save_file = 'classifiers/image-models/resnext_depth29_card4_300eph_asinh.h5'
+save_file = 'classifiers/image-models/resnext_depth29_card4_300eph_asinh_regression.h5'
 #'classifiers/image-models/resnext_depth29_card4_300epc_regression_smallset.h5'
 
 home_path = os.path.expanduser('~')
-params = {'data_folder': home_path+'/raw-data/crops_asinh/',
+params = {'data_folder': home_path+'/raw-data/crops_asinh_1fwhm/',
             'dim': (32,32,12), 'n_classes': n_classes, 'mode': data_mode}
 class_weights = {0: 1, 1: 1.25, 2: 5} # 1/class_proportion
 
@@ -56,8 +56,8 @@ model.compile(loss=loss, optimizer=optimizer, metrics=['accuracy'])
 print('finished compiling')
 
 # load dataset iterators
-X_train, _, labels_train = utils.get_sets('csv/matched_cat_dr1_train.csv', mode=data_mode)
-X_val, y_true, labels_val = utils.get_sets('csv/matched_cat_dr1_val.csv', mode=data_mode)
+X_train, _, labels_train = utils.get_sets('csv/dr1_flag0_ndet12_train.csv', mode=data_mode)
+X_val, y_true, labels_val = utils.get_sets('csv/dr1_flag0_ndet12_val.csv', mode=data_mode)
 print('train size', len(X_train))
 print('val size', len(X_val))
 
@@ -157,30 +157,30 @@ elif mode=='eval-mags':
     print('accuracies for class 1', acc1)
     print('accuracies for class 2', acc2)
 
-else:
-    # make inferences on model
-    print('predicting')
-    X_val, y_true, _ = utils.get_sets(home_path+'/raw-data/dr1_full_val.csv', filters={'r': (21,22)})
-    idx = list(X_val).index('SPLUS.STRIPE82-0033.05627')
-    X_val = [X_val[idx]]
-    y_true = [y_true[idx]]
-    print(X_val, y_true)
-    pred_generator = DataGenerator(X_val, shuffle=False, batch_size=1, **params)
-    y_pred = model.predict_generator(pred_generator, steps=len(y_true))
-    print(y_pred)
-    y_pred = np.argmax(y_pred, axis=1)
+# else:
+#     # make inferences on model
+#     print('predicting')
+#     X_val, y_true, _ = utils.get_sets(home_path+'/raw-data/dr1_full_val.csv', filters={'r': (21,22)})
+#     idx = list(X_val).index('SPLUS.STRIPE82-0033.05627')
+#     X_val = [X_val[idx]]
+#     y_true = [y_true[idx]]
+#     print(X_val, y_true)
+#     pred_generator = DataGenerator(X_val, shuffle=False, batch_size=1, **params)
+#     y_pred = model.predict_generator(pred_generator, steps=len(y_true))
+#     print(y_pred)
+#     y_pred = np.argmax(y_pred, axis=1)
 
-    preds_correct = y_pred==y_true
-    x_miss = X_val[~preds_correct]
-    print('missclasified', len(x_miss))
-    print(x_miss)
+#     preds_correct = y_pred==y_true
+#     x_miss = X_val[~preds_correct]
+#     print('missclasified', len(x_miss))
+#     print(x_miss)
 
-    # compute accuracy
-    accuracy = metrics.accuracy_score(y_true, y_pred) * 100
-    print('accuracy : ', accuracy)
+#     # compute accuracy
+#     accuracy = metrics.accuracy_score(y_true, y_pred) * 100
+#     print('accuracy : ', accuracy)
 
-    # compute confusion matrix
-    cm = metrics.confusion_matrix(y_true, y_pred)
-    cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-    print('confusion matrix')
-    print(cm)
+#     # compute confusion matrix
+#     cm = metrics.confusion_matrix(y_true, y_pred)
+#     cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+#     print('confusion matrix')
+#     print(cm)

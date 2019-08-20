@@ -173,7 +173,7 @@ def gen_filtered_catalog(cat, output_file, spectra_folder=None):
     c.to_csv(output_file, index=False)
 
 
-def gen_splits(df_filename, val_split=0.01, test_split=0.1):
+def gen_splits(df_filename, val_split=0.1, test_split=0.1):
     df = pd.read_csv(df_filename)
     np.random.seed(0)
 
@@ -260,8 +260,8 @@ if __name__=='__main__':
 
     # add_downloaded_spectra_col(filtered_cat, '../raw-data/spectra/*')
 
-    # print('generating train-val-test splits')
-    # gen_splits(filtered_cat)
+    print('generating train-val-test splits')
+    gen_splits('csv/dr1_flag0_ndet12.csv')
 
     # gen_diff_catalog('csv/splus_catalog_dr1.csv', 'csv/matched_cat_dr1.csv', 'csv/diff_cat_dr1.csv')
 
