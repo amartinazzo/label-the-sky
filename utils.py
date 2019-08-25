@@ -30,7 +30,7 @@ def get_sets(filepath, filters=None, obj_list=None, mode=None):
     if obj_list is not None:
         df = df[df['ID'].isin(obj_list)]
         print('set size after crossing with folder files', df.shape)
-    X = df['ID'].values
+    X = df['id'].values
     if 'class' in df.columns:
         y = df['class'].apply(lambda c: class_map[c]).values
         labels = dict(zip(X, y))
@@ -39,8 +39,6 @@ def get_sets(filepath, filters=None, obj_list=None, mode=None):
         y = df[[
         'uJAVA_auto','F378_auto','F395_auto','F410_auto','F430_auto','g_auto',
         'F515_auto','r_auto','F660_auto','i_auto','F861_auto','z_auto']].values
-        # rescale between 10 and 30
-        y = (y-10)/30
         labels = dict(zip(X, y))
     else:
         y = None

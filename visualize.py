@@ -132,12 +132,14 @@ def plot_2d_embedding(X, y, filepath, format_='png', clear=True, labels=['galaxy
 		colors = ['m', 'b', 'y', 'k']
 		for c in [3,0,1,2]: #np.unique(y):
 			X_c = X[y==c]
-			plt.scatter(X_c[:,0], X_c[:,1], c=colors[c], s=0.1, marker='.', alpha=0.01, label=labels[c])
+			plt.scatter(X_c[:,0], X_c[:,1], c=colors[c], s=1, marker='.', alpha=0.15, label=labels[c])
 		plt.legend(handler_map={PathCollection : HandlerPathCollection(update_func=update_legend_marker)})
 	else:
-		plt.scatter(X[:,0], X[:,1], c='k', s=0.1, marker='.', alpha=0.01) #c=k => black
+		plt.scatter(X[:,0], X[:,1], c='k', s=0.5, marker='.', alpha=0.1) #c=k => black
 	plt.setp(plt.gcf().get_axes(), xticks=[], yticks=[])
-	plt.savefig(filepath+'.'+format_, format=format_)
+	fig = plt.gcf()
+	fig.set_size_inches(18.5, 10.5)
+	plt.savefig(filepath+'.'+format_, dpi=100, format=format_)
 
 
 # files = glob("../raw-data/coadded/*", recursive=True)
@@ -157,33 +159,47 @@ def plot_2d_embedding(X, y, filepath, format_='png', clear=True, labels=['galaxy
 # plot_field_rgb(f)
 # magnitude_hist('csv/matched_cat_dr1.csv')
 
-# cat_labeled = 'csv/matched_cat_dr1.csv'
+cat_labeled = 'csv/dr1_matched.csv'
 # cat_unlabeled = 'csv/diff_cat_dr1.csv' #'csv/matched_cat_dr1.csv'
-# _, y_true, _ = get_sets(cat_labeled)
+_, y_true, _ = get_sets(cat_labeled)
 
 # tsne
-# labeled = 'dr1_features_tsne.npy'
-# unlabeled = 'dr1_diff_features_tsne.npy'
-# X_labeled = np.load(labeled)
-# X_unlabeled = np.load(unlabeled)
-# X = np.vstack((X_labeled, X_unlabeled))
-# X = np.load('dr1_full_features_tsne.npy')
-# y = np.zeros((X.shape[0],), dtype=np.int8)
+labeled = 'npy/dr1_features_tsne.npy'
+unlabeled = 'npy/dr1_diff_features_tsne.npy'
+X_labeled = np.load(labeled)
+X_unlabeled = np.load(unlabeled)
+idx = np.random.choice(X_unlabeled.shape[0], 200000, replace=False)
+#X_unlabeled = X_unlabeled[idx]
+X = np.vstack((X_labeled, X_unlabeled))
+length = X.shape[0]
+X = np.load('npy/dr1_full_features_tsne.npy')
+#X = X[:length]
+y = np.zeros((length,), dtype=np.int8)
 # print(X.shape, y.shape)
-# y[:] = 3
-# y[:y_true.shape[0]] = y_true
-# plot_2d_embedding(X, y, 'tsne0728')
+y[:] = 3
+y[:y_true.shape[0]] = y_true
+plot_2d_embedding(X, y, 'tsne0821b')
 # plot_2d_embedding(X_unlabeled, None, 'tsne0727')
 # plot_2d_embedding(X_labeled, y_true, 'tsne0727', clear=False)
 
 # umap
-# labeled = 'dr1_features_umap.npy'
-# unlabeled = 'dr1_diff_features_umap.npy'
-# X_labeled = np.load(labeled)
-# X_unlabeled = np.load(unlabeled)
-# X = np.vstack((X_labeled, X_unlabeled))
-# X = np.load('dr1_full_features_umap.npy')
-# plot_2d_embedding(X, y, 'umap0728')
+labeled = 'npy/dr1_features_umap.npy'
+unlabeled = 'npy/dr1_diff_features_umap.npy'
+X_labeled = np.load(labeled)
+X_unlabeled = np.load(unlabeled)
+print(X_unlabeled.shape)
+idx = np.random.choice(X_unlabeled.shape[0], 200000, replace=False)
+#X_unlabeled = X_unlabeled[idx]
+print(X_unlabeled.shape)
+X = np.vstack((X_labeled, X_unlabeled))
+length = X.shape[0]
+y = np.zeros((length,), dtype=np.int8)
+y[:] = 3
+y[:y_true.shape[0]] = y_true
+
+X = np.load('npy/dr1_full_features_umap.npy')
+#X = X[:length]
+plot_2d_embedding(X, y, 'umap0821b')
 # plot_2d_embedding(X_unlabeled, None, 'umap0727')
 # plot_2d_embedding(X_labeled, y_true, 'umap0727', clear=False)
 

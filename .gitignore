@@ -2,6 +2,7 @@
 ._*
 __pycache__/*
 */__pycache__/*
+logs/*
 *.csv
 *.dat
 *.h5

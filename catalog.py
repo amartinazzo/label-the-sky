@@ -5,6 +5,7 @@ from astropy.io import ascii
 from glob import glob
 import numpy as np
 import pandas as pd
+from sklearn.model_selection import StratifiedShuffleSplit
 import time
 
 usecols = [
@@ -13,16 +14,35 @@ usecols = [
     'F515_auto', 'r_auto', 'F660_auto', 'i_auto', 'F861_auto', 'z_auto'
 ]
 
-usecols_str = "id,ra,dec,x,y,mumax,s2n,fwhm,u,f378,f395,f410,f430,g,f515,r,f660,i,f861,z,class_rf\n"
+usecols_str = "id,ra,dec,x,y,mumax,s2n,photoflag,ndet,fwhm,u,f378,f395,f410,f430,g,f515,r,f660,i,f861,z\n"
+
+cols = [
+    'id', 'ra', 'dec', 'x', 'y', 'mumax', 's2n', 'photoflag', 'nDet', 'fwhm', 
+    'u', 'f378', 'f395', 'f410', 'f430', 'g',
+    'f515', 'r', 'f660', 'i', 'f861', 'z'
+]
 
 cols = [
     'id', 'ra', 'dec', 'x', 'y', 'mumax', 's2n', 'fwhm', 
-    'u', 'f378', 'f395', 'f410', 'f430', 'g', 'f515', 'r', 'f660', 'i', 'f861', 'z',
-    'class', 'subclass'
+    'u', 'f378', 'f395', 'f410', 'f430', 'g',
+    'f515', 'r', 'f660', 'i', 'f861', 'z'
 ]
 
 orig_cols = [
-    'ID', 'RA', 'Dec', 'X', 'Y', 'ISOarea', 's2nDet', 'PhotoFlag', 'FWHM', 'MUMAX', 'A', 'B', 'THETA', 'FlRadDet', 'KrRadDet', 'uJAVA_auto', 'euJAVA_auto', 's2n_uJAVA_auto', 'uJAVA_petro', 'euJAVA_petro', 's2n_uJAVA_petro', 'uJAVA_aper', 'euJAVA_aper', 's2n_uJAVA_aper', 'F378_auto', 'eF378_auto', 's2n_F378_auto', 'F378_petro', 'eF378_petro', 's2n_F378_petro', 'F378_aper', 'eF378_aper', 's2n_F378_aper', 'F395_auto', 'eF395_auto', 's2n_F395_auto', 'F395_petro', 'eF395_petro', 's2n_F395_petro', 'F395_aper', 'eF395_aper', 's2n_F395_aper', 'F410_auto', 'eF410_auto', 's2n_F410_auto', 'F410_petro', 'eF410_petro', 's2n_F410_petro', 'F410_aper', 'eF410_aper', 's2n_F410_aper', 'F430_auto', 'eF430_auto', 's2n_F430_auto', 'F430_petro', 'eF430_petro', 's2n_F430_petro', 'F430_aper', 'eF430_aper', 's2n_F430_aper', 'g_auto', 'eg_auto', 's2n_g_auto', 'g_petro', 'eg_petro', 's2n_g_petro', 'g_aper', 'eg_aper', 's2n_g_aper', 'F515_auto', 'eF515_auto', 's2n_F515_auto', 'F515_petro', 'eF515_petro', 's2n_F515_petro', 'F515_aper', 'eF515_aper', 's2n_F515_aper', 'r_auto', 'er_auto', 's2n_r_auto', 'r_petro', 'er_petro', 's2n_r_petro', 'r_aper', 'er_aper', 's2n_r_aper', 'F660_auto', 'eF660_auto', 's2n_F660_auto', 'F660_petro', 'eF660_petro', 's2n_F660_petro', 'F660_aper', 'eF660_aper', 's2n_F660_aper', 'i_auto', 'ei_auto', 's2n_i_auto', 'i_petro', 'ei_petro', 's2n_i_petro', 'i_aper', 'ei_aper', 's2n_i_aper', 'F861_auto', 'eF861_auto', 's2n_F861_auto', 'F861_petro', 'eF861_petro', 's2n_F861_petro', 'F861_aper', 'eF861_aper', 's2n_F861_aper', 'z_auto', 'ez_auto', 's2n_z_auto', 'z_petro', 'ez_petro', 's2n_z_petro', 'z_aper', 'ez_aper', 's2n_z_aper', 'zb', 'zb_Min', 'zb_Max', 'Tb', 'Odds', 'Chi2', 'M_B', 'Stell_Mass', 'CLASS', 'PROB_GAL', 'PROB_STAR'
+    'ID', 'RA', 'Dec', 'X', 'Y', 'ISOarea', 's2nDet', 'PhotoFlag', 'FWHM', 'MUMAX', 'A', 'B', 'THETA', 'FlRadDet', 'KrRadDet',
+    'uJAVA_auto','euJAVA_auto', 's2n_uJAVA_auto', 'uJAVA_petro', 'euJAVA_petro', 's2n_uJAVA_petro', 'uJAVA_aper', 'euJAVA_aper', 's2n_uJAVA_aper',
+    'F378_auto', 'eF378_auto', 's2n_F378_auto', 'F378_petro', 'eF378_petro', 's2n_F378_petro', 'F378_aper', 'eF378_aper', 's2n_F378_aper',
+    'F395_auto','eF395_auto', 's2n_F395_auto', 'F395_petro', 'eF395_petro', 's2n_F395_petro', 'F395_aper', 'eF395_aper', 's2n_F395_aper',
+    'F410_auto', 'eF410_auto', 's2n_F410_auto', 'F410_petro', 'eF410_petro', 's2n_F410_petro', 'F410_aper', 'eF410_aper', 's2n_F410_aper',
+    'F430_auto', 'eF430_auto', 's2n_F430_auto', 'F430_petro', 'eF430_petro', 's2n_F430_petro', 'F430_aper', 'eF430_aper', 's2n_F430_aper',
+    'g_auto', 'eg_auto', 's2n_g_auto', 'g_petro', 'eg_petro', 's2n_g_petro', 'g_aper', 'eg_aper', 's2n_g_aper',
+    'F515_auto', 'eF515_auto', 's2n_F515_auto', 'F515_petro', 'eF515_petro', 's2n_F515_petro', 'F515_aper', 'eF515_aper', 's2n_F515_aper',
+    'r_auto', 'er_auto', 's2n_r_auto', 'r_petro', 'er_petro', 's2n_r_petro', 'r_aper', 'er_aper', 's2n_r_aper',
+    'F660_auto', 'eF660_auto', 's2n_F660_auto', 'F660_petro', 'eF660_petro', 's2n_F660_petro', 'F660_aper', 'eF660_aper', 's2n_F660_aper',
+    'i_auto', 'ei_auto', 's2n_i_auto', 'i_petro', 'ei_petro', 's2n_i_petro', 'i_aper', 'ei_aper', 's2n_i_aper',
+    'F861_auto', 'eF861_auto', 's2n_F861_auto', 'F861_petro', 'eF861_petro', 's2n_F861_petro', 'F861_aper', 'eF861_aper', 's2n_F861_aper',
+    'z_auto', 'ez_auto', 's2n_z_auto', 'z_petro', 'ez_petro', 's2n_z_petro', 'z_aper', 'ez_aper', 's2n_z_aper',
+    'zb', 'zb_Min', 'zb_Max', 'Tb', 'Odds', 'Chi2', 'M_B', 'Stell_Mass', 'CLASS', 'PROB_GAL', 'PROB_STAR'
 ]
 
 
@@ -50,11 +70,12 @@ def gen_master_catalog(catalogs_path, output_file, header_file='csv/fits_header_
             header=None, names=orig_cols, usecols=usecols)
 
         cat.dropna(inplace=True)
-        int_cols = ['X', 'Y', 'CLASS']
+        int_cols = ['X', 'Y']
         cat[int_cols] = cat[int_cols].apply(lambda x: round(x)).astype(int)
         cat['ID'] = cat['ID'].apply(lambda s: s.replace('.griz', ''))
 
         cat.to_csv(output_file, index=False, header=False, mode='a')
+
 
 def filter_master_catalog(master_cat_file, output_file):
     '''
@@ -69,10 +90,11 @@ def filter_master_catalog(master_cat_file, output_file):
         index_col=False, usecols=usecols)
 
     cat.dropna(inplace=True)
-    int_cols = ['X', 'Y', 'CLASS']
+    int_cols = ['X', 'Y']
     cat[int_cols] = cat[int_cols].apply(lambda x: round(x)).astype(int)
     cat = cat[usecols]
     cat['ID'] = cat['ID'].apply(lambda s: s.replace('.griz', ''))
+    cat.columns = cols
 
     cat.to_csv(output_file, index=False, header=False, mode='a')
 
@@ -110,100 +132,54 @@ def query_sdss(query_str, filename):
         cnt+=1
 
 
-def match_catalogs(cat_path, base_cat_path, matched_cat_path, max_distance=2.0):
-    print('matching {} on {}'.format(cat_path, base_cat_path))
-    base_cat = pd.read_csv(base_cat_path)
-    base_ra = base_cat['ra'].values
-    base_dec = base_cat['dec'].values
+def match_catalogs(new_df, base_df, matched_cat_path=None, max_distance=1.0):
+    print('matching')
+    base_ra = base_df['ra'].values
+    base_dec = base_df['dec'].values
 
-    new_cat = pd.read_csv(cat_path)
-    new_ra = new_cat['ra'].values
-    new_dec = new_cat['dec'].values
+    new_ra = new_df['ra'].values
+    new_dec = new_df['dec'].values
 
     my_coord = SkyCoord(ra=new_ra*u.degree, dec=new_dec*u.degree)
     catalog_coord = SkyCoord(ra=base_ra*u.degree, dec=base_dec*u.degree)
 
     # a k-d tree is built from catalog_coord (SPLUS)
     # my_coord (SLOAN) is queried on the k-d tree
-    idx, d2d, d3d = my_coord.match_to_catalog_sky(catalog_coord)  
+    idx, d2d, d3d = my_coord.match_to_catalog_sky(catalog_coord)
+
+    print('len unique idx', len(np.unique(idx)))
+    print('len idx', len(idx))
 
     sep_constraint = d2d < max_distance * u.arcsec
     my_matches = my_coord[sep_constraint] 
     catalog_matches = catalog_coord[idx[sep_constraint]] 
 
-    print(my_coord.shape)
-    print(my_matches.shape)
+    print('my coord matches', my_matches.shape)
+    print('catalog matches', catalog_matches.shape)
 
-    new_cat['splus_idx'] = idx
-    new_cat['d2d'] = d2d
-    new_cat['matched'] = sep_constraint
+    new_df['base_idx'] = idx
+    new_df['d2d'] = d2d
+    new_df['matched'] = sep_constraint
+    new_df = new_df[new_df.matched]
+    print(new_df.base_idx.value_counts())
+    # agg = new_df.groupby('base_idx')
+    # agg = agg.apply(lambda s: s.sort_values('d2d', ascending=True).head(1))
+    # agg.drop(columns=['base_idx'], inplace=True)
+    # print(agg.d2d.min(), agg.d2d.max())
 
-    final_cat = new_cat.merge(base_cat, left_on='splus_idx', right_index=True, suffixes=('_x', ''))
-    final_cat.to_csv(matched_cat_path, index=False)
+    final_cat = base_df.merge(new_df, how='left', left_index=True, right_on='base_idx', suffixes=('', '_'))
+    f = final_cat[~final_cat.matched.isna()]
+    print(f[['ra','dec','ra_','dec_','d2d']].head(20))
+    final_cat = final_cat[cols+['d2d', 'class','subclass']]
+
+    print('matched df shape', new_df.shape)
+    print('base df shape', base_df.shape)
+    print('final df shape', final_cat.shape)
+    
+    if matched_cat_path is not None:
+        final_cat.to_csv(matched_cat_path, index=False)
 
     return final_cat
-
-
-def gen_filtered_catalog(cat, output_file, spectra_folder=None):
-    c = pd.read_csv(cat)
-    shape_prev = c.shape[0]
-    print('original shape', shape_prev)
-    c = c[c.matched]
-    print('shape/diff after filtering matched', c.shape[0], shape_prev-c.shape[0])
-
-    shape_prev = c.shape[0]
-    duplicates = c['id'].value_counts()
-    duplicates = duplicates[duplicates>1].index.values
-    c = c[~c['id'].isin(duplicates)]
-    print('shape/diff after removing duplicates', c.shape[0], shape_prev-c.shape[0])
-
-    c['id'] = c['id'].apply(lambda s: s.replace('.griz', ''))
-    c = c[cols]
-
-    if spectra_folder is not None:
-        spectra = glob(spectra_folder)
-        for i, s in enumerate(spectra):
-            spectra[i] = s.split('/')[-1][:-4]
-        shape_prev = c.shape[0]
-        c = c[c['id'].isin(spectra)]
-        print('shape/diff after removing objects without corresponding spectrum',
-            c.shape[0], shape_prev-c.shape[0])
-
-    c.sort_values(by='id',inplace=True)
-    c.to_csv(output_file, index=False)
-
-
-def gen_splits(df_filename, val_split=0.1, test_split=0.1):
-    df = pd.read_csv(df_filename)
-    np.random.seed(0)
-
-    print('shape', df.shape)
-    if 'has_spectra' in df.columns:
-        df = df[df.has_spectra]
-        print('shape after filtering only with spectra', df.shape)
-
-    msk = np.random.rand(len(df)) > test_split
-    df_trainval = df[msk]
-    df_test = df[~msk]
-    del df
-
-    msk = np.random.rand(len(df_trainval)) > val_split
-    df_train = df_trainval[msk]
-    df_val = df_trainval[~msk]
-    del df_trainval
-
-    base_filename = df_filename.split('.')[0]
-
-    df_train.to_csv(base_filename + '_train.csv', index=False)
-    df_val.to_csv(base_filename + '_val.csv', index=False)
-    df_test.to_csv(base_filename + '_test.csv', index=False)
-
-    print('train set:', df_train.shape[0])
-    # print(df_train['class'].value_counts(normalize=True))
-    print('val set:', df_val.shape[0])
-    # print(df_val['class'].value_counts(normalize=True))
-    print('test set:', df_test.shape[0])
-    # print(df_test['class'].value_counts(normalize=True))
 
 
 def add_downloaded_spectra_col(cat, spectra_folder):
@@ -213,6 +189,59 @@ def add_downloaded_spectra_col(cat, spectra_folder):
     c = pd.read_csv(cat)
     c['has_spectra'] = c['id'].apply(lambda s: s in spectra)
     c.to_csv(cat, index=False)
+
+
+def pixels_to_int(filepath):
+    df = pd.read_csv(filepath)
+    df['x'] = df.x.astype(int)
+    df['y'] = df.y.astype(int)
+    df.to_csv(filepath, index=False)
+
+
+def stratified_split(filepath, mag_range=(14,24), test_split=0.1, val_split=0.11):
+    df = pd.read_csv(filepath)
+    df = df[~df['class'].isna()]
+    df = df[df.r.between(mag_range[0], mag_range[1])]
+
+    df['class_mag'] = np.round(df.r.values).astype(np.uint8)
+    df.loc[df['class']=='QSO', 'class_mag'] = df.class_mag.apply(lambda r: r if r%2==0 else r+1)
+    df['class_mag'] = df['class'] + df['class_mag'].astype(str)
+    df['class_mag'] = df['class_mag'].astype('category')
+    print(df.class_mag.value_counts(normalize=False))
+    df['class_mag_int'] = df.class_mag.cat.codes
+    df['split'] = ''
+
+    # train-test split
+    X = df.index.values
+    y = df.class_mag_int.values
+    sss = StratifiedShuffleSplit(n_splits=1, test_size=test_split, random_state=0)
+    train_idx, test_idx = next(sss.split(X,y))
+    df_train_idx, df_test_idx = X[train_idx], X[test_idx]
+    df.loc[df_train_idx, 'split'] = 'train'
+    df.loc[df_test_idx, 'split'] = 'test'
+
+    # train-val split
+    X = df[df.split=='train'].index.values
+    y = df[df.split=='train'].class_mag_int.values
+    sss = StratifiedShuffleSplit(n_splits=1, test_size=val_split, random_state=0)
+    train_idx, test_idx = next(sss.split(X,y))
+    df_train_idx, df_test_idx = X[train_idx], X[test_idx]
+    df.loc[df_train_idx, 'split'] = 'train'
+    df.loc[df_test_idx, 'split'] = 'val'
+
+    print(df.split.value_counts(normalize=True))
+    print()
+
+    print('SPLITS PER CAT')
+    print()
+    for i in np.unique(df.class_mag_int.values):
+        dff = df[df.class_mag_int==i]
+        print(dff['class_mag'].head(1))
+        print(dff.split.value_counts(normalize=True))
+        print()
+
+    df.drop(columns=['class_mag', 'class_mag_int'], inplace=True)
+    df.to_csv('{}_mag{}-{}_split.csv'.format(filepath[:-4], mag_range[0], mag_range[1]), index=False)
 
 
 if __name__=='__main__':
@@ -236,10 +265,15 @@ if __name__=='__main__':
     # query_sdss(photo_query, 'sdss_photo_{}.csv')
     # query_sdss(spec_query, 'csv/sdss_spec.csv')
 
-    splus_cat = 'csv/splus_catalog_dr1.csv'
-    sloan_cat = 'csv/sdss_spec.csv'
-    matched_cat ='csv/matched_cat_dr1.csv'
-    filtered_cat = 'csv/matched_cat_dr1_filtered.csv'
+    #stratified_split('csv/dr1_flag0_classes.csv')
+    #exit()
+
+    splus_cat = pd.read_csv('csv/dr1.csv')
+    sloan_cat = pd.read_csv('csv/sdss_spectra.csv')
+    matched_cat ='csv/dr1_classes.csv'
+    c = match_catalogs(sloan_cat, splus_cat, matched_cat)
+
+    # filtered_cat = 'csv/matched_cat_dr1_filtered.csv'
 
     # # generate master catalog
     # print('generating master splus catalog')
@@ -251,7 +285,6 @@ if __name__=='__main__':
     # # match catalogs
     # print('matching catalogs')
     # start = time.time()
-    # c = match_catalogs(sloan_cat, splus_cat, matched_cat)
     # print('minutes taken:', int((time.time()-start)/60))
 
     # # filter catalog
@@ -260,8 +293,8 @@ if __name__=='__main__':
 
     # add_downloaded_spectra_col(filtered_cat, '../raw-data/spectra/*')
 
-    print('generating train-val-test splits')
-    gen_splits('csv/dr1_flag0_ndet12.csv')
+    # print('generating train-val-test splits')
+    # gen_splits('csv/dr1_flag0_ndet12.csv')
 
     # gen_diff_catalog('csv/splus_catalog_dr1.csv', 'csv/matched_cat_dr1.csv', 'csv/diff_cat_dr1.csv')
 
