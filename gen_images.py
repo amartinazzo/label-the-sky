@@ -52,7 +52,7 @@ def crop_objects_in_rgb(df, save_folder, size=64):
         imwrite('{}/{}.png'.format(save_folder, r['id']), img)
 
 
-def crop_object_in_field(ix, arr, objects_df, save_folder, field_name, asinh=True):
+def crop_object_in_field(ix, arr, objects_df, save_folder, asinh=True):
     '''
     crops object in a given field
     receives:
@@ -60,25 +60,24 @@ def crop_object_in_field(ix, arr, objects_df, save_folder, field_name, asinh=Tru
         * arr           (ndarray) 12-band full field image
         * objects_df    (pandas DataFrame) full objects table
         * save_folder   (str) path to folder where crops will be saved
-        * field_name    (str) name of the field to be filtered on the catalog
 
     for an object with fwhm =~ 2, 32x32 px is a good fit
-    d=3 is good for larger objects (inspected visually) but yields too many resizes
+    size=3*fwhm is good for larger objects (inspected visually) but yields too many resizes
     '''
     # d = np.ceil(np.maximum(delta, 0.5*o['fwhm'])).astype(np.int)
     row = objects_df.loc[ix]
-    d = np.ceil(np.maximum(delta, 1*row['FWHM'])).astype(np.int)
-    x0 = np.maximum(0, int(row['X']) - d)
-    x1 = np.minimum(10999, int(row['X']) + d)
-    y0 = np.maximum(0, int(row['Y']) - d)
-    y1 = np.minimum(10999, int(row['Y']) + d)
+    d = np.ceil(np.maximum(delta, 1*row['fwhm'])).astype(np.int)
+    x0 = np.maximum(0, int(row['x']) - d)
+    x1 = np.minimum(10999, int(row['x']) + d)
+    y0 = np.maximum(0, int(row['y']) - d)
+    y1 = np.minimum(10999, int(row['y']) + d)
     im = arr[y0:y1, x0:x1, :]
     if im.shape[0] != 32 or im.shape[1] != 32:
         im = resize(im, dsize=(32, 32), interpolation=INTER_CUBIC)
-        print('{} resized'.format(row['ID']))
+        print('{} resized'.format(row['id']))
     if asinh:
         im = asinh_transform(im, clip=False)
-    np.save('{}/{}.npy'.format(save_folder, row['ID']), im, allow_pickle=False)
+    np.save('{}/{}.npy'.format(save_folder, row['id']), im, allow_pickle=False)
 
     return 0
 
@@ -118,16 +117,21 @@ def sweep_fields(fields_path, catalog_path, crops_folder):
     files = glob(fields_path, recursive=True)
     files.sort()
 
-    img_files = glob(crops_folder)
-    img_files = [i[:-4] for i in img_files]
-
-    print(img_files[:5])
-
     print('reading catalog')
     catalog = pd.read_csv(catalog_path)
     print(catalog.head())
     print('catalog shape', catalog.shape)
-    catalog['field_name'] = catalog['ID'].apply(lambda s: s.split('.')[1])
+    catalog['field_name'] = catalog['id'].apply(lambda s: s.split('.')[0])
+
+    imgfiles = glob(crops_folder+'*/*.npy')
+    imgfiles = [i.split('/')[-1][:-4] for i in imgfiles]
+
+    print(imgfiles[:3])
+
+    # ignore objects that have already been cropped
+    print('catalog', catalog.shape)
+    catalog = catalog[~catalog.id.isin(imgfiles)]
+    print('catalog after ignoring existing crops', catalog.shape)
 
     # print('filtering objects with fwhm<=', max_fwhm)
     # catalog = catalog[catalog.fwhm<=max_fwhm]
@@ -150,7 +154,7 @@ def sweep_fields(fields_path, catalog_path, crops_folder):
             print('{} min. cropping objects in {}'.format(int((time()-start)/60), prev))
             objects_df = catalog[catalog.field_name==prev].reset_index()
             Parallel(n_jobs=8, prefer='threads')(delayed(
-                crop_object_in_field)(ix, arr, objects_df, crops_folder, prev, True) for ix in range(objects_df.index.max()))
+                crop_object_in_field)(ix, arr, objects_df, crops_folder+prev, True) for ix in range(objects_df.index.max()))
             arr = np.zeros((s0, s1, n_channels))
             prev = field_name
             i=0
@@ -280,32 +284,36 @@ def z_norm_images(input_folder, output_folder):
 
 if __name__=='__main__':
 
-    df = pd.read_csv('csv/dr0/dr0_matched_final.csv')
-    df = df[(~df['class'].isna())]
-    print(df.shape)
-    print(df['class'].value_counts(normalize=True))
-    # fwhm >= 19   --> 146
-    # r <= 17      --> 8115
-    # r in (17,20) --> 39866
-    # r <= 20      --> 47911
-    # total        --> 61619
+    # df = pd.read_csv('csv/dr0_classes.csv')
+    # df = df[(~df['class'].isna())]
+    # df = df[df.r <= 18]
+    # print(df.shape)
+    # print(df['class'].value_counts(normalize=True))
+    # # fwhm >= 19   --> 146
+    # # r <= 17      --> 8115
+    # # r <= 18      --> 18455
+    # # r <= 19      --> 32273
+    # # r <= 20      --> 47911
+    # # total        --> 61619
 
-    # r <= 20
-    # GALAXY    0.514809
-    # STAR      0.440191
-    # QSO       0.045000
+    # # r <= 20
+    # # GALAXY    0.514809
+    # # STAR      0.440191
+    # # QSO       0.045000
 
-    df.reset_index(inplace=True)
-    print(df.shape)
-    df = df.loc[np.random.choice(np.arange(df.shape[0]), 50, replace=False), :]
-    crop_objects_in_rgb(df, '/home/anamartinazzo/label_the_sky/crops_rgb/')
+    # df.reset_index(inplace=True)
+    # print(df.shape)
+    # df = df.loc[np.random.choice(np.arange(df.shape[0]), 40, replace=False), :]
+    # crop_objects_in_rgb(df, '/home/anamartinazzo/www/crops/128px_r18/', 128)
 
-    exit()
+    # exit()
+
+    data_dir = os.environ['DATA_PATH']
 
     sweep_fields(
-        fields_path='../raw-data/dr1/coadded/*/*.fz',
-        catalog_path='csv/dr1_flag0.csv',
-        crops_folder='../raw-data/crops_asinh_1fwhm/'
+        fields_path=data_dir+'/dr1/coadded/*/*.fz',
+        catalog_path='csv/dr1_classes_mag1418_split.csv',
+        crops_folder=data_dir+'/crops_asinh/'
         )
 
     # original_crops_path = '../raw-data/crops/original/*'

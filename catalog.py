@@ -198,7 +198,7 @@ def pixels_to_int(filepath):
     df.to_csv(filepath, index=False)
 
 
-def stratified_split(filepath, mag_range=(14,24), test_split=0.1, val_split=0.11):
+def stratified_split(filepath, mag_range=(14,18), test_split=0.1, val_split=0.11):
     df = pd.read_csv(filepath)
     df = df[~df['class'].isna()]
     df = df[df.r.between(mag_range[0], mag_range[1])]
@@ -206,6 +206,7 @@ def stratified_split(filepath, mag_range=(14,24), test_split=0.1, val_split=0.11
     df['class_mag'] = np.round(df.r.values).astype(np.uint8)
     df.loc[df['class']=='QSO', 'class_mag'] = df.class_mag.apply(lambda r: r if r%2==0 else r+1)
     df['class_mag'] = df['class'] + df['class_mag'].astype(str)
+    df.loc[df.class_mag=='QSO14', 'class_mag'] = 'QSO16'
     df['class_mag'] = df['class_mag'].astype('category')
     print(df.class_mag.value_counts(normalize=False))
     df['class_mag_int'] = df.class_mag.cat.codes
@@ -265,8 +266,8 @@ if __name__=='__main__':
     # query_sdss(photo_query, 'sdss_photo_{}.csv')
     # query_sdss(spec_query, 'csv/sdss_spec.csv')
 
-    #stratified_split('csv/dr1_flag0_classes.csv')
-    #exit()
+    stratified_split('csv/dr1_classes.csv')
+    exit()
 
     splus_cat = pd.read_csv('csv/dr1.csv')
     sloan_cat = pd.read_csv('csv/sdss_spectra.csv')

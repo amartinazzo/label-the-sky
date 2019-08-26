@@ -68,12 +68,11 @@ class DataGenerator(keras.utils.Sequence):
                 X[i,] = spec
             else:
                 if self.bands is not None:
-                    arr = np.load(self.data_folder + object_id + '.npy').reshape(self.shape_orig)
+                    arr = np.load(self.data_folder + object_id.split('.')[0] + '/' + object_id + '.npy').reshape(self.shape_orig)
                     arr = arr[:,:,self.bands]
                     X[i,] = arr
                 else:
-                    im = np.load(self.data_folder + object_id + '.npy')
-                    X[i,] = np.load(self.data_folder + object_id + '.npy').reshape(self.shape)
+                    X[i,] = np.load(self.data_folder + object_id.split('.')[0] + '/' + object_id + '.npy').reshape(self.shape)
             if self.labels is not None:
                 y[i,] = np.array(self.labels[object_id])
 

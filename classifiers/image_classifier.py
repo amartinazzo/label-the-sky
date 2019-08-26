@@ -1,6 +1,7 @@
 import os,sys,inspect
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))))
 from datagen import DataGenerator
+from glob import glob
 from keras import backend as K
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from keras.optimizers import Adam
@@ -12,38 +13,70 @@ import sklearn.metrics as metrics
 import utils
 
 
+'''
+notes:
+images are stored in float64 (8 bytes per pixel)
+one image is 32*32*12*8/10e6 ~= 0.1 MB
+
+class proportions
+
+full set
+    0 GALAXY    0.5
+    1 STAR      0.4
+    2 QSO       0.1
+
+set with r in (14,18)
+    0 GALAXY    0.5
+    1 STAR      0.45
+    2 QSO       0.05
+'''
+
+
+#########################
+# BEGIN PARAMETER SETUP #
+#########################
+
 mode = 'train' # train or eval-mags
 
-task = 'regression' # classification or regression (magnitudes)
-n_classes = 12
+task = 'classification' # classification or regression (magnitudes)
+csv_dataset = 'csv/dr1_classes_mag1418_split.csv'
+
+class_weights = {0: 1, 1: 1.25, 2: 10} # 1/class_proportion
+n_classes = 3
 n_epoch = 300
 img_dim = (32,32,12)
-
-# images are stored in float64 (8 bytes per pixel)
-# one image is 32*32*12*8/10e6 ~= 0.1 MB
-batch_size = 256
+batch_size = 128 #256
 cardinality = 4
-data_mode = 'magnitudes' #classifier or magnitudes
-depth = 29
-loss = 'mean_absolute_error' #'categorical_crossentropy'
 width = 16
+depth = 11 #29
+
+weights_file = None #'classifiers/image-models/resnext_depth11_card4_300epc.h5'
+save_file = f'classifiers/image-models/depth{depth}_card{cardinality}_eph{n_epoch}_{task}_mag14-18.h5'
+
+#######################
+# END PARAMETER SETUP #
+#######################
+
+
+print('csv_dataset', csv_dataset)
+print('task', task)
+print('batch_size', batch_size)
+print('cardinality', cardinality)
+print('depth', depth)
+print('width', width)
+print('save_file', save_file)
+
+data_mode = 'classifier' if task=='classification' else 'magnitudes'
+loss = 'categorical_crossentropy' if task=='classification' else 'mean_absolute_error'
 
 
 models_dir = 'classifiers/image-models/'
-weights_file = None #'classifiers/image-models/resnext_depth11_card4_300epc.h5'
-save_file = 'classifiers/image-models/resnext_depth29_card4_300eph_asinh_regression.h5'
-#'classifiers/image-models/resnext_depth29_card4_300epc_regression_smallset.h5'
-
-home_path = os.path.expanduser('~')
-params = {'data_folder': home_path+'/raw-data/crops_asinh_1fwhm/',
-            'dim': (32,32,12), 'n_classes': n_classes, 'mode': data_mode}
-class_weights = {0: 1, 1: 1.25, 2: 5} # 1/class_proportion
+data_dir = os.environ['DATA_PATH']+'/crops_asinh/'
+params = {'data_folder': data_dir, 'dim': img_dim, 'n_classes': n_classes, 'mode': data_mode}
 
 # make only 1 gpu visible
 os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
 os.environ['CUDA_VISIBLE_DEVICES']='0'
-
-###
 
 # create resnext model
 model = resnext(img_dim, depth=depth, cardinality=cardinality, width=width, classes=n_classes)
@@ -51,13 +84,22 @@ print('model created')
 
 # model.summary()
 
-optimizer = Adam(lr=1e-4)
-model.compile(loss=loss, optimizer=optimizer, metrics=['accuracy'])
+model.compile(loss=loss, optimizer='adam', metrics=['accuracy'])
 print('finished compiling')
 
 # load dataset iterators
-X_train, _, labels_train = utils.get_sets('csv/dr1_flag0_ndet12_train.csv', mode=data_mode)
-X_val, y_true, labels_val = utils.get_sets('csv/dr1_flag0_ndet12_val.csv', mode=data_mode)
+df = pd.read_csv(csv_dataset)
+imgfiles = glob(data_dir+'*/*.npy')
+imgfiles = [i.split('/')[-1][:-4] for i in imgfiles]
+print('original df', df.shape)
+df = df[df.id.isin(imgfiles)]
+print('df after matching to crops', df.shape)
+df_train = df[df.split=='train']
+df_val = df[df.split=='val']
+del df
+
+X_train, _, labels_train = utils.get_sets(df_train, mode=data_mode)
+X_val, y_true, labels_val = utils.get_sets(df_val, mode=data_mode)
 print('train size', len(X_train))
 print('val size', len(X_val))
 
@@ -86,6 +128,7 @@ if mode=='train':
         validation_steps=len(X_val)//batch_size,
         epochs=n_epoch,
         callbacks=callbacks,
+        class_weight=class_weights,
         verbose=2)
 
     print('loss', history.history['loss'])

@@ -8,10 +8,10 @@ from sklearn.utils.multiclass import unique_labels
 class_map = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
 
 
-def get_sets(filepath, filters=None, obj_list=None, mode=None):
+def get_sets(df, filters=None, obj_list=None, mode=None):
     """
     receives:
-    * filepath      path to csv file with id values and class strings
+    * df            pandas dataframe
     * filters       dict with optional min-max values, e.g. {'feature1': [min1, max1], 'feature2': [min2, max2]}
     * obj_list      list of object ids (used to check existing files)
     * mode          'classes' to return class labels or 'magnitudes' to return 12 magnitudes; other string values will return None for y/labels
@@ -21,7 +21,6 @@ def get_sets(filepath, filters=None, obj_list=None, mode=None):
     * y are integer-valued labels
     * labels is a dict mapping each id to its label, e.g. {'x1': 0, 'x2': 1, ...}
     """
-    df = read_csv(filepath)
     print('original set size', df.shape)
     if filters is not None:
         for key, val in filters.items():
