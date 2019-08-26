@@ -36,6 +36,8 @@ class DataGenerator(keras.utils.Sequence):
         list_ids_temp = [self.object_ids[k] for k in indexes]
         X, y = self.__data_generation(list_ids_temp)
 
+        X = np.float32(X)
+
         if self.mode=='autoencoder':
             return X, X
 

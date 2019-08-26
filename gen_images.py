@@ -10,21 +10,27 @@ import os
 from time import time
 
 
+'''
+dr0 LABELED
+    fwhm >= 19   --> 146
+    r <= 17      --> 8115
+    r <= 18      --> 18455
+    r <= 19      --> 32273
+    r <= 20      --> 47911
+    total        --> 61619
+
+    r <= 20
+    GALAXY    0.514809
+    STAR      0.440191
+    QSO       0.045000
+
+'''
+
+
 delta = 16
 asinh_transform = AsinhStretch()
 
 n_cores = multiprocessing.cpu_count()
-
-
-def move_broadbands(images_folder='../raw-data/early-dr/coadded/*'):
-    files = glob(images_folder, recursive=False)
-    bands = ['_U_', '_G_', '_R_', '_I_', '_Z_']
-    for file in files:
-        for b in bands:
-            if b in file:
-                split = file.split('/')
-                print('moving: '+split[0]+'/broadbands/'+split[1])
-                os.rename(file, split[0]+'/broadbands/'+split[1])
 
 
 def get_ndarray(filepath):
@@ -36,7 +42,7 @@ def crop_objects_in_rgb(df, save_folder, size=64):
     d = size//2
     df['X'] = df.x
     df['Y'] = 11000 - df.y
-    df['field'] = df.id.apply(lambda s: s.split('.')[1])
+    df['field'] = df.id.apply(lambda s: s.split('.')[0])
     
     lst_field = ''
     for ix, r in df.iterrows():
@@ -123,18 +129,23 @@ def sweep_fields(fields_path, catalog_path, crops_folder):
     print('catalog shape', catalog.shape)
     catalog['field_name'] = catalog['id'].apply(lambda s: s.split('.')[0])
 
+    # ignore objects that have already been cropped
     imgfiles = glob(crops_folder+'*/*.npy')
     imgfiles = [i.split('/')[-1][:-4] for i in imgfiles]
-
-    print(imgfiles[:3])
-
-    # ignore objects that have already been cropped
     print('catalog', catalog.shape)
     catalog = catalog[~catalog.id.isin(imgfiles)]
     print('catalog after ignoring existing crops', catalog.shape)
+    fields = np.unique(catalog.field_name.values)
+    files_orig = files
+    files = []
+    for field in fields:
+        files_tmp = [f for f in files_orig if field in f]
+        files = files +files_tmp
+    del files_orig
 
-    # print('filtering objects with fwhm<=', max_fwhm)
-    # catalog = catalog[catalog.fwhm<=max_fwhm]
+    if len(files)==0:
+        print('all objects already have crops')
+        exit()
 
     bands_order = get_bands_order()
     n_channels = len(bands_order)
@@ -148,13 +159,14 @@ def sweep_fields(fields_path, catalog_path, crops_folder):
 
     start = time()
     i=1
+    lst_ix = len(files[1:])-1
     for ix, f in enumerate(files[1:]):
         field_name = f.split('/')[-1].split('_')[0]
-        if prev != field_name or field_name=='STRIPE82-0170':
+        if prev != field_name or ix==lst_ix:
             print('{} min. cropping objects in {}'.format(int((time()-start)/60), prev))
             objects_df = catalog[catalog.field_name==prev].reset_index()
             Parallel(n_jobs=8, prefer='threads')(delayed(
-                crop_object_in_field)(ix, arr, objects_df, crops_folder+prev, True) for ix in range(objects_df.index.max()))
+                crop_object_in_field)(ix, arr, objects_df, crops_folder+prev, True) for ix in range(objects_df.index.max()+1))
             arr = np.zeros((s0, s1, n_channels))
             prev = field_name
             i=0
@@ -283,28 +295,16 @@ def z_norm_images(input_folder, output_folder):
 
 
 if __name__=='__main__':
-
     # df = pd.read_csv('csv/dr0_classes.csv')
     # df = df[(~df['class'].isna())]
-    # df = df[df.r <= 18]
+    # df = df[df['class']!='QSO']
+    # df = df[df.r <= 20]
     # print(df.shape)
     # print(df['class'].value_counts(normalize=True))
-    # # fwhm >= 19   --> 146
-    # # r <= 17      --> 8115
-    # # r <= 18      --> 18455
-    # # r <= 19      --> 32273
-    # # r <= 20      --> 47911
-    # # total        --> 61619
-
-    # # r <= 20
-    # # GALAXY    0.514809
-    # # STAR      0.440191
-    # # QSO       0.045000
-
     # df.reset_index(inplace=True)
     # print(df.shape)
     # df = df.loc[np.random.choice(np.arange(df.shape[0]), 40, replace=False), :]
-    # crop_objects_in_rgb(df, '/home/anamartinazzo/www/crops/128px_r18/', 128)
+    # crop_objects_in_rgb(df, '/home/anamartinazzo/www/crops_rgb/76px_r20/', 76)
 
     # exit()
 

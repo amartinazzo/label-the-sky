@@ -14,18 +14,19 @@ import utils
 
 
 '''
-notes:
-images are stored in float64 (8 bytes per pixel)
-one image is 32*32*12*8/10e6 ~= 0.1 MB
+NOTES
 
-class proportions
+batch of 128 float32 images:
+128 * 32 * (32*32*12)/8.4e6 ~= 6 MiB
+
+class proportions:
 
 full set
     0 GALAXY    0.5
     1 STAR      0.4
     2 QSO       0.1
 
-set with r in (14,18)
+subset with r in (14,18)
     0 GALAXY    0.5
     1 STAR      0.45
     2 QSO       0.05
@@ -43,7 +44,7 @@ csv_dataset = 'csv/dr1_classes_mag1418_split.csv'
 
 class_weights = {0: 1, 1: 1.25, 2: 10} # 1/class_proportion
 n_classes = 3
-n_epoch = 300
+n_epoch = 500
 img_dim = (32,32,12)
 batch_size = 128 #256
 cardinality = 4
@@ -51,7 +52,7 @@ width = 16
 depth = 11 #29
 
 weights_file = None #'classifiers/image-models/resnext_depth11_card4_300epc.h5'
-save_file = f'classifiers/image-models/depth{depth}_card{cardinality}_eph{n_epoch}_{task}_mag14-18.h5'
+save_file = f'classifiers/image-models/depth{depth}_card{cardinality}_eph{n_epoch}_{task}_mag1418.h5'
 
 #######################
 # END PARAMETER SETUP #
@@ -82,7 +83,7 @@ os.environ['CUDA_VISIBLE_DEVICES']='0'
 model = resnext(img_dim, depth=depth, cardinality=cardinality, width=width, classes=n_classes)
 print('model created')
 
-# model.summary()
+model.summary()
 
 model.compile(loss=loss, optimizer='adam', metrics=['accuracy'])
 print('finished compiling')
