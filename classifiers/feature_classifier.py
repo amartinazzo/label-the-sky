@@ -34,15 +34,15 @@ idx_val = df.split=='val'
 X = np.load(features_file)
 X_train = X[idx_train]
 X_val = X[idx_val]
-
 print('X_train shape', X_train.shape)
 print('X_val shape', X_val.shape)
 
 y_train = df.loc[idx_train, 'class'].apply(lambda c: class_map[c])
 y_val = df.loc[idx_val, 'class'].apply(lambda c: class_map[c])
-
 y_train = to_categorical(y_train, n_classes)
 y_val = to_categorical(y_val, n_classes)
+print('y_train shape', y_train.shape)
+print('y_val shape', y_val.shape)
 
 model = top_layer_net()
 model.summary()
@@ -76,14 +76,13 @@ y_pred = np.argmax(y_pred, axis=1)
 preds_correct = y_pred==y_val
 x_miss = X_val[~preds_correct]
 print('missclasified', len(x_miss))
-print(x_miss)
 
 # compute accuracy
-accuracy = metrics.accuracy_score(y_true, y_pred) * 100
+accuracy = metrics.accuracy_score(y_val, y_pred) * 100
 print('accuracy : ', accuracy)
 
 # compute confusion matrix
-cm = metrics.confusion_matrix(y_true, y_pred)
+cm = metrics.confusion_matrix(y_val, y_pred)
 cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
 print('confusion matrix')
 print(cm)
