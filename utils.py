@@ -8,7 +8,7 @@ from sklearn.utils.multiclass import unique_labels
 class_map = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
 
 
-def get_sets(df, filters=None, obj_list=None, mode=None):
+def get_sets(df, mode='classes', filters=None, obj_list=None):
     """
     receives:
     * df            pandas dataframe
@@ -27,17 +27,16 @@ def get_sets(df, filters=None, obj_list=None, mode=None):
             df = df[df[key].between(val[0], val[1])]
             print('set size after filters', df.shape)
     if obj_list is not None:
-        df = df[df['ID'].isin(obj_list)]
+        df = df[df['id'].isin(obj_list)]
         print('set size after crossing with folder files', df.shape)
     X = df['id'].values
-    if 'class' in df.columns:
+    if mode=='classes':
         y = df['class'].apply(lambda c: class_map[c]).values
         labels = dict(zip(X, y))
         # print(df['class'].value_counts(normalize=True))
     elif mode=='magnitudes':
-        y = df[[
-        'uJAVA_auto','F378_auto','F395_auto','F410_auto','F430_auto','g_auto',
-        'F515_auto','r_auto','F660_auto','i_auto','F861_auto','z_auto']].values
+        y = df[['u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z']].values
+        # y = y/30
         labels = dict(zip(X, y))
     else:
         y = None

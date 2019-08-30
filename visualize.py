@@ -9,29 +9,31 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import numpy as np
 import pandas as pd
+import os
 from utils import get_sets
 
 
 matplotlib.rcParams.update({'font.size': 6})
-
-# filename = '../raw-data/unsup_normalized/SPLUS.STRIPE82-0001.00003.npy'
-
-
 bands = ['U', 'F378', 'F395', 'F410', 'F430', 'G', 'F515', 'R', 'F660', 'I', 'F861', 'Z']
 
-stretcher = vis.LogStretch(a=1e0)
-scaler = vis.ZScaleInterval()
+stretcher = vis.AsinhStretch()
+# scaler = vis.ZScaleInterval()
 
 
 def plot_single_band(im_path):
 	fits_im = fits.open(im_path)
 	data = fits_im[1].data #ndarray
-	print(data)
-	print(data.max(), data.min())
-	data_orig = data
-	data = sqrt_stretcher(data)
-	vmin, vmax = scaler.get_limits(data)
-	plt.imshow(data, cmap='gray', vmin=vmin, vmax=vmax)
+	vmin = data.min()
+	vmax = data.max()
+	print(vmin,vmax)
+	# std = (data - vmin) / (vmax-vmin)
+	# data = std * (vmax - vmin) + vmin
+	# data = data[650:750, 450:550]
+	# data = data[3500:4500, 7000:8000]
+	data = data[8300:8600,9100:9400]
+	data = stretcher(data, clip=False)
+	print(data.min(), data.max())
+	plt.imshow(data, cmap='gray')
 	plt.show()
 
 
@@ -49,7 +51,7 @@ def plot_field_rgb(filepath):
 
 
 # receives 12-band array and plots each band in grayscale + lupton composite + given rgb composite
-def plot_bands(filename, plot_composites=True, znorm=True, base_catalog='csv/splus_catalog_dr1.csv'):
+def plot_bands(filename, plot_composites=False, znorm=False):
 	arr = np.load(filename)
 	if znorm:
 		arr = arr - np.mean(arr, axis=(0,1))
@@ -57,31 +59,34 @@ def plot_bands(filename, plot_composites=True, znorm=True, base_catalog='csv/spl
 
 	x, y, n_bands = arr.shape
 	plt.figure()
-	plt.suptitle(filename)
+	plt.title(filename.split('/')[-1])
 	for b in range(n_bands):
-		ax = plt.subplot(4, 3, b+1)
+		ax = plt.subplot(3, 4, b+1)
 		ax.set_title(bands[b])
 		data = arr[:,:,b]
-		data = stretcher(data, clip=False)
-		vmin, vmax = scaler.get_limits(data)
-		print(vmin,vmax)
-		ax.imshow(data, interpolation='nearest', cmap=plt.cm.gray_r, vmin=vmin, vmax=vmax) #norm=colors.PowerNorm(0.1))
+		# data = stretcher(data, clip=False)
+		# vmin, vmax = scaler.get_limits(data)
+		# print(vmin,vmax)
+		ax.imshow(data, cmap=plt.cm.gray) #norm=colors.PowerNorm(0.1))
 		ax.axis('off')
 	
 	if plot_composites:
-		im_lupton = make_lupton_rgb(arr[:,:,9], arr[:,:,7], arr[:,:,5], stretch=0.5) #750 rgu 975 gri
-		ax = plt.subplot(4,3,b+2)
-		ax.set_title('our gri composite')
+		# im = make_lupton_rgb(arr[:,:,9], arr[:,:,7], arr[:,:,5]) #750 rgu 975 gri
+		im = np.dstack((arr[:,:,9], arr[:,:,7], arr[:,:,5]))
+		ax = plt.subplot(3, 4,b+2)
+		ax.set_title('GRI composite')
 		ax.axis('off')
-		ax.imshow(im_lupton, interpolation='nearest', cmap=plt.cm.gray_r, norm=colors.PowerNorm(0.1))
+		ax.imshow(im)
 
-		im_lupton = make_lupton_rgb(arr[:,:,7], arr[:,:,5], arr[:,:,0], stretch=0.5) #750 rgu
-		ax = plt.subplot(4,4,b+3)
-		ax.set_title('our rgu composite')
+		# im = make_lupton_rgb(arr[:,:,7], arr[:,:,5], arr[:,:,0]) #750 rgu
+		im = np.dstack((arr[:,:,7], arr[:,:,5], arr[:,:,0]))
+		ax = plt.subplot(3, 4,b+3)
+		ax.set_title('RGU composite')
 		ax.axis('off')
-		ax.imshow(im_lupton, interpolation='nearest', cmap=plt.cm.gray_r, norm=colors.PowerNorm(0.1))
+		ax.imshow(im)
 	
-	plt.show()
+	plt.tight_layout()
+	plt.savefig('STRIPE82-0045.31090_12bands.png')
 
 
 def plot_rgb(filename):
@@ -125,21 +130,41 @@ def update_legend_marker(handle, orig):
     handle.set_alpha(1)
 
 
-def plot_2d_embedding(X, y, filepath, format_='png', clear=True, labels=['galaxy', 'star', 'qso', 'unknown']):
+'''
+colors
+b: blue
+g: green
+r: red
+c: cyan
+m: magenta
+y: yellow
+'''
+
+def plot_2d_embedding(X, df, filepath, format_='png', clear=True):
 	if clear:
 		plt.clf()
-	if y is not None:
-		colors = ['m', 'b', 'y', 'k']
-		for c in [3,0,1,2]: #np.unique(y):
-			X_c = X[y==c]
-			plt.scatter(X_c[:,0], X_c[:,1], c=colors[c], s=1, marker='.', alpha=0.15, label=labels[c])
+	if df is not None:
+		colors = ['b', 'c', 'r', 'm', 'y', 'g']
+		groups = list(np.unique(df.class_split))
+		groups.sort()
+		print(groups)
+		for c, group in enumerate(groups): #np.unique(y):
+			X_c = X[df['class_split']==group]
+			print(group, X_c.shape)
+			plt.scatter(X_c[:,0], X_c[:,1], c=colors[c], s=5, marker='.', alpha=0.15, label=groups[c])
 		plt.legend(handler_map={PathCollection : HandlerPathCollection(update_func=update_legend_marker)})
 	else:
 		plt.scatter(X[:,0], X[:,1], c='k', s=0.5, marker='.', alpha=0.1) #c=k => black
 	plt.setp(plt.gcf().get_axes(), xticks=[], yticks=[])
 	fig = plt.gcf()
-	fig.set_size_inches(18.5, 10.5)
-	plt.savefig(filepath+'.'+format_, dpi=100, format=format_)
+	# fig.set_size_inches(18.5, 10.5)
+	plt.tight_layout()
+	plt.savefig(filepath+'_small.'+format_, dpi=100, format=format_)
+
+
+# data_path = os.environ['DATA_PATH']
+# plot_bands(data_path+'/crops_asinh/STRIPE82-0045/STRIPE82-0045.31090.npy')
+# exit()
 
 
 # files = glob("../raw-data/coadded/*", recursive=True)
@@ -159,9 +184,19 @@ def plot_2d_embedding(X, y, filepath, format_='png', clear=True, labels=['galaxy
 # plot_field_rgb(f)
 # magnitude_hist('csv/matched_cat_dr1.csv')
 
-cat_labeled = 'csv/dr1_matched.csv'
-# cat_unlabeled = 'csv/diff_cat_dr1.csv' #'csv/matched_cat_dr1.csv'
-_, y_true, _ = get_sets(cat_labeled)
+csv_dataset = 'csv/dr1_classes_mag1418_split_ndet.csv'
+df = pd.read_csv(csv_dataset)
+df = df[(df.split!='test') & (df.n_det==12) & (~df['class'].isna())]
+df['class_split'] = df['class']+' '+df.split
+
+for m in ['classification', 'regression']:
+	print('plotting', m)
+	name = f'features_avgpool_depth11_card4_eph500_{m}_mag1418'
+	X = np.load(f'npy/{name}.npy')
+	plot_2d_embedding(X, df, name)
+
+exit()
+
 
 # tsne
 labeled = 'npy/dr1_features_tsne.npy'

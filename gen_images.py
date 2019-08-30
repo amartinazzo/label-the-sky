@@ -125,8 +125,12 @@ def sweep_fields(fields_path, catalog_path, crops_folder):
 
     print('reading catalog')
     catalog = pd.read_csv(catalog_path)
+
+    # filter
+    catalog = catalog[(catalog.n_det==12)&(~catalog['class'].isna())]
     print(catalog.head())
     print('catalog shape', catalog.shape)
+
     catalog['field_name'] = catalog['id'].apply(lambda s: s.split('.')[0])
 
     # ignore objects that have already been cropped
@@ -312,7 +316,7 @@ if __name__=='__main__':
 
     sweep_fields(
         fields_path=data_dir+'/dr1/coadded/*/*.fz',
-        catalog_path='csv/dr1_classes_mag1418_split.csv',
+        catalog_path='csv/dr1_classes.csv',
         crops_folder=data_dir+'/crops_asinh/'
         )
 

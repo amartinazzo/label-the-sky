@@ -13,11 +13,6 @@ from keras.layers.normalization import BatchNormalization
 from keras.regularizers import l2
 import keras.backend as K
 
-CIFAR_TH_WEIGHTS_PATH = ''
-CIFAR_TF_WEIGHTS_PATH = ''
-CIFAR_TH_WEIGHTS_PATH_NO_TOP = ''
-CIFAR_TF_WEIGHTS_PATH_NO_TOP = ''
-
 
 def dense_net(input_shape, width=64, n_layers=2, n_classes=3):
     inputs = Input(shape=input_shape)
@@ -30,6 +25,14 @@ def dense_net(input_shape, width=64, n_layers=2, n_classes=3):
     model.summary()
     # model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 
+    return model
+
+
+def top_layer_net(input_shape=(512,), nb_classes=3):
+    inputs = Input(shape=input_shape)
+    outputs = Dense(nb_classes, use_bias=False, kernel_regularizer=l2(5e-4),
+                  kernel_initializer='he_normal', activation='softmax')(inputs)
+    model = Model(inputs, outputs)
     return model
 
 
@@ -47,7 +50,7 @@ def _1d_conv_net(n_filters, kernel_size, strides, input_shape, n_classes):
 
 
 def resnext(input_shape=None, depth=29, cardinality=8, width=64, weight_decay=5e-4,
-            top_layer=True, input_tensor=None, pooling=None, classes=3):
+            top_layer=True, input_tensor=None, pooling=None, classes=3, last_activation='softmax'):
     """Instantiate the ResNeXt architecture. Note that ,
         when using TensorFlow for best performance you should set
         `image_data_format="channels_last"` in your Keras config
@@ -60,29 +63,6 @@ def resnext(input_shape=None, depth=29, cardinality=8, width=64, weight_decay=5e
             weight_decay: weight decay (l2 norm)
             top_layer: include top layer (boolean)
             weights: `None` (random initialization)
-            input_tensor: optional Keras tensor (i.e. output of `layers.Input()`)
-                to use as image input for the model.
-            input_shape: optional shape tuple, only to be specified
-                if `top_layer` is None (otherwise the input shape
-                has to be `(32, 32, 3)` (with `tf` dim ordering)
-                or `(3, 32, 32)` (with `th` dim ordering).
-                It should have exactly 3 inputs channels,
-                and width and height should be no smaller than 8.
-                E.g. `(200, 200, 3)` would be one valid value.
-            pooling: Optional pooling mode for feature extraction
-                when `top_layer` is `None`.
-                - `None` means that the output of the model will be
-                    the 4D tensor output of the
-                    last convolutional layer.
-                - `avg` means that global average pooling
-                    will be applied to the output of the
-                    last convolutional layer, and thus
-                    the output of the model will be a 2D tensor.
-                - `max` means that global max pooling will
-                    be applied.
-            classes: optional number of classes to classify images
-                into, only to be specified if `top_layer` is not `None`, and
-                if no `weights` argument is specified.
         # Returns
             A Keras model instance.
         """
@@ -101,7 +81,7 @@ def resnext(input_shape=None, depth=29, cardinality=8, width=64, weight_decay=5e
             img_input = input_tensor
 
     x = __create_res_next(classes, img_input, top_layer, depth, cardinality, width,
-                          weight_decay, pooling)
+                          weight_decay, pooling, last_activation)
 
     model = Model(img_input, x, name='resnext')
 
@@ -212,8 +192,8 @@ def __bottleneck_block(input_layer, filters=64, cardinality=8, strides=1, weight
     return x
 
 
-def __create_res_next(nb_classes, img_input, top_layer, 
-                        depth=29, cardinality=8, width=4, weight_decay=5e-4, pooling=None):
+def __create_res_next(nb_classes, img_input, top_layer, depth=29, cardinality=8, width=4,
+    weight_decay=5e-4, pooling=None, last_activation='softmax'):
     '''
     Creates a ResNeXt model with specified parameters
     Args:
@@ -273,10 +253,10 @@ def __create_res_next(nb_classes, img_input, top_layer,
                 x = __bottleneck_block(x, filters_list[block_idx], cardinality, strides=1,
                                        weight_decay=weight_decay)
 
-    if top_layer is not None:
+    if top_layer:
         x = GlobalAveragePooling2D()(x)
         x = Dense(nb_classes, use_bias=False, kernel_regularizer=l2(weight_decay),
-                  kernel_initializer='he_normal', activation='softmax')(x)
+                  kernel_initializer='he_normal', activation=last_activation)(x)
     else:
         if pooling == 'avg':
             x = GlobalAveragePooling2D()(x)

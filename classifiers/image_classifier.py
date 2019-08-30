@@ -4,9 +4,7 @@ from datagen import DataGenerator
 from glob import glob
 from keras import backend as K
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
-from keras.optimizers import Adam
 import numpy as np
-import os
 import pandas as pd
 from models import resnext
 import sklearn.metrics as metrics
@@ -37,13 +35,10 @@ subset with r in (14,18)
 # BEGIN PARAMETER SETUP #
 #########################
 
-mode = 'train' # train or eval-mags
+mode = 'predict' # train, eval-mags, predict
+task = 'regression' # classification or regression (magnitudes)
+csv_dataset = 'csv/dr1_classes_mag1418_split_ndet.csv'
 
-task = 'classification' # classification or regression (magnitudes)
-csv_dataset = 'csv/dr1_classes_mag1418_split.csv'
-
-class_weights = {0: 1, 1: 1.25, 2: 10} # 1/class_proportion
-n_classes = 3
 n_epoch = 500
 img_dim = (32,32,12)
 batch_size = 128 #256
@@ -51,8 +46,8 @@ cardinality = 4
 width = 16
 depth = 11 #29
 
-weights_file = None #'classifiers/image-models/resnext_depth11_card4_300epc.h5'
 save_file = f'classifiers/image-models/depth{depth}_card{cardinality}_eph{n_epoch}_{task}_mag1418.h5'
+weights_file = None
 
 #######################
 # END PARAMETER SETUP #
@@ -67,8 +62,12 @@ print('depth', depth)
 print('width', width)
 print('save_file', save_file)
 
-data_mode = 'classifier' if task=='classification' else 'magnitudes'
-loss = 'categorical_crossentropy' if task=='classification' else 'mean_absolute_error'
+n_classes = 3 if task=='magnitudes' else 12
+class_weights = {0: 1, 1: 1.25, 2: 5} if task=='classification' else None # normalized 1/class_proportion
+data_mode = 'classes' if task=='classification' else 'magnitudes'
+lst_activation = 'softmax' if task=='classification' else 'linear'
+loss = 'categorical_crossentropy' if task=='classification' else 'mean_squared_error'
+metrics = ['accuracy'] if task=='classification' else ['mae']
 
 
 models_dir = 'classifiers/image-models/'
@@ -80,16 +79,18 @@ os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
 os.environ['CUDA_VISIBLE_DEVICES']='0'
 
 # create resnext model
-model = resnext(img_dim, depth=depth, cardinality=cardinality, width=width, classes=n_classes)
+model = resnext(
+    img_dim, depth=depth, cardinality=cardinality, width=width, classes=n_classes, last_activation=lst_activation)
 print('model created')
 
 model.summary()
 
-model.compile(loss=loss, optimizer='adam', metrics=['accuracy'])
+model.compile(loss=loss, optimizer='adam', metrics=metrics)
 print('finished compiling')
 
 # load dataset iterators
 df = pd.read_csv(csv_dataset)
+df = df[df.n_det==12]
 imgfiles = glob(data_dir+'*/*.npy')
 imgfiles = [i.split('/')[-1][:-4] for i in imgfiles]
 print('original df', df.shape)
@@ -135,29 +136,6 @@ if mode=='train':
     print('loss', history.history['loss'])
     print('val_loss', history.history['val_loss'])
 
-    if task=='classification':
-        print('predicting')
-        model.load_weights(save_file)
-        pred_generator = DataGenerator(X_val, shuffle=False, **params)
-        y_pred = model.predict_generator(pred_generator, steps=len(y_true)//batch_size)
-        y_pred = np.argmax(y_pred, axis=1)
-        y_true = y_true[:len(y_pred)]
-
-        print('y_true shape', y_true.shape)
-        print('y_pred shape', y_pred.shape)
-
-        # compute accuracy
-        accuracy = metrics.accuracy_score(y_true, y_pred) * 100
-        error = 100 - accuracy
-        print('accuracy : ', accuracy)
-        print('error : ', error)
-
-        # compute confusion matrix
-        cm = metrics.confusion_matrix(y_true, y_pred)
-        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-        print('confusion matrix')
-        print(cm)
-
 elif mode=='eval-mags':
     mag_min = 9
     mag_max = 23
@@ -201,30 +179,36 @@ elif mode=='eval-mags':
     print('accuracies for class 1', acc1)
     print('accuracies for class 2', acc2)
 
-# else:
-#     # make inferences on model
-#     print('predicting')
-#     X_val, y_true, _ = utils.get_sets(home_path+'/raw-data/dr1_full_val.csv', filters={'r': (21,22)})
-#     idx = list(X_val).index('SPLUS.STRIPE82-0033.05627')
-#     X_val = [X_val[idx]]
-#     y_true = [y_true[idx]]
-#     print(X_val, y_true)
-#     pred_generator = DataGenerator(X_val, shuffle=False, batch_size=1, **params)
-#     y_pred = model.predict_generator(pred_generator, steps=len(y_true))
-#     print(y_pred)
-#     y_pred = np.argmax(y_pred, axis=1)
 
-#     preds_correct = y_pred==y_true
-#     x_miss = X_val[~preds_correct]
-#     print('missclasified', len(x_miss))
-#     print(x_miss)
+# make inferences on model
+print('predicting')
+model.load_weights(save_file)
+pred_generator = DataGenerator(X_val, shuffle=False, batch_size=1, **params)
+y_pred = model.predict_generator(pred_generator, steps=len(y_true))
 
-#     # compute accuracy
-#     accuracy = metrics.accuracy_score(y_true, y_pred) * 100
-#     print('accuracy : ', accuracy)
+if task=='classification':
+    y_pred = np.argmax(y_pred, axis=1)
+    preds_correct = y_pred==y_true
+    x_miss = X_val[~preds_correct]
+    print('missclasified', len(x_miss))
+    print(x_miss)
 
-#     # compute confusion matrix
-#     cm = metrics.confusion_matrix(y_true, y_pred)
-#     cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-#     print('confusion matrix')
-#     print(cm)
+    # compute accuracy
+    accuracy = metrics.accuracy_score(y_true, y_pred) * 100
+    print('accuracy : ', accuracy)
+
+    # compute confusion matrix
+    cm = metrics.confusion_matrix(y_true, y_pred)
+    cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+    print('confusion matrix')
+    print(cm)
+
+else:
+    # y_true = 30*y_true
+    # y_pred = 30*y_pred
+    print('y_true\n', y_true[:5])
+    print('y_pred\n', y_pred[:5])
+    abs_errors = np.absolute(y_true - y_pred)
+    print('absolute errors\n', abs_errors[:5])
+    print('\n\nMAE:', np.mean(abs_errors))
+    print('MAPE:', np.mean(abs_errors / y_true) * 100)
