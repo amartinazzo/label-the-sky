@@ -25,6 +25,7 @@ print('magnitude interval', mag_thres)
 
 home_path = os.path.expanduser('~')
 
+
 def load_dataset(csv_file, mag_thres=None):
     df = pd.read_csv(csv_file)
     if mag_thres is not None:

@@ -1,3 +1,4 @@
+from cv2 import imread
 import numpy as np
 import keras
 
@@ -5,7 +6,7 @@ import keras
 class DataGenerator(keras.utils.Sequence):
     # adapted from https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly
     def __init__(
-        self, object_ids, data_folder, labels=None, mode='classifier', 
+        self, object_ids, data_folder, labels=None, mode='classes', 
         bands=None, batch_size=256, dim=(5500,1), n_classes=3, shuffle=True, extension='npy'):
         self.bands = bands
         self.batch_size = batch_size
@@ -57,7 +58,7 @@ class DataGenerator(keras.utils.Sequence):
     def __data_generation(self, list_ids_temp):
         # generate data containing batch_size samples
         X = np.empty((self.batch_size,)+self.shape)
-        if self.mode=='classifier':
+        if self.mode=='classes':
             y = np.empty((self.batch_size), dtype=int)
         elif self.mode=='magnitudes':
             y = np.zeros((self.batch_size, self.n_classes), dtype=float)
@@ -68,6 +69,8 @@ class DataGenerator(keras.utils.Sequence):
                 spec = spec + 30000 # min = -30000
                 spec = spec / 43000 # max = 13000; interval = 13000 - (-30000) = 43000
                 X[i,] = spec
+            elif self.extension == 'png':
+                X[i,] = imread(self.data_folder + object_id.split('.')[0] + '/' + object_id + '.png')
             else:
                 if self.bands is not None:
                     arr = np.load(self.data_folder + object_id.split('.')[0] + '/' + object_id + '.npy').reshape(self.shape_orig)

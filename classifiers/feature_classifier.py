@@ -16,6 +16,7 @@ n_epoch = 200
 csv_dataset = 'csv/dr1_classes_mag1418_split_ndet.csv'
 features_file = 'npy/features_avgpool_depth11_card4_eph500_regression_mag1418.npy'
 save_file = f'classifiers/feature-models/eph{n_epoch}_mag1418.h5'
+weights_file = save_file
 
 ###
 
@@ -23,7 +24,7 @@ n_classes = 3
 class_weights = {0: 1, 1: 1.25, 2: 10}
 class_map = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
 loss = 'categorical_crossentropy'
-metrics = ['accuracy']
+metrics_train = ['accuracy']
 
 df = pd.read_csv(csv_dataset)
 df = df[(df.split!='test') & (df.n_det==12) & (~df['class'].isna())]
@@ -47,35 +48,38 @@ print('y_val shape', y_val.shape)
 model = top_layer_net()
 model.summary()
 
-model.compile(loss=loss, optimizer='adam', metrics=metrics)
-print('finished compiling')
-
 # train
-callbacks = [
-    ReduceLROnPlateau(monitor='val_loss', factor=np.sqrt(0.1), cooldown=0, patience=10, min_lr=1e-6),
-    ModelCheckpoint(save_file, monitor='val_loss', save_best_only=True, save_weights_only=True, mode='min'),
-    EarlyStopping(monitor='val_loss', patience=20)
-]
+if not os.path.exists(weights_file):
+	model.compile(loss=loss, optimizer='adam', metrics=metrics_train)
 
-history = model.fit(X_train, y_train,
-    validation_data=(X_val, y_val),
-    epochs=n_epoch,
-    callbacks=callbacks,
-    class_weight=class_weights,
-    verbose=2)
+	callbacks = [
+	    ReduceLROnPlateau(monitor='val_loss', factor=np.sqrt(0.1), cooldown=0, patience=10, min_lr=1e-6),
+	    ModelCheckpoint(save_file, monitor='val_loss', save_best_only=True, save_weights_only=True, mode='min'),
+	    EarlyStopping(monitor='val_loss', patience=20)
+	]
 
-print('loss', history.history['loss'])
-print('val_loss', history.history['val_loss'])
+	history = model.fit(X_train, y_train,
+	    validation_data=(X_val, y_val),
+	    epochs=n_epoch,
+	    callbacks=callbacks,
+	    class_weight=class_weights,
+	    verbose=2)
+
+	print('loss', history.history['loss'])
+	print('val_loss', history.history['val_loss'])
 
 # make inferences on model
 print('predicting')
 model.load_weights(save_file)
 y_pred = model.predict(X_val)
 
+print(y_pred.shape)
+
 y_pred = np.argmax(y_pred, axis=1)
-preds_correct = y_pred==y_val
-x_miss = X_val[~preds_correct]
-print('missclasified', len(x_miss))
+y_val = np.argmax(y_val, axis=1)
+# preds_correct = y_pred==y_val
+# x_miss = X_val[~preds_correct]
+# print('missclasified', len(x_miss))
 
 # compute accuracy
 accuracy = metrics.accuracy_score(y_val, y_pred) * 100

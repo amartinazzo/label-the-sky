@@ -5,6 +5,7 @@ __pycache__/*
 logs/*
 *.csv
 *.dat
+*.fits
 *.h5
 *.log
 *.npy

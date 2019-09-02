@@ -35,18 +35,19 @@ subset with r in (14,18)
 # BEGIN PARAMETER SETUP #
 #########################
 
-mode = 'predict' # train, eval-mags, predict
-task = 'regression' # classification or regression (magnitudes)
-csv_dataset = 'csv/dr1_classes_mag1418_split_ndet.csv'
+mode = 'train' # train, eval-mags, predict
+task = 'classification' # classification or regression (magnitudes)
+csv_dataset = 'csv/dr1_classes_split.csv'
 
 n_epoch = 500
-img_dim = (32,32,12)
+img_dim = (32,32,3)
 batch_size = 128 #256
 cardinality = 4
 width = 16
 depth = 11 #29
 
-save_file = f'classifiers/image-models/depth{depth}_card{cardinality}_eph{n_epoch}_{task}_mag1418.h5'
+n_bands = 3
+save_file = f'classifiers/image-models/{task}_{n_bands}bands.h5'
 weights_file = None
 
 #######################
@@ -60,19 +61,22 @@ print('batch_size', batch_size)
 print('cardinality', cardinality)
 print('depth', depth)
 print('width', width)
+print('nr epochs', n_epoch)
 print('save_file', save_file)
 
 n_classes = 3 if task=='magnitudes' else 12
-class_weights = {0: 1, 1: 1.25, 2: 5} if task=='classification' else None # normalized 1/class_proportion
+class_weights = {0: 1, 1: 1.3, 2: 5} if task=='classification' else None # normalized 1/class_proportion
 data_mode = 'classes' if task=='classification' else 'magnitudes'
+extension = 'npy' if n_bands>3 else 'png'
+images_folder = '/crops_asinh/' if n_bands>3 else '/crops32/'
 lst_activation = 'softmax' if task=='classification' else 'linear'
 loss = 'categorical_crossentropy' if task=='classification' else 'mean_squared_error'
-metrics = ['accuracy'] if task=='classification' else ['mae']
+metrics_train = ['accuracy'] if task=='classification' else ['mae']
 
 
 models_dir = 'classifiers/image-models/'
-data_dir = os.environ['DATA_PATH']+'/crops_asinh/'
-params = {'data_folder': data_dir, 'dim': img_dim, 'n_classes': n_classes, 'mode': data_mode}
+data_dir = os.environ['DATA_PATH']+images_folder
+params = {'data_folder': data_dir, 'dim': img_dim, 'extension': extension, 'mode': data_mode,'n_classes': n_classes}
 
 # make only 1 gpu visible
 os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
@@ -85,13 +89,13 @@ print('model created')
 
 model.summary()
 
-model.compile(loss=loss, optimizer='adam', metrics=metrics)
+model.compile(loss=loss, optimizer='adam', metrics=metrics_train)
 print('finished compiling')
 
 # load dataset iterators
 df = pd.read_csv(csv_dataset)
-df = df[df.n_det==12]
-imgfiles = glob(data_dir+'*/*.npy')
+# df = df[df.n_det==12]
+imgfiles = glob(data_dir+'*/*.'+extension)
 imgfiles = [i.split('/')[-1][:-4] for i in imgfiles]
 print('original df', df.shape)
 df = df[df.id.isin(imgfiles)]
@@ -118,7 +122,7 @@ if weights_file is not None and os.path.exists(weights_file):
 # train
 if mode=='train':
     callbacks = [
-        ReduceLROnPlateau(monitor='val_loss', factor=np.sqrt(0.1), cooldown=0, patience=10, min_lr=1e-6),
+        ReduceLROnPlateau(monitor='val_loss', factor=np.sqrt(0.1), patience=10, verbose=1),
         ModelCheckpoint(save_file, monitor='val_loss', save_best_only=True, save_weights_only=True, mode='min'),
         EarlyStopping(monitor='val_loss', patience=20)
     ]
@@ -189,9 +193,7 @@ y_pred = model.predict_generator(pred_generator, steps=len(y_true))
 if task=='classification':
     y_pred = np.argmax(y_pred, axis=1)
     preds_correct = y_pred==y_true
-    x_miss = X_val[~preds_correct]
-    print('missclasified', len(x_miss))
-    print(x_miss)
+    print('missclasified', X_val[~preds_correct].shape)
 
     # compute accuracy
     accuracy = metrics.accuracy_score(y_true, y_pred) * 100

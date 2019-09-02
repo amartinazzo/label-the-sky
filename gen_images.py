@@ -38,24 +38,41 @@ def get_ndarray(filepath):
     return fits_im[1].data
 
 
-def crop_objects_in_rgb(df, save_folder, size=64):
-    d = size//2
+def crop_objects_in_rgb(df, input_folder, save_folder, size=76):
+    radius = size//2
+    print('df (original)', df.shape)
+    print('df w/ r<=20', df.shape)
+
+    if not os.path.exists(save_folder):
+        os.makedirs(save_folder)
+
     df['X'] = df.x
     df['Y'] = 11000 - df.y
     df['field'] = df.id.apply(lambda s: s.split('.')[0])
+
+    # ignore objects that have already been cropped
+    imgfiles = glob(save_folder+'*.png', recursive=True)
+    imgfiles = [i.split('/')[-1][:-4] for i in imgfiles]
+    df = df[~df.id.isin(imgfiles)]
+    print('df after ignoring existing crops', df.shape)
     
     lst_field = ''
     for ix, r in df.iterrows():
         field = r['field']
         if field != lst_field:
-            fullimg = imread('/misc/users/anamartinazzo/early-dr/images/{}.trilogy.png'.format(field))
-            # if not os.path.exists(save_folder+field):
-            #     os.makedirs(save_folder+field)
+            imgfile = input_folder+'{}_trilogy.png'.format(field)
+            print('cropping objects in', imgfile)
+            fullimg = imread(imgfile)
+            if not os.path.exists(save_folder+field):
+                os.makedirs(save_folder+field)
         lst_field = field
+        d = np.ceil(np.maximum(radius, 1*r['fwhm'])).astype(np.int)
         img = fullimg[r['Y']-d:r['Y']+d, r['X']-d:r['X']+d]
-        # imsave('/misc/users/anamartinazzo/early-dr/crops/{}/{}.png'.format(r.field, r.id))
-        print('saving {}'.format(r['id']))
-        imwrite('{}/{}.png'.format(save_folder, r['id']), img)
+        if img.shape[0] > size or img.shape[1] > size:
+            img = resize(img, dsize=(size, size), interpolation=INTER_CUBIC)
+            print('resized', r['id'])
+        # print('saving {}'.format(r['id']))
+        imwrite('{}{}/{}.png'.format(save_folder, r['field'], r['id']), img)
 
 
 def crop_object_in_field(ix, arr, objects_df, save_folder, asinh=True):
@@ -127,7 +144,7 @@ def sweep_fields(fields_path, catalog_path, crops_folder):
     catalog = pd.read_csv(catalog_path)
 
     # filter
-    catalog = catalog[(catalog.n_det==12)&(~catalog['class'].isna())]
+    catalog = catalog[~catalog['class'].isna()]
     print(catalog.head())
     print('catalog shape', catalog.shape)
 
@@ -314,9 +331,12 @@ if __name__=='__main__':
 
     data_dir = os.environ['DATA_PATH']
 
+    # df = pd.read_csv('csv/dr1_classes_split.csv')
+    # crop_objects_in_rgb(df, data_dir+'/dr1/color_images/', data_dir+'/crops32/', 32)
+
     sweep_fields(
         fields_path=data_dir+'/dr1/coadded/*/*.fz',
-        catalog_path='csv/dr1_classes.csv',
+        catalog_path='csv/dr1_classes_split.csv',
         crops_folder=data_dir+'/crops_asinh/'
         )
 

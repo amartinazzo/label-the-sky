@@ -51,42 +51,44 @@ def plot_field_rgb(filepath):
 
 
 # receives 12-band array and plots each band in grayscale + lupton composite + given rgb composite
-def plot_bands(filename, plot_composites=False, znorm=False):
+def plot_bands(filename, cols=6, rows=2, plot_composites=False, znorm=False):
 	arr = np.load(filename)
 	if znorm:
 		arr = arr - np.mean(arr, axis=(0,1))
 		arr = arr / np.std(arr, axis=(0,1),  ddof=1)
 
 	x, y, n_bands = arr.shape
+	plt.figure(figsize=(400/100, 50/100), dpi=100) #size: px/dpi
 	plt.figure()
-	plt.title(filename.split('/')[-1])
+	# plt.title(filename.split('/')[-1])
 	for b in range(n_bands):
-		ax = plt.subplot(3, 4, b+1)
+		ax = plt.subplot(rows, cols, b+1)
 		ax.set_title(bands[b])
 		data = arr[:,:,b]
 		# data = stretcher(data, clip=False)
 		# vmin, vmax = scaler.get_limits(data)
 		# print(vmin,vmax)
-		ax.imshow(data, cmap=plt.cm.gray) #norm=colors.PowerNorm(0.1))
+		ax.imshow(data, cmap=plt.cm.gray_r)#, norm=colors.PowerNorm(1))
 		ax.axis('off')
+		ax.axis('scaled')
 	
 	if plot_composites:
 		# im = make_lupton_rgb(arr[:,:,9], arr[:,:,7], arr[:,:,5]) #750 rgu 975 gri
 		im = np.dstack((arr[:,:,9], arr[:,:,7], arr[:,:,5]))
-		ax = plt.subplot(3, 4,b+2)
+		ax = plt.subplot(rows, cols,b+2)
 		ax.set_title('GRI composite')
 		ax.axis('off')
 		ax.imshow(im)
 
 		# im = make_lupton_rgb(arr[:,:,7], arr[:,:,5], arr[:,:,0]) #750 rgu
 		im = np.dstack((arr[:,:,7], arr[:,:,5], arr[:,:,0]))
-		ax = plt.subplot(3, 4,b+3)
+		ax = plt.subplot(rows, cols,b+3)
 		ax.set_title('RGU composite')
 		ax.axis('off')
 		ax.imshow(im)
 	
 	plt.tight_layout()
-	plt.savefig('STRIPE82-0045.31090_12bands.png')
+	plt.savefig(filename.split('/')[-1][:-4]+'_12bands.png', bbox_inches='tight')
 
 
 def plot_rgb(filename):
@@ -162,9 +164,9 @@ def plot_2d_embedding(X, df, filepath, format_='png', clear=True):
 	plt.savefig(filepath+'_small.'+format_, dpi=100, format=format_)
 
 
-# data_path = os.environ['DATA_PATH']
-# plot_bands(data_path+'/crops_asinh/STRIPE82-0045/STRIPE82-0045.31090.npy')
-# exit()
+data_path = os.environ['DATA_PATH']
+plot_bands(data_path+'/crops_asinh/STRIPE82-0033/STRIPE82-0033.05627.npy')
+exit()
 
 
 # files = glob("../raw-data/coadded/*", recursive=True)

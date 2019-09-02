@@ -1,9 +1,10 @@
 from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.io import ascii
-# from astroquery.sdss import SDSS
+from astroquery.sdss import SDSS
 from glob import glob
 import numpy as np
+import os
 import pandas as pd
 from sklearn.model_selection import StratifiedShuffleSplit
 import time
@@ -87,9 +88,9 @@ def filter_master_catalog(master_cat_file, output_file):
     int_cols = ['X', 'Y']
     cat[int_cols] = cat[int_cols].apply(lambda x: round(x)).astype(int)
     cat = cat[usecols]
+    cat.columns = cols
     cat['id'] = cat.id.str.replace('.griz', '')
     cat['id'] = cat.id.str.replace('SPLUS.', '')
-    cat.columns = cols
 
     cat.to_csv(output_file, index=False, header=False, mode='a')
 
@@ -107,7 +108,7 @@ def query_sdss(query_str, filename):
         print('seconds taken:', int(time.time()-start))
 
         row_count = len(table)
-        objid = table[row_count-1]['objID']
+        objid = table[row_count-1]['bestObjID']
         print('row_count', row_count)
         print(table[:10])
 
@@ -154,7 +155,15 @@ def match_catalogs(new_df, base_df, matched_cat_path=None, max_distance=1.0):
     final_cat = base_df.merge(new_df, how='left', left_index=True, right_on='base_idx', suffixes=('', '_'))
     f = final_cat[~final_cat.matched.isna()]
     print(f[['ra','dec','ra_','dec_','d2d']].head(20))
-    final_cat = final_cat[cols+['d2d', 'class','subclass']]
+    final_cat = final_cat[cols+['d2d', 'class','subclass', 'z_', 'zErr', 'zWarning']]
+
+    final_cat.columns = [
+        'id','ra','dec','x','y','mumax','s2n','photoflag','ndet','fwhm',
+        'u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z',
+        'd2d','class','subclass','redshift','redshift_err','redshift_warning']
+
+    int_cols = ['photoflag', 'ndet', 'redshift_warning']
+    final_cat[int_cols] = final_cat[int_cols].astype(int)
 
     print('matched df shape', new_df.shape)
     print('base df shape', base_df.shape)
@@ -182,15 +191,34 @@ def pixels_to_int(filepath):
     df.to_csv(filepath, index=False)
 
 
-def stratified_split(filepath, mag_range=(14,18), test_split=0.1, val_split=0.11):
+def fill_undetected(df):
+    mags = ['u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z']
+    df_mags = df[mags]
+    df_mags[df_mags.values==99] = np.nan
+    df_mags[df_mags.values==-99] = np.nan
+    df_mags.apply(lambda x: x.fillna(x.median()), axis=1) # fill with median per row
+    df[mags] = df_mags.values
+
+
+def stratified_split(filepath, mag_range=None, fill_undetected=True, test_split=0.1, val_split=0.11):
     df = pd.read_csv(filepath)
     df = df[~df['class'].isna()]
-    df = df[df.r.between(mag_range[0], mag_range[1])]
+    if mag_range is not None:
+        df = df[df.r.between(mag_range[0], mag_range[1])]
 
+    if fill_undetected:
+        fill_undetected(df)
+
+    df.loc[df.r<13,'r'] = 13
     df['class_mag'] = np.round(df.r.values).astype(np.uint8)
     df.loc[df['class']=='QSO', 'class_mag'] = df.class_mag.apply(lambda r: r if r%2==0 else r+1)
     df['class_mag'] = df['class'] + df['class_mag'].astype(str)
-    df.loc[df.class_mag=='QSO14', 'class_mag'] = 'QSO16' # there is only one sample of QSO14
+    
+    # hard code small subsets
+    df.loc[df.class_mag=='QSO14', 'class_mag'] = 'QSO16'
+    df.loc[df.class_mag=='GALAXY24', 'class_mag'] = 'GALAXY23'
+    df.loc[df.class_mag=='STAR23', 'class_mag'] = 'GALAXY22'
+
     df['class_mag'] = df['class_mag'].astype('category')
     print(df.class_mag.value_counts(normalize=False))
     df['class_mag_int'] = df.class_mag.cat.codes
@@ -226,54 +254,43 @@ def stratified_split(filepath, mag_range=(14,18), test_split=0.1, val_split=0.11
         print()
 
     df.drop(columns=['class_mag', 'class_mag_int'], inplace=True)
-    df.to_csv('{}_mag{}-{}_split.csv'.format(filepath[:-4], mag_range[0], mag_range[1]), index=False)
+    df.to_csv('{}_split.csv'.format(filepath[:-4]), index=False)
 
 
 if __name__=='__main__':
     # query objects from sdss
 
-    # photo_query = '
-    # select
-    # objID, ra, dec, type, probPSF, flags, 
-    # petroRad_u, petroRad_g, petroRad_r, petroRad_i, petroRad_z, 
-    # petroRadErr_u, petroRadErr_g, petroRadErr_r, petroRadErr_i, petroRadErr_z
-    # from PhotoObj
-    # where abs(ra) < 60 and abs(dec) < 1.25 and objID>{}
-    # order by objID
-    # '
-    # spec_query = '
-    # select 
-    # bestObjID, ra, dec, class, subclass
-    # from SpecObj
-    # where abs(ra) < 60 and abs(dec) < 1.25
-    # '
+    photo_query = '''
+    select
+    objID, ra, dec, type, probPSF, flags, 
+    petroRad_u, petroRad_g, petroRad_r, petroRad_i, petroRad_z, 
+    petroRadErr_u, petroRadErr_g, petroRadErr_r, petroRadErr_i, petroRadErr_z
+    from PhotoObj
+    where abs(ra) < 60 and abs(dec) < 1.25 and objID>{}
+    order by objID
+    '''
+
+    spec_query = '''
+    select 
+    bestObjID, ra, dec, class, subclass, z, zErr, zWarning
+    from SpecObj
+    where abs(dec) < 1.46
+    '''
+    
     # query_sdss(photo_query, 'sdss_photo_{}.csv')
-    # query_sdss(spec_query, 'csv/sdss_spec.csv')
+    # query_sdss(spec_query, 'csv/sdss_spec_full_STRIPE82.csv')
 
-    # stratified_split('csv/dr1_classes.csv')
-    # exit()
+    # gen master catalog
+    # data_dir = os.environ['DATA_PATH']
+    # filter_master_catalog(data_dir+'/dr1/SPLUS_STRIPE82_master_catalog_dr_march2019.cat', 'csv/dr1.csv')
+    
+    # match catalogs
+    splus_cat = pd.read_csv('csv/dr1.csv')
+    sloan_cat = pd.read_csv('csv/sdss_spec_full_STRIPE82.csv')
+    matched_cat ='csv/dr1_classes.csv'
+    c = match_catalogs(sloan_cat, splus_cat, matched_cat)
 
-    # splus_cat = pd.read_csv('csv/dr1.csv')
-    # sloan_cat = pd.read_csv('csv/sdss_spectra.csv')
-    # matched_cat ='csv/dr1_classes.csv'
-    # c = match_catalogs(sloan_cat, splus_cat, matched_cat)
+    # gen supervised catalog
+    stratified_split(matched_cat)
 
-    # filtered_cat = 'csv/matched_cat_dr1_filtered.csv'
-
-    # # generate master catalog
-    # print('generating master splus catalog')
-    # start = time.time()
-    # gen_master_catalog('../raw-data/early-dr/catalogs/*', splus_cat)
-    # #filter_master_catalog('../raw-data/dr1/SPLUS_STRIPE82_master_catalog_dr_march2019.cat', splus_cat)
-    # print('minutes taken:', int((time.time()-start)/60))
-
-    # # match catalogs
-    # print('matching catalogs')
-    # start = time.time()
-    # print('minutes taken:', int((time.time()-start)/60))
-
-    # # filter catalog
-    # print('filtering matched catalog')
-    # gen_filtered_catalog(matched_cat, filtered_cat)
-
-    # add_downloaded_spectra_col(filtered_cat, '../raw-data/spectra/*')
+    fill_undetected('csv/dr1_classes_split.csv')
