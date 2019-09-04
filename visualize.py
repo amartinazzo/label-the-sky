@@ -149,95 +149,28 @@ def plot_2d_embedding(X, df, filepath, format_='png', clear=True):
 		colors = ['b', 'c', 'r', 'm', 'y', 'g']
 		groups = list(np.unique(df.class_split))
 		groups.sort()
-		print(groups)
 		for c, group in enumerate(groups): #np.unique(y):
 			X_c = X[df['class_split']==group]
-			print(group, X_c.shape)
-			plt.scatter(X_c[:,0], X_c[:,1], c=colors[c], s=5, marker='.', alpha=0.15, label=groups[c])
+			# print(group, X_c.shape)
+			plt.scatter(X_c[:,0], X_c[:,1], c=colors[c], s=3, marker='.', alpha=0.1, label=groups[c])
 		plt.legend(handler_map={PathCollection : HandlerPathCollection(update_func=update_legend_marker)})
 	else:
 		plt.scatter(X[:,0], X[:,1], c='k', s=0.5, marker='.', alpha=0.1) #c=k => black
 	plt.setp(plt.gcf().get_axes(), xticks=[], yticks=[])
 	fig = plt.gcf()
-	# fig.set_size_inches(18.5, 10.5)
 	plt.tight_layout()
-	plt.savefig(filepath+'_small.'+format_, dpi=100, format=format_)
+	plt.savefig(f'{filepath}.{format_}', dpi=100, format=format_)
 
 
-data_path = os.environ['DATA_PATH']
-plot_bands(data_path+'/crops_asinh/STRIPE82-0033/STRIPE82-0033.05627.npy')
-exit()
+if __name__ == '__main__':
+	csv_dataset = 'csv/dr1_classes_split.csv' #dr1_classes_mag1418_split_ndet.csv'
+	df = pd.read_csv(csv_dataset)
+	df = df[(df.split!='test')] #& (df.n_det==12) & (~df['class'].isna())]
+	df['class_split'] = df['class']+' '+df.split
 
-
-# files = glob("../raw-data/coadded/*", recursive=True)
-# im_path = files[0]
-# print(im_path)
-# print_single_band(im_path)
-
-# field = 'STRIPE82-0003'
-# im = cv2.imread('../raw-data/train_images/{}.trilogy.png'.format(field))
-# plt.figure()
-# plt.imshow(im)
-# plt.show()
-
-# plot_bands(filename)
-
-# f = '../raw-data/coadded/STRIPE82-0003_{}_swp.fits.fz'
-# plot_field_rgb(f)
-# magnitude_hist('csv/matched_cat_dr1.csv')
-
-csv_dataset = 'csv/dr1_classes_mag1418_split_ndet.csv'
-df = pd.read_csv(csv_dataset)
-df = df[(df.split!='test') & (df.n_det==12) & (~df['class'].isna())]
-df['class_split'] = df['class']+' '+df.split
-
-for m in ['classification', 'regression']:
-	print('plotting', m)
-	name = f'features_avgpool_depth11_card4_eph500_{m}_mag1418'
-	X = np.load(f'npy/{name}.npy')
-	plot_2d_embedding(X, df, name)
-
-exit()
-
-
-# tsne
-labeled = 'npy/dr1_features_tsne.npy'
-unlabeled = 'npy/dr1_diff_features_tsne.npy'
-X_labeled = np.load(labeled)
-X_unlabeled = np.load(unlabeled)
-idx = np.random.choice(X_unlabeled.shape[0], 200000, replace=False)
-#X_unlabeled = X_unlabeled[idx]
-X = np.vstack((X_labeled, X_unlabeled))
-length = X.shape[0]
-X = np.load('npy/dr1_full_features_tsne.npy')
-#X = X[:length]
-y = np.zeros((length,), dtype=np.int8)
-# print(X.shape, y.shape)
-y[:] = 3
-y[:y_true.shape[0]] = y_true
-plot_2d_embedding(X, y, 'tsne0821b')
-# plot_2d_embedding(X_unlabeled, None, 'tsne0727')
-# plot_2d_embedding(X_labeled, y_true, 'tsne0727', clear=False)
-
-# umap
-labeled = 'npy/dr1_features_umap.npy'
-unlabeled = 'npy/dr1_diff_features_umap.npy'
-X_labeled = np.load(labeled)
-X_unlabeled = np.load(unlabeled)
-print(X_unlabeled.shape)
-idx = np.random.choice(X_unlabeled.shape[0], 200000, replace=False)
-#X_unlabeled = X_unlabeled[idx]
-print(X_unlabeled.shape)
-X = np.vstack((X_labeled, X_unlabeled))
-length = X.shape[0]
-y = np.zeros((length,), dtype=np.int8)
-y[:] = 3
-y[:y_true.shape[0]] = y_true
-
-X = np.load('npy/dr1_full_features_umap.npy')
-#X = X[:length]
-plot_2d_embedding(X, y, 'umap0821b')
-# plot_2d_embedding(X_unlabeled, None, 'umap0727')
-# plot_2d_embedding(X_labeled, y_true, 'umap0727', clear=False)
-
-# print('saved embedding figures')
+	for m in ['classification_12bands', 'classification_3bands', 'regression_12bands', 'regression_3bands']: #['classification', 'regression']
+		print('plotting', m)
+		name = f'umap_avgpool_{m}'
+		# name = f'umap_avgpool_depth11_card4_eph500_{m}_mag1418'
+		X = np.load(f'npy/{name}.npy')
+		plot_2d_embedding(X, df, f'vis/{name}')

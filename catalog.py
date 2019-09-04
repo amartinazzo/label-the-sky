@@ -162,9 +162,6 @@ def match_catalogs(new_df, base_df, matched_cat_path=None, max_distance=1.0):
         'u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z',
         'd2d','class','subclass','redshift','redshift_err','redshift_warning']
 
-    int_cols = ['photoflag', 'ndet', 'redshift_warning']
-    final_cat[int_cols] = final_cat[int_cols].astype(int)
-
     print('matched df shape', new_df.shape)
     print('base df shape', base_df.shape)
     print('final df shape', final_cat.shape)
@@ -196,17 +193,18 @@ def fill_undetected(df):
     df_mags = df[mags]
     df_mags[df_mags.values==99] = np.nan
     df_mags[df_mags.values==-99] = np.nan
-    df_mags.apply(lambda x: x.fillna(x.median()), axis=1) # fill with median per row
+    df_mags = df_mags.apply(lambda row: row.fillna(row.median()), axis=1) # fill with median per row
     df[mags] = df_mags.values
 
 
-def stratified_split(filepath, mag_range=None, fill_undetected=True, test_split=0.1, val_split=0.11):
+def stratified_split(filepath, mag_range=None, fill_undet=False, test_split=0.1, val_split=0.11):
     df = pd.read_csv(filepath)
     df = df[~df['class'].isna()]
     if mag_range is not None:
         df = df[df.r.between(mag_range[0], mag_range[1])]
 
-    if fill_undetected:
+    if fill_undet:
+        print('filling undetected')
         fill_undetected(df)
 
     df.loc[df.r<13,'r'] = 13
@@ -217,7 +215,7 @@ def stratified_split(filepath, mag_range=None, fill_undetected=True, test_split=
     # hard code small subsets
     df.loc[df.class_mag=='QSO14', 'class_mag'] = 'QSO16'
     df.loc[df.class_mag=='GALAXY24', 'class_mag'] = 'GALAXY23'
-    df.loc[df.class_mag=='STAR23', 'class_mag'] = 'GALAXY22'
+    df.loc[df.class_mag=='STAR23', 'class_mag'] = 'STAR22'
 
     df['class_mag'] = df['class_mag'].astype('category')
     print(df.class_mag.value_counts(normalize=False))
@@ -288,9 +286,7 @@ if __name__=='__main__':
     splus_cat = pd.read_csv('csv/dr1.csv')
     sloan_cat = pd.read_csv('csv/sdss_spec_full_STRIPE82.csv')
     matched_cat ='csv/dr1_classes.csv'
-    c = match_catalogs(sloan_cat, splus_cat, matched_cat)
+    # c = match_catalogs(sloan_cat, splus_cat, matched_cat)
 
     # gen supervised catalog
-    stratified_split(matched_cat)
-
-    fill_undetected('csv/dr1_classes_split.csv')
+    stratified_split(matched_cat, fill_undet=True)

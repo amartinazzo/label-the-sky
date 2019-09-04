@@ -36,7 +36,7 @@ subset with r in (14,18)
 #########################
 
 mode = 'train' # train, eval-mags, predict
-task = 'classification' # classification or regression (magnitudes)
+task = 'regression' # classification or regression (magnitudes)
 csv_dataset = 'csv/dr1_classes_split.csv'
 
 n_epoch = 500
@@ -46,8 +46,7 @@ cardinality = 4
 width = 16
 depth = 11 #29
 
-n_bands = 3
-save_file = f'classifiers/image-models/{task}_{n_bands}bands.h5'
+save_file = 'classifiers/image-models/{}_{}bands.h5'.format(task, img_dim[2])
 weights_file = None
 
 #######################
@@ -55,23 +54,25 @@ weights_file = None
 #######################
 
 
+n_classes = 3 if task=='classification' else 12
+class_weights = {0: 1, 1: 1.3, 2: 5} if task=='classification' else None # normalized 1/class_proportion
+data_mode = 'classes' if task=='classification' else 'magnitudes'
+extension = 'npy' if img_dim[2]>3 else 'png'
+images_folder = '/crops_asinh/' if img_dim[2]>3 else '/crops32/'
+lst_activation = 'softmax' if task=='classification' else 'linear'
+loss = 'categorical_crossentropy' if task=='classification' else 'mean_squared_error'
+metrics_train = ['accuracy'] if task=='classification' else ['mae']
+
+
 print('csv_dataset', csv_dataset)
 print('task', task)
+print('images folder', images_folder)
 print('batch_size', batch_size)
 print('cardinality', cardinality)
 print('depth', depth)
 print('width', width)
 print('nr epochs', n_epoch)
 print('save_file', save_file)
-
-n_classes = 3 if task=='magnitudes' else 12
-class_weights = {0: 1, 1: 1.3, 2: 5} if task=='classification' else None # normalized 1/class_proportion
-data_mode = 'classes' if task=='classification' else 'magnitudes'
-extension = 'npy' if n_bands>3 else 'png'
-images_folder = '/crops_asinh/' if n_bands>3 else '/crops32/'
-lst_activation = 'softmax' if task=='classification' else 'linear'
-loss = 'categorical_crossentropy' if task=='classification' else 'mean_squared_error'
-metrics_train = ['accuracy'] if task=='classification' else ['mae']
 
 
 models_dir = 'classifiers/image-models/'
@@ -162,9 +163,7 @@ elif mode=='eval-mags':
 
         # compute accuracy
         accuracy = metrics.accuracy_score(y_true, y_pred) * 100
-        error = 100 - accuracy
         print('accuracy : ', accuracy)
-        print('error : ', error)
 
         # compute confusion matrix
         cm = metrics.confusion_matrix(y_true, y_pred)
@@ -189,6 +188,9 @@ print('predicting')
 model.load_weights(save_file)
 pred_generator = DataGenerator(X_val, shuffle=False, batch_size=1, **params)
 y_pred = model.predict_generator(pred_generator, steps=len(y_true))
+
+print(y_true[:5])
+print(y_pred[:5])
 
 if task=='classification':
     y_pred = np.argmax(y_pred, axis=1)

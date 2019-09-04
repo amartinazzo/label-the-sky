@@ -15,15 +15,16 @@ from utils import get_sets
 # BEGIN PARAMETER SETUP #
 #########################
 
-cardinality = 4
-depth = 11
-n_epoch = 500
-width = 16
-pooling = 'avg'
-
 task = 'regression' # classification or regression (magnitudes)
-csv_dataset = 'csv/dr1_classes_mag1418_split_ndet.csv'
-weights_file = f'classifiers/image-models/depth{depth}_card{cardinality}_eph{n_epoch}_{task}_mag1418.h5'
+nbands = 3
+
+pooling = 'avg'
+csv_dataset = 'csv/dr1_classes_split.csv'
+weights_file = f'classifiers/image-models/{task}_{nbands}bands.h5'
+
+cardinality = 4
+width = 16
+depth = 11
 
 run_clustering = False
 run_tsne = False
@@ -33,21 +34,24 @@ run_umap = True
 # END PARAMETER SETUP #
 #######################
 
+
 filename = f'{pooling}pool_'+weights_file.split('/')[-1][:-3]
 features_file = f'npy/features_{filename}.npy'
-tsne_file = f'npy/tsne_maxpool_{filename}.npy'
-umap_file = f'npy/umap_maxpool_{filename}.npy'
+tsne_file = f'npy/tsne_{filename}.npy'
+umap_file = f'npy/umap_{filename}.npy'
 
-img_dim = (32,32,12)
-n_classes = 3 if task=='magnitudes' else 12
+img_dim = (32,32,nbands)
+n_classes = 3 if task=='classification' else 12
 data_mode = 'classes' if task=='classification' else 'magnitudes'
-lst_activation = 'softmax' if task=='classification' else 'linear'
+extension = 'npy' if img_dim[2]>3 else 'png'
+images_folder = '/crops_asinh/' if img_dim[2]>3 else '/crops32/'
 
+print(filename)
 
 # extract features
 if not os.path.exists(features_file):
 	data_path = os.environ['DATA_PATH']
-	params = {'data_folder': data_path+'/crops_asinh/', 'dim': img_dim, 'n_classes': n_classes}
+	params = {'data_folder': data_path+images_folder, 'dim': img_dim, 'extension': extension, 'n_classes': n_classes}
 
 	os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
 	os.environ['CUDA_VISIBLE_DEVICES']='0'
@@ -61,7 +65,7 @@ if not os.path.exists(features_file):
 
 	# gen dataset
 	df = pd.read_csv(csv_dataset)
-	df = df[(df.split!='test') & (df.n_det==12) & (~df['class'].isna())]
+	df = df[(df.split!='test')] #& (df.n_det==12) & (~df['class'].isna())]
 	print('df shape', df.shape)
 	X, y_true, _ = get_sets(df, mode=data_mode)
 	X_generator = DataGenerator(X, batch_size=1, shuffle=False, **params)

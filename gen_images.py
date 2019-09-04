@@ -7,7 +7,9 @@ import multiprocessing
 import numpy as np
 import pandas as pd
 import os
+from shutil import copyfile
 from time import time
+from tqdm import tqdm
 
 
 '''
@@ -33,6 +35,28 @@ asinh_transform = AsinhStretch()
 n_cores = multiprocessing.cpu_count()
 
 
+def sample_move(df, src_base, dst_base, n_samples=50):
+    idx = np.random.choice(df.shape[0], n_samples, replace=False)
+    files = df.loc[idx, 'id'].values
+    classes = df.loc[idx,'class'].values
+    for ix, f in enumerate(files):
+        src = src_base+f.split('/')[-1].split('.')[0]+'/'+f+'.png'
+        dst = dst_base+f+'.'+classes[ix]+'.png'
+        print(src, dst)
+        copyfile(src, dst)
+
+
+def recast_inner(file):
+    arr = np.load(file)
+    arr = np.float32(arr)
+    np.save(file, arr)
+
+
+def recast(folder_pattern):
+    files = glob(folder_pattern)
+    Parallel(n_jobs=8, prefer='threads')(delayed(recast_inner)(f) for f in tqdm(files))
+
+
 def get_ndarray(filepath):
     fits_im = fits.open(filepath)
     return fits_im[1].data
@@ -41,7 +65,6 @@ def get_ndarray(filepath):
 def crop_objects_in_rgb(df, input_folder, save_folder, size=76):
     radius = size//2
     print('df (original)', df.shape)
-    print('df w/ r<=20', df.shape)
 
     if not os.path.exists(save_folder):
         os.makedirs(save_folder)
@@ -100,7 +123,7 @@ def crop_object_in_field(ix, arr, objects_df, save_folder, asinh=True):
         print('{} resized'.format(row['id']))
     if asinh:
         im = asinh_transform(im, clip=False)
-    np.save('{}/{}.npy'.format(save_folder, row['id']), im, allow_pickle=False)
+    np.save('{}/{}.npy'.format(save_folder, row['id']), im)
 
     return 0
 
@@ -173,7 +196,7 @@ def sweep_fields(fields_path, catalog_path, crops_folder):
 
     data = get_ndarray(files[0])
     s0, s1 = data.shape
-    arr = np.zeros((s0, s1, n_channels))
+    arr = np.zeros((s0, s1, n_channels), dtype=np.float32)
     print('field array shape ', arr.shape)
     arr[:,:,bands_order[0]] = np.copy(data)
     prev = files[0].split('/')[-1].split('_')[0]
@@ -316,45 +339,15 @@ def z_norm_images(input_folder, output_folder):
 
 
 if __name__=='__main__':
-    # df = pd.read_csv('csv/dr0_classes.csv')
-    # df = df[(~df['class'].isna())]
-    # df = df[df['class']!='QSO']
-    # df = df[df.r <= 20]
-    # print(df.shape)
-    # print(df['class'].value_counts(normalize=True))
-    # df.reset_index(inplace=True)
-    # print(df.shape)
-    # df = df.loc[np.random.choice(np.arange(df.shape[0]), 40, replace=False), :]
-    # crop_objects_in_rgb(df, '/home/anamartinazzo/www/crops_rgb/76px_r20/', 76)
-
-    # exit()
-
     data_dir = os.environ['DATA_PATH']
+    recast(data_dir+'/crops_asinh/*/*.npy')
+    exit()
 
-    # df = pd.read_csv('csv/dr1_classes_split.csv')
-    # crop_objects_in_rgb(df, data_dir+'/dr1/color_images/', data_dir+'/crops32/', 32)
+    df = pd.read_csv('csv/dr1_classes_split.csv')
+    crop_objects_in_rgb(df, data_dir+'/dr1/color_images/', data_dir+'/crops32/', 32)
 
     sweep_fields(
         fields_path=data_dir+'/dr1/coadded/*/*.fz',
         catalog_path='csv/dr1_classes_split.csv',
         crops_folder=data_dir+'/crops_asinh/'
         )
-
-    # original_crops_path = '../raw-data/crops/original/*'
-    # normalized_crops_path = '../raw-data/crops/normalized/'
-
-    # lower_bounds, upper_bounds = get_min_max(original_crops_path)
-
-    # lower_bounds = np.array([ -27., -114., -133.,  -37., -157., -456.,  -26.,  -39., -359., -318.,   -5., -256.])
-    # upper_bounds = np.array([ 181.,  636.,  959., 1051.,  949., 1750.,  256.,  270., 1955., 2219.,  117., 1413.])
-    # sweep_fields(
-    #   fields_path='../raw-data/dr1/coadded/*/*.fz',
-    #   catalog_path='csv/diff_cat_dr1.csv',
-    #   crops_folder='../raw-data/crops/unsup_normalized/'
-    #   )
-    # normalize_images(
-    #   '../raw-data/crops/unsup_normalized/*',
-    #   '../raw-data/crops/unsup_normalized',
-    #   lower_bounds,
-    #   upper_bounds
-    #   )

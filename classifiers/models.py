@@ -3,13 +3,13 @@ resnext adapted from https://github.com/titu1994/Keras-ResNeXt/blob/master/resne
 
 '''
 
-from keras.models import Model, Sequential
 from keras.layers.core import Activation, Dense, Dropout, Lambda, Flatten
 from keras.layers.convolutional import Conv1D, Conv2D
 from keras.layers.pooling import GlobalAveragePooling2D, GlobalMaxPooling2D, MaxPooling2D, MaxPooling1D
 from keras.layers import Input
 from keras.layers.merge import concatenate, add
 from keras.layers.normalization import BatchNormalization
+from keras.models import Model, Sequential
 from keras.regularizers import l2
 import keras.backend as K
 
@@ -31,7 +31,7 @@ def dense_net(input_shape, width=64, n_layers=2, n_classes=3):
 def top_layer_net(input_shape=(512,), nb_classes=3):
     inputs = Input(shape=input_shape)
     outputs = Dense(nb_classes, use_bias=False, kernel_regularizer=l2(5e-4),
-                  kernel_initializer='he_normal', activation='softmax')(inputs)
+        kernel_initializer='he_normal', activation='softmax')(inputs)
     model = Model(inputs, outputs)
     return model
 
