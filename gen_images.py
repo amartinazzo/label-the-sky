@@ -29,7 +29,6 @@ dr0 LABELED
 '''
 
 
-delta = 16
 asinh_transform = AsinhStretch()
 
 n_cores = multiprocessing.cpu_count()
@@ -62,8 +61,8 @@ def get_ndarray(filepath):
     return fits_im[1].data
 
 
-def crop_objects_in_rgb(df, input_folder, save_folder, size=76):
-    radius = size//2
+def crop_objects_in_rgb(df, input_folder, save_folder, size=32, fwhm_radius=1.5):
+    d = size//2
     print('df (original)', df.shape)
 
     if not os.path.exists(save_folder):
@@ -89,16 +88,16 @@ def crop_objects_in_rgb(df, input_folder, save_folder, size=76):
             if not os.path.exists(save_folder+field):
                 os.makedirs(save_folder+field)
         lst_field = field
-        d = np.ceil(np.maximum(radius, 1*r['fwhm'])).astype(np.int)
+        # d = np.ceil(np.maximum(radius, fwhm_radius*r['fwhm'])).astype(np.int)
         img = fullimg[r['Y']-d:r['Y']+d, r['X']-d:r['X']+d]
-        if img.shape[0] > size or img.shape[1] > size:
+        if img.shape[0] != size or img.shape[1] != size:
             img = resize(img, dsize=(size, size), interpolation=INTER_CUBIC)
             print('resized', r['id'])
         # print('saving {}'.format(r['id']))
         imwrite('{}{}/{}.png'.format(save_folder, r['field'], r['id']), img)
 
 
-def crop_object_in_field(ix, arr, objects_df, save_folder, asinh=True):
+def crop_object_in_field(ix, arr, objects_df, save_folder, asinh=True, size=32, radius=16, fwhm_radius=1.5):
     '''
     crops object in a given field
     receives:
@@ -112,14 +111,14 @@ def crop_object_in_field(ix, arr, objects_df, save_folder, asinh=True):
     '''
     # d = np.ceil(np.maximum(delta, 0.5*o['fwhm'])).astype(np.int)
     row = objects_df.loc[ix]
-    d = np.ceil(np.maximum(delta, 1*row['fwhm'])).astype(np.int)
+    d = np.ceil(np.maximum(radius, fwhm_radius*row['fwhm'])).astype(np.int)
     x0 = np.maximum(0, int(row['x']) - d)
     x1 = np.minimum(10999, int(row['x']) + d)
     y0 = np.maximum(0, int(row['y']) - d)
     y1 = np.minimum(10999, int(row['y']) + d)
     im = arr[y0:y1, x0:x1, :]
-    if im.shape[0] != 32 or im.shape[1] != 32:
-        im = resize(im, dsize=(32, 32), interpolation=INTER_CUBIC)
+    if im.shape[0] != size or im.shape[1] != size:
+        im = resize(im, dsize=(size, size), interpolation=INTER_CUBIC)
         print('{} resized'.format(row['id']))
     if asinh:
         im = asinh_transform(im, clip=False)
@@ -340,11 +339,12 @@ def z_norm_images(input_folder, output_folder):
 
 if __name__=='__main__':
     data_dir = os.environ['DATA_PATH']
-    recast(data_dir+'/crops_asinh/*/*.npy')
-    exit()
+    # recast(data_dir+'/crops_asinh/*/*.npy')
 
     df = pd.read_csv('csv/dr1_classes_split.csv')
-    crop_objects_in_rgb(df, data_dir+'/dr1/color_images/', data_dir+'/crops32/', 32)
+    df = df[(df.ndet==12)&(df.photoflag==0)]
+    crop_objects_in_rgb(df, data_dir+'/dr1/color_images/', data_dir+'/crops_rgb32/')
+    exit()
 
     sweep_fields(
         fields_path=data_dir+'/dr1/coadded/*/*.fz',

@@ -36,7 +36,7 @@ def get_sets(df, mode='classes', filters=None, obj_list=None):
         # print(df['class'].value_counts(normalize=True))
     elif mode=='magnitudes':
         y = df[['u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z']].values
-        # y = y/30
+        y = y/30
         labels = dict(zip(X, y))
     else:
         y = None

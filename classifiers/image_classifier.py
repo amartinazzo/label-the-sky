@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from models import resnext
 import sklearn.metrics as metrics
+from time import time
 import utils
 
 
@@ -39,15 +40,22 @@ mode = 'train' # train, eval-mags, predict
 task = 'regression' # classification or regression (magnitudes)
 csv_dataset = 'csv/dr1_classes_split.csv'
 
-n_epoch = 500
-img_dim = (32,32,3)
-batch_size = 128 #256
-cardinality = 4
-width = 16
-depth = 11 #29
+n_epoch = 1000
+img_dim = (32,32,12)
+batch_size = 128
+cardinality = 4 #16
+width = 16 #4
+depth = 101 #11 29
 
-save_file = 'classifiers/image-models/{}_{}bands.h5'.format(task, img_dim[2])
+save_file = 'classifiers/image-models/{}_{}bands_{}.h5'.format(task, img_dim[2], int(time()))
 weights_file = None
+visible_gpu='0'
+
+def df_filter(df):
+    return df[(df.photoflag==0)&(df.ndet==12)&(df.r.between(15,19))&(df['class']=='STAR')]
+
+filter_set = True
+print('photoflag=0, ndet=12, r in [15,19], class=STAR')
 
 #######################
 # END PARAMETER SETUP #
@@ -59,7 +67,7 @@ class_weights = {0: 1, 1: 1.3, 2: 5} if task=='classification' else None # norma
 data_mode = 'classes' if task=='classification' else 'magnitudes'
 extension = 'npy' if img_dim[2]>3 else 'png'
 images_folder = '/crops_asinh/' if img_dim[2]>3 else '/crops32/'
-lst_activation = 'softmax' if task=='classification' else 'linear'
+lst_activation = 'softmax' if task=='classification' else 'sigmoid'
 loss = 'categorical_crossentropy' if task=='classification' else 'mean_squared_error'
 metrics_train = ['accuracy'] if task=='classification' else ['mae']
 
@@ -80,22 +88,14 @@ data_dir = os.environ['DATA_PATH']+images_folder
 params = {'data_folder': data_dir, 'dim': img_dim, 'extension': extension, 'mode': data_mode,'n_classes': n_classes}
 
 # make only 1 gpu visible
-os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
-os.environ['CUDA_VISIBLE_DEVICES']='0'
-
-# create resnext model
-model = resnext(
-    img_dim, depth=depth, cardinality=cardinality, width=width, classes=n_classes, last_activation=lst_activation)
-print('model created')
-
-model.summary()
-
-model.compile(loss=loss, optimizer='adam', metrics=metrics_train)
-print('finished compiling')
+if visible_gpu is not None:
+    os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
+    os.environ['CUDA_VISIBLE_DEVICES']=visible_gpu
 
 # load dataset iterators
 df = pd.read_csv(csv_dataset)
-# df = df[df.n_det==12]
+if filter_set:
+    df = df_filter(df)
 imgfiles = glob(data_dir+'*/*.'+extension)
 imgfiles = [i.split('/')[-1][:-4] for i in imgfiles]
 print('original df', df.shape)
@@ -113,6 +113,16 @@ print('val size', len(X_val))
 train_generator = DataGenerator(X_train, labels=labels_train, batch_size=batch_size, **params)
 val_generator = DataGenerator(X_val, labels=labels_val, batch_size=batch_size, **params)
 
+# create resnext model
+model = resnext(
+    img_dim, depth=depth, cardinality=cardinality, width=width, classes=n_classes, last_activation=lst_activation)
+print('model created')
+
+# model.summary()
+
+model.compile(loss=loss, optimizer='adam', metrics=metrics_train)
+print('finished compiling')
+
 if not os.path.exists(models_dir):
     os.makedirs(models_dir)
 
@@ -123,9 +133,9 @@ if weights_file is not None and os.path.exists(weights_file):
 # train
 if mode=='train':
     callbacks = [
-        ReduceLROnPlateau(monitor='val_loss', factor=np.sqrt(0.1), patience=10, verbose=1),
+        ReduceLROnPlateau(monitor='val_loss', factor=np.sqrt(0.1), patience=15, verbose=1),
         ModelCheckpoint(save_file, monitor='val_loss', save_best_only=True, save_weights_only=True, mode='min'),
-        EarlyStopping(monitor='val_loss', patience=20)
+        EarlyStopping(monitor='val_loss', patience=30)
     ]
 
     history = model.fit_generator(
@@ -208,8 +218,8 @@ if task=='classification':
     print(cm)
 
 else:
-    # y_true = 30*y_true
-    # y_pred = 30*y_pred
+    y_true = 30*y_true
+    y_pred = 30*y_pred
     print('y_true\n', y_true[:5])
     print('y_pred\n', y_pred[:5])
     abs_errors = np.absolute(y_true - y_pred)

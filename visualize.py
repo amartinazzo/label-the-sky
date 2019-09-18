@@ -23,16 +23,10 @@ stretcher = vis.AsinhStretch()
 def plot_single_band(im_path):
 	fits_im = fits.open(im_path)
 	data = fits_im[1].data #ndarray
-	vmin = data.min()
-	vmax = data.max()
-	print(vmin,vmax)
-	# std = (data - vmin) / (vmax-vmin)
-	# data = std * (vmax - vmin) + vmin
 	# data = data[650:750, 450:550]
 	# data = data[3500:4500, 7000:8000]
-	data = data[8300:8600,9100:9400]
+	# data = data[8300:8600,9100:9400]
 	data = stretcher(data, clip=False)
-	print(data.min(), data.max())
 	plt.imshow(data, cmap='gray')
 	plt.show()
 
@@ -51,8 +45,8 @@ def plot_field_rgb(filepath):
 
 
 # receives 12-band array and plots each band in grayscale + lupton composite + given rgb composite
-def plot_bands(filename, cols=6, rows=2, plot_composites=False, znorm=False):
-	arr = np.load(filename)
+def plot_bands(filename, output_file=None, cols=6, rows=2, plot_composites=False, znorm=False):
+	arr = np.load(filename) if type(filename) is str else filename
 	if znorm:
 		arr = arr - np.mean(arr, axis=(0,1))
 		arr = arr / np.std(arr, axis=(0,1),  ddof=1)
@@ -88,7 +82,9 @@ def plot_bands(filename, cols=6, rows=2, plot_composites=False, znorm=False):
 		ax.imshow(im)
 	
 	plt.tight_layout()
-	plt.savefig(filename.split('/')[-1][:-4]+'_12bands.png', bbox_inches='tight')
+	if output_file is None:
+		output_file = filename.split('/')[-1][:-4]+'_12bands.png'
+	plt.savefig(output_file, bbox_inches='tight')
 
 
 def plot_rgb(filename):

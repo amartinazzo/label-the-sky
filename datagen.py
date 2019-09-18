@@ -1,3 +1,4 @@
+from albumentations import Compose, Flip, HorizontalFlip, RandomRotate90, ShiftScaleRotate
 from cv2 import imread
 import numpy as np
 import keras
@@ -6,8 +7,8 @@ import keras
 class DataGenerator(keras.utils.Sequence):
     # adapted from https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly
     def __init__(
-        self, object_ids, data_folder, labels=None, mode='classes', 
-        bands=None, batch_size=256, dim=(5500,1), n_classes=3, shuffle=True, extension='npy'):
+        self, object_ids, data_folder, labels=None, mode='classes', bands=None, 
+        batch_size=256, dim=(5500,1), n_classes=3, shuffle=True, extension='npy', augmentation=True):
         self.bands = bands
         self.batch_size = batch_size
         self.data_folder = data_folder
@@ -19,6 +20,8 @@ class DataGenerator(keras.utils.Sequence):
         self.shape_orig = dim
         self.shape = dim
         self.shuffle = shuffle
+        self.augmentation = augmentation
+        self.aug = self.compose_augment()
 
         if bands is not None:
             self.shape = dim[:-1] + (len(bands),)
@@ -48,6 +51,18 @@ class DataGenerator(keras.utils.Sequence):
         return X, y
 
 
+    def compose_augment(self, p=.9):
+        return Compose([
+            Flip(),
+            HorizontalFlip(),
+            ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.2, rotate_limit=45, p=.5),
+        ], p=p)
+
+
+    def augment(self, image):
+        return self.aug(image=image)['image']
+
+
     def on_epoch_end(self):
         # update indexes after each epoch
         self.indexes = np.arange(len(self.object_ids))
@@ -70,14 +85,20 @@ class DataGenerator(keras.utils.Sequence):
                 spec = spec / 43000 # max = 13000; interval = 13000 - (-30000) = 43000
                 X[i,] = spec
             elif self.extension == 'png':
-                X[i,] = imread(self.data_folder + object_id.split('.')[0] + '/' + object_id + '.png')
+                im = imread(self.data_folder + object_id.split('.')[0] + '/' + object_id + '.png')
+                if self.augmentation:
+                    im = self.augment(im)
+                X[i,] = im
             else:
                 if self.bands is not None:
                     arr = np.load(self.data_folder + object_id.split('.')[0] + '/' + object_id + '.npy').reshape(self.shape_orig)
                     arr = arr[:,:,self.bands]
                     X[i,] = arr
                 else:
-                    X[i,] = np.load(self.data_folder + object_id.split('.')[0] + '/' + object_id + '.npy').reshape(self.shape)
+                    im = np.load(self.data_folder + object_id.split('.')[0] + '/' + object_id + '.npy').reshape(self.shape)
+                    if self.augmentation:
+                        im = self.augment(im)
+                    X[i,] = im
             if self.labels is not None:
                 y[i,] = np.array(self.labels[object_id])
 
