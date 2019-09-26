@@ -61,6 +61,25 @@ def get_ndarray(filepath):
     return fits_im[1].data
 
 
+def get_observation_dates(folder_pattern, save_file):
+    files = glob(folder_pattern)
+    files.sort()
+    print('nr of files', len(files))
+    dates = []
+    for f in files:
+        im = fits.open(f)
+        dates.append(im[1].header['HIERARCH OAJ PRO REFDATEOBS'])
+    df = pd.DataFrame({'file': files, 'date': dates})
+    df.to_csv(save_file, index=False)
+    print('saved csv')
+    df['file'] =df.file.apply(lambda s: s.split('/')[-1])
+    df['field'] = df.file.apply(lambda s: s.split('_')[0])
+    df['band'] = df.file.apply(lambda s: s.split('_')[1])
+    df['year'] = df.date.apply(lambda s: s.split('-')[0])
+    df.to_csv(save_file, index=False)
+    print('saved csv again')
+
+
 def crop_objects_in_rgb(df, input_folder, save_folder, size=32, fwhm_radius=1.5):
     d = size//2
     print('df (original)', df.shape)
@@ -73,9 +92,9 @@ def crop_objects_in_rgb(df, input_folder, save_folder, size=32, fwhm_radius=1.5)
     df['field'] = df.id.apply(lambda s: s.split('.')[0])
 
     # ignore objects that have already been cropped
-    imgfiles = glob(save_folder+'*.png', recursive=True)
-    imgfiles = [i.split('/')[-1][:-4] for i in imgfiles]
-    df = df[~df.id.isin(imgfiles)]
+    # imgfiles = glob(save_folder+'*/*.png')
+    # imgfiles = [i.split('/')[-1][:-4] for i in imgfiles]
+    # df = df[~df.id.isin(imgfiles)]
     print('df after ignoring existing crops', df.shape)
     
     lst_field = ''
@@ -339,11 +358,9 @@ def z_norm_images(input_folder, output_folder):
 
 if __name__=='__main__':
     data_dir = os.environ['DATA_PATH']
-    # recast(data_dir+'/crops_asinh/*/*.npy')
-
-    df = pd.read_csv('csv/dr1_classes_split.csv')
-    df = df[(df.ndet==12)&(df.photoflag==0)]
-    crop_objects_in_rgb(df, data_dir+'/dr1/color_images/', data_dir+'/crops_rgb32/')
+    df = pd.read_csv(data_dir+'/astromega/SGu.csv')
+    print('shape', df.shape)
+    crop_objects_in_rgb(df, data_dir+'/dr1/color_images/', data_dir+'/crops_rgb/', 76)
     exit()
 
     sweep_fields(

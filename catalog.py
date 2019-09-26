@@ -255,6 +255,35 @@ def stratified_split(filepath, mag_range=None, fill_undet=False, test_split=0.1,
     df.to_csv('{}_split.csv'.format(filepath[:-4]), index=False)
 
 
+def stratified_split_unlabeled(filepath, mag_range=(0,18), test_split=0.1, val_split=0.11):
+    df = pd.read_csv(filepath)
+    df = df[df.ndet==12]
+    if mag_range is not None:
+        df = df[df.r.between(mag_range[0], mag_range[1])]
+    df['class_mag'] = np.round(df.r.values).astype(np.uint8)
+
+    # train-test split
+    X = df.index.values
+    y = df.class_mag.values
+    sss = StratifiedShuffleSplit(n_splits=1, test_size=test_split, random_state=0)
+    train_idx, test_idx = next(sss.split(X,y))
+    df_train_idx, df_test_idx = X[train_idx], X[test_idx]
+    df.loc[df_train_idx, 'split'] = 'train'
+    df.loc[df_test_idx, 'split'] = 'test'
+
+    # train-val split
+    X = df[df.split=='train'].index.values
+    y = df[df.split=='train'].class_mag.values
+    sss = StratifiedShuffleSplit(n_splits=1, test_size=val_split, random_state=0)
+    train_idx, test_idx = next(sss.split(X,y))
+    df_train_idx, df_test_idx = X[train_idx], X[test_idx]
+    df.loc[df_train_idx, 'split'] = 'train'
+    df.loc[df_test_idx, 'split'] = 'val'
+
+    df.drop(columns=['class_mag'], inplace=True)
+    df.to_csv('{}_unlabeled_split.csv'.format(filepath[:-4]), index=False)
+
+
 if __name__=='__main__':
     # query objects from sdss
 
@@ -283,10 +312,10 @@ if __name__=='__main__':
     # filter_master_catalog(data_dir+'/dr1/SPLUS_STRIPE82_master_catalog_dr_march2019.cat', 'csv/dr1.csv')
     
     # match catalogs
-    splus_cat = pd.read_csv('csv/dr1.csv')
-    sloan_cat = pd.read_csv('csv/sdss_spec_full_STRIPE82.csv')
-    matched_cat ='csv/dr1_classes.csv'
+    # splus_cat = pd.read_csv('csv/dr1.csv')
+    # sloan_cat = pd.read_csv('csv/sdss_spec_full_STRIPE82.csv')
+    # matched_cat ='csv/dr1_classes.csv'
     # c = match_catalogs(sloan_cat, splus_cat, matched_cat)
 
-    # gen supervised catalog
-    stratified_split(matched_cat, fill_undet=True)
+    # gen split catalog
+    stratified_split_unsup('csv/dr1.csv')

@@ -42,26 +42,30 @@ csv_dataset = 'csv/dr1_classes_split.csv'
 
 n_epoch = 1000
 img_dim = (32,32,12)
-batch_size = 128
+batch_size = 32
 cardinality = 4 #16
 width = 16 #4
-depth = 101 #11 29
+depth = 56 #11 29
 
-save_file = 'classifiers/image-models/{}_{}bands_{}.h5'.format(task, img_dim[2], int(time()))
+model_name = '{}_{}bands_{}'.format(task, img_dim[2], int(time()))
 weights_file = None
-visible_gpu='0'
+visible_gpu = '0'
 
 def df_filter(df):
-    return df[(df.photoflag==0)&(df.ndet==12)&(df.r.between(15,19))&(df['class']=='STAR')]
+    f = pd.read_csv('csv/dr1_dates_mean.csv')
+    f = f[f.date==2018]
+    f = f['field'].values # array of fields completely observed in 2018
+    df['field'] = df.id.apply(lambda s: s.split('.')[0])
+    return df[(df.photoflag==0)&(df.ndet==12)&(df.r.between(15,19))&(df['class']=='STAR')&(df.field.isin(f))]
 
 filter_set = True
-print('photoflag=0, ndet=12, r in [15,19], class=STAR')
+print('photoflag=0, ndet=12, r in [15,19], class=STAR, observed in 2018')
 
 #######################
 # END PARAMETER SETUP #
 #######################
 
-
+save_file = f'classifiers/image-models/{model_name}.h5'
 n_classes = 3 if task=='classification' else 12
 class_weights = {0: 1, 1: 1.3, 2: 5} if task=='classification' else None # normalized 1/class_proportion
 data_mode = 'classes' if task=='classification' else 'magnitudes'
@@ -118,7 +122,7 @@ model = resnext(
     img_dim, depth=depth, cardinality=cardinality, width=width, classes=n_classes, last_activation=lst_activation)
 print('model created')
 
-# model.summary()
+model.summary()
 
 model.compile(loss=loss, optimizer='adam', metrics=metrics_train)
 print('finished compiling')
@@ -133,9 +137,9 @@ if weights_file is not None and os.path.exists(weights_file):
 # train
 if mode=='train':
     callbacks = [
-        ReduceLROnPlateau(monitor='val_loss', factor=np.sqrt(0.1), patience=15, verbose=1),
+        ReduceLROnPlateau(monitor='val_loss', factor=np.sqrt(0.1), patience=10, verbose=1),
         ModelCheckpoint(save_file, monitor='val_loss', save_best_only=True, save_weights_only=True, mode='min'),
-        EarlyStopping(monitor='val_loss', patience=30)
+        EarlyStopping(monitor='val_loss', patience=20, restore_best_weights=True)
     ]
 
     history = model.fit_generator(
@@ -195,7 +199,6 @@ elif mode=='eval-mags':
 
 # make inferences on model
 print('predicting')
-model.load_weights(save_file)
 pred_generator = DataGenerator(X_val, shuffle=False, batch_size=1, **params)
 y_pred = model.predict_generator(pred_generator, steps=len(y_true))
 
@@ -223,6 +226,9 @@ else:
     print('y_true\n', y_true[:5])
     print('y_pred\n', y_pred[:5])
     abs_errors = np.absolute(y_true - y_pred)
+    np.save(f'npy/y_{model_name}.npy', y_pred)
+    np.save(f'npy/yerr_{model_name}.npy', abs_errors)
+
     print('absolute errors\n', abs_errors[:5])
     print('\n\nMAE:', np.mean(abs_errors))
     print('MAPE:', np.mean(abs_errors / y_true) * 100)

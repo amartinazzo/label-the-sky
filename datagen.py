@@ -55,7 +55,7 @@ class DataGenerator(keras.utils.Sequence):
         return Compose([
             Flip(),
             HorizontalFlip(),
-            ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.2, rotate_limit=45, p=.5),
+            # ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.1, rotate_limit=45, p=.5),
         ], p=p)
 
 

@@ -28,6 +28,15 @@ def dense_net(input_shape, width=64, n_layers=2, n_classes=3):
     return model
 
 
+def dimension_reducer(input_dim=512, output_dim=64, n_classes=12, activation='softmax'):
+    inputs = Input(shape=input_dim)
+    x = Dense(output_dim, activation='relu')(inputs)
+    outputs = Dense(n_classes, activation=activation)(x)
+    model = Model(inputs, [x, outputs])
+
+    return model    
+
+
 def top_layer_net(input_shape=(512,), nb_classes=3):
     inputs = Input(shape=input_shape)
     outputs = Dense(nb_classes, use_bias=False, kernel_regularizer=l2(5e-4),
