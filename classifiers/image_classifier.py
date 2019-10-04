@@ -1,9 +1,11 @@
 import os,sys,inspect
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))))
+from callbacks import SGDRScheduler
 from datagen import DataGenerator
 from glob import glob
 from keras import backend as K
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
+from keras.optimizers import SGD
 import numpy as np
 import pandas as pd
 from models import resnext
@@ -49,31 +51,29 @@ depth = 56 #11 29
 
 model_name = '{}_{}bands_{}'.format(task, img_dim[2], int(time()))
 weights_file = None
-visible_gpu = '0'
 
 def df_filter(df):
-    f = pd.read_csv('csv/dr1_dates_mean.csv')
-    f = f[f.date==2018]
-    f = f['field'].values # array of fields completely observed in 2018
-    df['field'] = df.id.apply(lambda s: s.split('.')[0])
-    return df[(df.photoflag==0)&(df.ndet==12)&(df.r.between(15,19))&(df['class']=='STAR')&(df.field.isin(f))]
+    # f = pd.read_csv('csv/dr1_dates_mean.csv')
+    # f = f[f.year==2018]
+    # f = f['field'].values # array of fields completely observed in 2018
+    # df['field'] = df.id.apply(lambda s: s.split('.')[0])
+    return df[(df.photoflag==0)&(df.ndet==12)] #&(df.r.between(15,19))&(df['class']=='STAR')&(df.field.isin(f))]
 
 filter_set = True
-print('photoflag=0, ndet=12, r in [15,19], class=STAR, observed in 2018')
+print('photoflag=0, ndet=12, albumentations (flip)')
 
 #######################
 # END PARAMETER SETUP #
 #######################
 
-save_file = f'classifiers/image-models/{model_name}.h5'
 n_classes = 3 if task=='classification' else 12
 class_weights = {0: 1, 1: 1.3, 2: 5} if task=='classification' else None # normalized 1/class_proportion
 data_mode = 'classes' if task=='classification' else 'magnitudes'
 extension = 'npy' if img_dim[2]>3 else 'png'
 images_folder = '/crops_asinh/' if img_dim[2]>3 else '/crops32/'
 lst_activation = 'softmax' if task=='classification' else 'sigmoid'
-loss = 'categorical_crossentropy' if task=='classification' else 'mean_squared_error'
-metrics_train = ['accuracy'] if task=='classification' else ['mae']
+loss = 'categorical_crossentropy' if task=='classification' else 'mean_absolute_error'
+metrics_train = ['accuracy'] if task=='classification' else None
 
 
 print('csv_dataset', csv_dataset)
@@ -86,21 +86,16 @@ print('width', width)
 print('nr epochs', n_epoch)
 print('save_file', save_file)
 
+data_dir = os.environ['DATA_PATH']
+save_file = data_dir+f'/trained_models/{model_name}.h5'
 
-models_dir = 'classifiers/image-models/'
-data_dir = os.environ['DATA_PATH']+images_folder
-params = {'data_folder': data_dir, 'dim': img_dim, 'extension': extension, 'mode': data_mode,'n_classes': n_classes}
-
-# make only 1 gpu visible
-if visible_gpu is not None:
-    os.environ['CUDA_DEVICE_ORDER']='PCI_BUS_ID'
-    os.environ['CUDA_VISIBLE_DEVICES']=visible_gpu
+params = {'data_folder': data_dir+images_folder, 'dim': img_dim, 'extension': extension, 'mode': data_mode,'n_classes': n_classes}
 
 # load dataset iterators
 df = pd.read_csv(csv_dataset)
 if filter_set:
     df = df_filter(df)
-imgfiles = glob(data_dir+'*/*.'+extension)
+imgfiles = glob(data_dir+images_folder+'*/*.'+extension)
 imgfiles = [i.split('/')[-1][:-4] for i in imgfiles]
 print('original df', df.shape)
 df = df[df.id.isin(imgfiles)]
@@ -119,14 +114,18 @@ val_generator = DataGenerator(X_val, labels=labels_val, batch_size=batch_size, *
 
 # create resnext model
 model = resnext(
-    img_dim, depth=depth, cardinality=cardinality, width=width, classes=n_classes, last_activation=lst_activation)
+    img_dim, depth=depth, cardinality=cardinality, width=width, classes=n_classes,
+    last_activation=lst_activation, weight_decay=0)
 print('model created')
 
-model.summary()
+# print nr params
+trainable_count = int(np.sum([K.count_params(p) for p in set(model.trainable_weights)]))
+non_trainable_count = int(np.sum([K.count_params(p) for p in set(model.non_trainable_weights)]))
+print('Total params: {:,}'.format(trainable_count + non_trainable_count))
+print('Trainable params: {:,}'.format(trainable_count))
+print('Non-trainable params: {:,}'.format(non_trainable_count))
 
-model.compile(loss=loss, optimizer='adam', metrics=metrics_train)
-print('finished compiling')
-
+# create folder if needed
 if not os.path.exists(models_dir):
     os.makedirs(models_dir)
 
@@ -134,16 +133,21 @@ if weights_file is not None and os.path.exists(weights_file):
    model.load_weights(weights_file)
    print('model weights loaded!')
 
+# compile model
+opt = 'adam'#SGD(lr=1e-2), momentum=0.9, nesterov=True)
+model.compile(loss=loss, optimizer=opt, metrics=metrics_train)
+
 # train
 if mode=='train':
     callbacks = [
-        ReduceLROnPlateau(monitor='val_loss', factor=np.sqrt(0.1), patience=10, verbose=1),
+        ReduceLROnPlateau(monitor='loss', factor=0.1, patience=5, verbose=1),
+        #SGDRScheduler(min_lr=1e-5, max_lr=1e-2, steps_per_epoch=np.ceil(len(X_train)/batch_size), lr_decay=0.9, cycle_length=5, mult_factor=1.5),
         ModelCheckpoint(save_file, monitor='val_loss', save_best_only=True, save_weights_only=True, mode='min'),
-        EarlyStopping(monitor='val_loss', patience=20, restore_best_weights=True)
+        EarlyStopping(monitor='loss', mode='min', patience=8, restore_best_weights=True, verbose=1)
     ]
 
     history = model.fit_generator(
-        steps_per_epoch=len(X_train)//batch_size,
+        steps_per_epoch=np.ceil(len(X_train)/batch_size),
         generator=train_generator,
         validation_data=val_generator,
         validation_steps=len(X_val)//batch_size,
@@ -226,6 +230,7 @@ else:
     print('y_true\n', y_true[:5])
     print('y_pred\n', y_pred[:5])
     abs_errors = np.absolute(y_true - y_pred)
+    np.save(f'npy/ytrue_{model_name}.npy', y_true)
     np.save(f'npy/y_{model_name}.npy', y_pred)
     np.save(f'npy/yerr_{model_name}.npy', abs_errors)
 

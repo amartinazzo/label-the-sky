@@ -3,6 +3,7 @@ resnext adapted from https://github.com/titu1994/Keras-ResNeXt/blob/master/resne
 
 '''
 
+from keras.layers.advanced_activations import LeakyReLU
 from keras.layers.core import Activation, Dense, Dropout, Lambda, Flatten
 from keras.layers.convolutional import Conv1D, Conv2D
 from keras.layers.pooling import GlobalAveragePooling2D, GlobalMaxPooling2D, MaxPooling2D, MaxPooling1D
@@ -109,7 +110,7 @@ def __initial_conv_block(input_layer, weight_decay=5e-4):
     x = Conv2D(64, (3, 3), padding='same', use_bias=False, kernel_initializer='he_normal',
                kernel_regularizer=l2(weight_decay))(input_layer)
     x = BatchNormalization(axis=channel_axis)(x)
-    x = Activation('relu')(x)
+    x = LeakyReLU()(x) #Activation('relu')(x)
 
     return x
 
@@ -135,7 +136,7 @@ def __grouped_convolution_block(input_layer, grouped_channels, cardinality, stri
         x = Conv2D(grouped_channels, (3, 3), padding='same', use_bias=False, strides=(strides, strides),
                    kernel_initializer='he_normal', kernel_regularizer=l2(weight_decay))(init)
         x = BatchNormalization(axis=channel_axis)(x)
-        x = Activation('relu')(x)
+        x = LeakyReLU()(x) #Activation('relu')(x)
         return x
 
     for c in range(cardinality):
@@ -150,7 +151,7 @@ def __grouped_convolution_block(input_layer, grouped_channels, cardinality, stri
 
     group_merge = concatenate(group_list, axis=channel_axis)
     x = BatchNormalization(axis=channel_axis)(group_merge)
-    x = Activation('relu')(x)
+    x = LeakyReLU()(x) #Activation('relu')(x)
 
     return x
 
@@ -187,7 +188,7 @@ def __bottleneck_block(input_layer, filters=64, cardinality=8, strides=1, weight
     x = Conv2D(filters, (1, 1), padding='same', use_bias=False,
                kernel_initializer='he_normal', kernel_regularizer=l2(weight_decay))(input_layer)
     x = BatchNormalization(axis=channel_axis)(x)
-    x = Activation('relu')(x)
+    x = LeakyReLU()(x) #Activation('relu')(x)
 
     x = __grouped_convolution_block(x, grouped_channels, cardinality, strides, weight_decay)
 
@@ -196,7 +197,7 @@ def __bottleneck_block(input_layer, filters=64, cardinality=8, strides=1, weight
     x = BatchNormalization(axis=channel_axis)(x)
 
     x = add([init, x])
-    x = Activation('relu')(x)
+    x = LeakyReLU()(x) #Activation('relu')(x)
 
     return x
 

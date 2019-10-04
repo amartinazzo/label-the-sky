@@ -95,6 +95,8 @@ def filter_master_catalog(master_cat_file, output_file):
     cat.to_csv(output_file, index=False, header=False, mode='a')
 
 
+# m = 22.5 - 2.5*log10(FLUX)
+
 def query_sdss(query_str, filename):
     objid = -1
     cnt = 0
@@ -299,23 +301,25 @@ if __name__=='__main__':
 
     spec_query = '''
     select 
-    bestObjID, ra, dec, class, subclass, z, zErr, zWarning
+    bestObjID, ra, dec, class, subclass, z, zErr, zWarning,
+    spectroFlux_u, spectroFlux_g, spectroFlux_r, spectroFlux_i, spectroFlux_z,
+    spectroFluxIvar_u, spectroFluxIvar_g, spectroFluxIvar_r, spectroFluxIvar_i, spectroFluxIvar_z
     from SpecObj
     where abs(dec) < 1.46
     '''
     
     # query_sdss(photo_query, 'sdss_photo_{}.csv')
-    # query_sdss(spec_query, 'csv/sdss_spec_full_STRIPE82.csv')
+    query_sdss(spec_query, 'csv/sdss_spec_full_STRIPE82.csv')
 
     # gen master catalog
     # data_dir = os.environ['DATA_PATH']
     # filter_master_catalog(data_dir+'/dr1/SPLUS_STRIPE82_master_catalog_dr_march2019.cat', 'csv/dr1.csv')
     
     # match catalogs
-    # splus_cat = pd.read_csv('csv/dr1.csv')
-    # sloan_cat = pd.read_csv('csv/sdss_spec_full_STRIPE82.csv')
-    # matched_cat ='csv/dr1_classes.csv'
-    # c = match_catalogs(sloan_cat, splus_cat, matched_cat)
+    splus_cat = pd.read_csv('csv/dr1.csv')
+    sloan_cat = pd.read_csv('csv/sdss_spec_full_STRIPE82.csv')
+    matched_cat ='csv/dr1_classes.csv'
+    c = match_catalogs(sloan_cat, splus_cat, matched_cat)
 
     # gen split catalog
-    stratified_split_unsup('csv/dr1.csv')
+    # stratified_split_unsup('csv/dr1.csv')
