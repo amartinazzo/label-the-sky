@@ -70,7 +70,7 @@ n_classes = 3 if task=='classification' else 12
 class_weights = {0: 1, 1: 1.3, 2: 5} if task=='classification' else None # normalized 1/class_proportion
 data_mode = 'classes' if task=='classification' else 'magnitudes'
 extension = 'npy' if img_dim[2]>3 else 'png'
-images_folder = '/crops_asinh/' if img_dim[2]>3 else '/crops32/'
+images_folder = '/crops_calib/' if img_dim[2]>3 else '/crops32/'
 lst_activation = 'softmax' if task=='classification' else 'sigmoid'
 loss = 'categorical_crossentropy' if task=='classification' else 'mean_absolute_error'
 metrics_train = ['accuracy'] if task=='classification' else None

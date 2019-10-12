@@ -45,14 +45,11 @@ def plot_field_rgb(filepath):
 
 
 # receives 12-band array and plots each band in grayscale + lupton composite + given rgb composite
-def plot_bands(filename, output_file=None, cols=6, rows=2, plot_composites=False, znorm=False):
+def plot_bands(filename, output_file=None, cols=4, rows=3, plot_composites=False):
 	arr = np.load(filename) if type(filename) is str else filename
-	if znorm:
-		arr = arr - np.mean(arr, axis=(0,1))
-		arr = arr / np.std(arr, axis=(0,1),  ddof=1)
 
 	x, y, n_bands = arr.shape
-	plt.figure(figsize=(400/100, 50/100), dpi=100) #size: px/dpi
+	# plt.figure(figsize=(400/100, 50/100), dpi=100) #size: px/dpi
 	plt.figure()
 	# plt.title(filename.split('/')[-1])
 	for b in range(n_bands):
@@ -62,7 +59,7 @@ def plot_bands(filename, output_file=None, cols=6, rows=2, plot_composites=False
 		# data = stretcher(data, clip=False)
 		# vmin, vmax = scaler.get_limits(data)
 		# print(vmin,vmax)
-		ax.imshow(data, cmap=plt.cm.gray_r)#, norm=colors.PowerNorm(1))
+		ax.imshow(data, cmap=plt.cm.gray)
 		ax.axis('off')
 		ax.axis('scaled')
 	
@@ -84,6 +81,35 @@ def plot_bands(filename, output_file=None, cols=6, rows=2, plot_composites=False
 	plt.tight_layout()
 	if output_file is None:
 		output_file = filename.split('/')[-1][:-4]+'_12bands.png'
+	plt.savefig(output_file, bbox_inches='tight')
+
+
+def plot_3bands(filename, output_file=None, cols=4, rows=1):
+	im = cv2.imread(filename)
+	arr = cv2.flip(im, 0)
+
+	x, y, n_bands = arr.shape
+	plt.figure(figsize=(400/100, 50/100), dpi=100) #size: px/dpi
+	plt.figure()
+
+	ax = plt.subplot(rows, cols, 1)
+	ax.set_title('RGB composite')
+	ax.imshow(arr)
+	ax.axis('off')
+	ax.axis('scaled')
+
+	bands_rgb = ['R', 'G', 'B']
+	for b in range(n_bands):
+		ax = plt.subplot(rows, cols, b+2)
+		ax.set_title(bands_rgb[b])
+		data = arr[:,:,b]
+		ax.imshow(data, cmap=plt.cm.gray)
+		ax.axis('off')
+		ax.axis('scaled')
+	
+	plt.tight_layout()
+	if output_file is None:
+		output_file = filename.split('/')[-1][:-4]+'_3bands.png'
 	plt.savefig(output_file, bbox_inches='tight')
 
 
@@ -159,6 +185,13 @@ def plot_2d_embedding(X, df, filepath, format_='png', clear=True):
 
 
 if __name__ == '__main__':
+	# STRIPE82-0054.13356
+	# STRIPE82-0067.09898
+	# STRIPE82-0020.14428
+	plot_bands(os.environ['DATA_PATH']+'/crops_asinh/STRIPE82-0067/STRIPE82-0067.09898.npy')
+	plot_3bands(os.environ['DATA_PATH']+'/crops_rgb32/STRIPE82-0067/STRIPE82-0067.09898.png')
+	exit()
+
 	csv_dataset = 'csv/dr1_classes_split.csv' #dr1_classes_mag1418_split_ndet.csv'
 	df = pd.read_csv(csv_dataset)
 	df = df[(df.split!='test')] #& (df.n_det==12) & (~df['class'].isna())]

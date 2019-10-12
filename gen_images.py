@@ -1,4 +1,5 @@
 from astropy.io import fits
+from astropy.table import Table
 from astropy.visualization import AsinhStretch
 from cv2 import imread, imwrite, resize, INTER_CUBIC
 from glob import glob
@@ -10,23 +11,6 @@ import os
 from shutil import copyfile
 from time import time
 from tqdm import tqdm
-
-
-'''
-dr0 LABELED
-    fwhm >= 19   --> 146
-    r <= 17      --> 8115
-    r <= 18      --> 18455
-    r <= 19      --> 32273
-    r <= 20      --> 47911
-    total        --> 61619
-
-    r <= 20
-    GALAXY    0.514809
-    STAR      0.440191
-    QSO       0.045000
-
-'''
 
 
 asinh_transform = AsinhStretch()
@@ -46,19 +30,37 @@ def sample_move(df, src_base, dst_base, n_samples=50):
 
 
 def recast_inner(file):
-    arr = np.load(file)
-    arr = np.float32(arr)
-    np.save(file, arr)
+    try:
+        arr = np.load(file)
+        arr = np.float32(arr)
+        np.save(file, arr)
+    except:
+        print('could not load', file)
 
 
 def recast(folder_pattern):
     files = glob(folder_pattern)
-    Parallel(n_jobs=8, prefer='threads')(delayed(recast_inner)(f) for f in tqdm(files))
+    print('nr of files', len(files))
+    Parallel(n_jobs=8)(delayed(recast_inner)(f) for f in tqdm(files))
 
 
-def get_ndarray(filepath):
-    fits_im = fits.open(filepath)
-    return fits_im[1].data
+def delete(catalog_path, folder_pattern):
+    imgfiles = glob(folder_pattern)
+    imgfiles = [i.split('/')[-1][:-4] for i in imgfiles]
+    df = pd.read_csv(catalog_path)
+    # df = df[(df['class'].isna()) & (df.id.isin(imgfiles))]
+    df = df[(df.photoflag>0) & (df.id.isin(imgfiles))]
+    print('nr of files to remove', df.shape[0])
+
+    files_to_delete = df.id.values
+    files_to_delete = [os.path.join(os.environ['DATA_PATH'], 'crops_asinh', f.split('.')[0], f+'.npy') for f in files_to_delete]
+    print(files_to_delete[0])
+
+    for f in tqdm(files_to_delete):
+        try:
+            os.remove(f)
+        except Exception as e:
+            print('Error:', str(e))
 
 
 def get_observation_dates(folder_pattern, save_file):
@@ -116,11 +118,11 @@ def crop_objects_in_rgb(df, input_folder, save_folder, size=32, fwhm_radius=1.5)
         imwrite('{}{}/{}.png'.format(save_folder, r['field'], r['id']), img)
 
 
-def crop_object_in_field(ix, arr, objects_df, save_folder, asinh=True, size=32, radius=16, fwhm_radius=1.5):
+def crop_object_in_field(obj_ix, arr, objects_df, save_folder, asinh=True, size=32, radius=16, fwhm_radius=1.5):
     '''
     crops object in a given field
     receives:
-        * ix            (int) index of object to be cropped in objects_df
+        * obj_ix        (int) index of object to be cropped in objects_df
         * arr           (ndarray) 12-band full field image
         * objects_df    (pandas DataFrame) full objects table
         * save_folder   (str) path to folder where crops will be saved
@@ -128,9 +130,9 @@ def crop_object_in_field(ix, arr, objects_df, save_folder, asinh=True, size=32, 
     for an object with fwhm =~ 2, 32x32 px is a good fit
     size=3*fwhm is good for larger objects (inspected visually) but yields too many resizes
     '''
-    # d = np.ceil(np.maximum(delta, 0.5*o['fwhm'])).astype(np.int)
-    row = objects_df.loc[ix]
+    row = objects_df.loc[obj_ix]
     d = np.ceil(np.maximum(radius, fwhm_radius*row['fwhm'])).astype(np.int)
+    d = np.minimum(d, 75) # 75 = 3 * (largest fwhm in dataset with photoflag==0) / 2
     x0 = np.maximum(0, int(row['x']) - d)
     x1 = np.minimum(10999, int(row['x']) + d)
     y0 = np.maximum(0, int(row['y']) - d)
@@ -168,8 +170,36 @@ def get_bands_order():
     return [10, 0, 1, 2, 3, 7, 4, 9, 5, 8, 6, 11]
 
 
+def get_bands():
+    return ['U', 'F378', 'F395', 'F410', 'F430', 'G', 'F515', 'R', 'F660', 'I', 'F861', 'Z']
 
-def sweep_fields(fields_path, catalog_path, crops_folder):
+
+
+def get_zps(field):
+    zpfile = os.path.join(os.environ['DATA_PATH'], 'dr1/ZPfiles_Feb2019', '{}_ZP.cat'.format(field))
+    zpdata = Table.read(zpfile, format="ascii")
+    zps = dict([(t['FILTER'], t['ZP']) for t in zpdata])
+    return zps
+
+
+def calibrate(data, zp):
+    '''
+    applies corrections to given data (image) according to given zp value
+    receives:
+        * data (np array)  single band bidimensional image
+        * zp   (float)     zero point value to be used for calibrating the image
+    returns : 
+        * S    (np array)  bidimensional calibrated image
+    '''
+    ps = 0.55 # pixel scale [arcsec / pixel]
+    # fnu: spectral flux density
+    fnu = data * np.power(10, -0.4 * zp)
+    # Surface brightness using fnu
+    S = 1e5 * fnu / ps**2 # [1e5 erg / (s cm^2 Hz arcsec^2)]
+    return S
+
+
+def sweep_fields(fields_path, catalog_path, crops_folder, calibrate=True, asinh=False):
     '''
     sweeps field images cropping and saving objects in fields
     receives:
@@ -182,27 +212,27 @@ def sweep_fields(fields_path, catalog_path, crops_folder):
     files.sort()
 
     print('reading catalog')
-    catalog = pd.read_csv(catalog_path)
+    df = pd.read_csv(catalog_path)
 
     # filter
-    catalog = catalog[~catalog['class'].isna()]
-    print(catalog.head())
-    print('catalog shape', catalog.shape)
+    df = df[(~df['class'].isna()) & (df.photoflag==0)]# & (df.ndet==12)]
+    print(df.head())
+    print('df shape', df.shape)
 
-    catalog['field_name'] = catalog['id'].apply(lambda s: s.split('.')[0])
+    df['field_name'] = df['id'].apply(lambda s: s.split('.')[0])
 
     # ignore objects that have already been cropped
     imgfiles = glob(crops_folder+'*/*.npy')
     imgfiles = [i.split('/')[-1][:-4] for i in imgfiles]
-    print('catalog', catalog.shape)
-    catalog = catalog[~catalog.id.isin(imgfiles)]
-    print('catalog after ignoring existing crops', catalog.shape)
-    fields = np.unique(catalog.field_name.values)
+    print('df', df.shape)
+    df = df[~df.id.isin(imgfiles)]
+    print('df after ignoring existing crops', df.shape)
+    fields = np.unique(df.field_name.values)
     files_orig = files
     files = []
     for field in fields:
         files_tmp = [f for f in files_orig if field in f]
-        files = files +files_tmp
+        files = files + files_tmp
     del files_orig
 
     if len(files)==0:
@@ -210,14 +240,19 @@ def sweep_fields(fields_path, catalog_path, crops_folder):
         exit()
 
     bands_order = get_bands_order()
+    bands = get_bands()
     n_channels = len(bands_order)
 
-    data = get_ndarray(files[0])
+    data = fits.getdata(files[0])
     s0, s1 = data.shape
     arr = np.zeros((s0, s1, n_channels), dtype=np.float32)
     print('field array shape ', arr.shape)
-    arr[:,:,bands_order[0]] = np.copy(data)
+
     prev = files[0].split('/')[-1].split('_')[0]
+    if calibrate:
+        zps = get_zps(prev)
+        data = calibrate(data, zps[bands[0]])
+    arr[:,:,bands_order[0]] = np.copy(data)
 
     start = time()
     i=1
@@ -226,13 +261,21 @@ def sweep_fields(fields_path, catalog_path, crops_folder):
         field_name = f.split('/')[-1].split('_')[0]
         if prev != field_name or ix==lst_ix:
             print('{} min. cropping objects in {}'.format(int((time()-start)/60), prev))
-            objects_df = catalog[catalog.field_name==prev].reset_index()
-            Parallel(n_jobs=8, prefer='threads')(delayed(
-                crop_object_in_field)(ix, arr, objects_df, crops_folder+prev, True) for ix in range(objects_df.index.max()+1))
-            arr = np.zeros((s0, s1, n_channels))
+            print('min: {}, max: {}'.format(arr.min(), arr.max()))
+            objects_df = df[df.field_name==prev].reset_index()
+            print(objects_df)
+            if not os.path.exists(crops_folder+prev):
+                os.makedirs(crops_folder+prev)
+            Parallel(n_jobs=1)(delayed(
+                crop_object_in_field)(ix, arr, objects_df, crops_folder+prev, asinh) for ix in range(objects_df.shape[0]))
+            arr = np.zeros((s0, s1, n_channels), dtype=np.float32)
+            if calibrate:
+                zps = get_zps(field_name)
             prev = field_name
             i=0
-        data = get_ndarray(f)
+        data = fits.getdata(f)
+        if calibrate:
+            data = calibrate(data, zps[bands[i]])
         arr[:,:,bands_order[i]] = np.copy(data)
         i+=1
 
@@ -330,41 +373,22 @@ def normalize_images(input_folder, output_folder, bounds_lower, bounds_upper):
         im = im / interval
         if im.min() < 0 or im.max() > 1:
             print('{} out of [0,1] range'.format(file.split('/')[-1]))
-        np.save('{}{}'.format(output_folder, file.split('/')[-1]), im, allow_pickle=False)
-    print('minutes taken:', int((time()-start)/60))
-
-
-def z_norm_images(input_folder, output_folder):
-    '''
-    saves ndarray images resized to (32,32,n_channels) and normalized by their z-score: x-mean/std
-    receives:e
-        * input_folder      (str) folder path wherein are (x,x,n_channels) ndarray images with varying shapes and value ranges
-        * output_folder     (str) folder wherein normalized images will be saved
-    '''
-    files = glob(input_folder)
-    print('nr of files', len(files))
-
-    start = time()
-    for file in files:
-        im = np.load(file)
-        im = im - np.mean(im, axis=(0,1))
-        im = im / np.std(im, axis=(0,1))
-        if im.shape[0] > 32:
-            im = resize(im, dsize=(32, 32), interpolation=INTER_CUBIC)
-            # print('{} resized'.format(file.split('/')[-1]))
-        np.save('{}{}'.format(output_folder, file.split('/')[-1]), im, allow_pickle=False)
+        np.save('{}{}'.format(output_folder, file.split('/')[-1]), im)
     print('minutes taken:', int((time()-start)/60))
 
 
 if __name__=='__main__':
     data_dir = os.environ['DATA_PATH']
-    df = pd.read_csv(data_dir+'/astromega/SGu.csv')
-    print('shape', df.shape)
-    crop_objects_in_rgb(df, data_dir+'/dr1/color_images/', data_dir+'/crops_rgb/', 76)
-    exit()
-
     sweep_fields(
         fields_path=data_dir+'/dr1/coadded/*/*.fz',
         catalog_path='csv/dr1_classes_split.csv',
-        crops_folder=data_dir+'/crops_asinh/'
+        crops_folder=data_dir+'/crops_asinh/',
+        calibrate=False,
+        asinh=True,
         )
+
+    exit()
+
+    df = pd.read_csv(data_dir+'/astromega/SGu.csv')
+    print('shape', df.shape)
+    crop_objects_in_rgb(df, data_dir+'/dr1/color_images/', data_dir+'/crops_rgb/', 76)

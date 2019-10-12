@@ -157,12 +157,18 @@ def match_catalogs(new_df, base_df, matched_cat_path=None, max_distance=1.0):
     final_cat = base_df.merge(new_df, how='left', left_index=True, right_on='base_idx', suffixes=('', '_'))
     f = final_cat[~final_cat.matched.isna()]
     print(f[['ra','dec','ra_','dec_','d2d']].head(20))
-    final_cat = final_cat[cols+['d2d', 'class','subclass', 'z_', 'zErr', 'zWarning']]
+    final_cat = final_cat[cols+[
+        'd2d', 'class','subclass', 'z_',
+        'spectroFlux_u', 'spectroFlux_g', 'spectroFlux_r', 'spectroFlux_i', 'spectroFlux_z'
+        ]]
 
-    final_cat.columns = [
+    final_cat['redshift'] = final_cat.z_
+
+    final_cat = final_cat[[
         'id','ra','dec','x','y','mumax','s2n','photoflag','ndet','fwhm',
         'u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z',
-        'd2d','class','subclass','redshift','redshift_err','redshift_warning']
+        'spectroFlux_u', 'spectroFlux_g', 'spectroFlux_r', 'spectroFlux_i', 'spectroFlux_z', 
+        'd2d','class','subclass','redshift']]
 
     print('matched df shape', new_df.shape)
     print('base df shape', base_df.shape)
@@ -201,7 +207,7 @@ def fill_undetected(df):
 
 def stratified_split(filepath, mag_range=None, fill_undet=False, test_split=0.1, val_split=0.11):
     df = pd.read_csv(filepath)
-    df = df[~df['class'].isna()]
+    df = df[(~df['class'].isna()) & (df.ndet==12) & (df.photoFlag==0)]
     if mag_range is not None:
         df = df[df.r.between(mag_range[0], mag_range[1])]
 
@@ -254,7 +260,7 @@ def stratified_split(filepath, mag_range=None, fill_undet=False, test_split=0.1,
         print()
 
     df.drop(columns=['class_mag', 'class_mag_int'], inplace=True)
-    df.to_csv('{}_split.csv'.format(filepath[:-4]), index=False)
+    df.to_csv('{}_split_photoflag0.csv'.format(filepath[:-4]), index=False)
 
 
 def stratified_split_unlabeled(filepath, mag_range=(0,18), test_split=0.1, val_split=0.11):
@@ -309,7 +315,7 @@ if __name__=='__main__':
     '''
     
     # query_sdss(photo_query, 'sdss_photo_{}.csv')
-    query_sdss(spec_query, 'csv/sdss_spec_full_STRIPE82.csv')
+    # query_sdss(spec_query, 'csv/sdss_spec_full_STRIPE82.csv')
 
     # gen master catalog
     # data_dir = os.environ['DATA_PATH']
