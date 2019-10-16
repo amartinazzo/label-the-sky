@@ -21,19 +21,19 @@ declare -a servers=($(hostname))
 #     exit 1
 # fi
 
-declare -a tasks=(classification regression_cat regression_spec)
-declare -a nbands=(5 12 3)
+declare -a outputs=(classes magnitudes redshift)
+declare -a nbands=(12 5 3)
 
 declare -a commands
 declare -a pids
 
 export output_dir=$DATA_PATH/label_the_sky
 
-for task in ${tasks[*]}
+for output in ${outputs[*]}
 do
     for nband in ${nbands[*]}
     do
-        commands+=("python classifiers/image_classifier.py $task $nbands")
+        commands+=("python classifiers/image_classifier.py $output $nbands")
     done
 done
 
@@ -56,7 +56,7 @@ do
         
         if [ "$cmd" != "" ]
         then
-            logfile="${server}_${task}_${nbands}bands.log"
+            logfile="logs/${server}_${task}_${nbands}bands.log"
             echo "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"
             echo "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &" >> $logfile
             eval "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"

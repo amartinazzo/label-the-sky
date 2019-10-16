@@ -8,7 +8,7 @@ from sklearn.utils.multiclass import unique_labels
 class_map = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
 
 
-def get_sets(df, mode='classes', filters=None, obj_list=None):
+def get_sets(df, target='classes', filters=None):
     """
     receives:
     * df            pandas dataframe
@@ -26,21 +26,19 @@ def get_sets(df, mode='classes', filters=None, obj_list=None):
         for key, val in filters.items():
             df = df[df[key].between(val[0], val[1])]
             print('set size after filters', df.shape)
-    if obj_list is not None:
-        df = df[df['id'].isin(obj_list)]
-        print('set size after crossing with folder files', df.shape)
-    X = df['id'].values
-    if mode=='classes':
+    X = df.id.values
+    
+    if target=='classes':
         y = df['class'].apply(lambda c: class_map[c]).values
-        labels = dict(zip(X, y))
-        # print(df['class'].value_counts(normalize=True))
-    elif mode=='magnitudes':
+    elif target=='magnitudes':
         y = df[['u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z']].values
         y = y/30
-        labels = dict(zip(X, y))
+    elif target=='redshifts':
+        y = df[['redshift_base', 'redshift_exp']].values
     else:
-        y = None
-        labels = None
+        return X, _, _
+
+    labels = dict(zip(X, y))
     return X, y, labels
 
 

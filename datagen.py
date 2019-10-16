@@ -7,8 +7,8 @@ import keras
 class DataGenerator(keras.utils.Sequence):
     # adapted from https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly
     def __init__(
-        self, object_ids, data_folder, labels=None, mode='classes', bands=None, 
-        batch_size=256, dim=(5500,1), n_classes=3, shuffle=True, extension='npy', augmentation=True):
+        self, object_ids, data_folder, n_bands, target='classes', labels=None, 
+        batch_size=32, dim=(5500,1), n_classes=3, shuffle=True, extension='npy', augmentation=True):
         self.bands = bands
         self.batch_size = batch_size
         self.data_folder = data_folder

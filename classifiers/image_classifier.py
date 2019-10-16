@@ -39,7 +39,7 @@ subset with r in (14,18)
 #########################
 
 mode = 'train' # train, eval-mags, predict
-task = 'regression' # classification or regression (magnitudes)
+task = 'classification' # classification or regression (magnitudes)
 csv_dataset = 'csv/dr1_classes_split.csv'
 
 n_epoch = 1000
@@ -74,7 +74,8 @@ images_folder = '/crops_calib/' if img_dim[2]>3 else '/crops32/'
 lst_activation = 'softmax' if task=='classification' else 'sigmoid'
 loss = 'categorical_crossentropy' if task=='classification' else 'mean_absolute_error'
 metrics_train = ['accuracy'] if task=='classification' else None
-
+data_dir = os.getenv('HOME') + '/label_the_sky' #os.environ['DATA_PATH']
+save_file = data_dir+f'/trained_models/{model_name}.h5'
 
 print('csv_dataset', csv_dataset)
 print('task', task)
@@ -85,9 +86,6 @@ print('depth', depth)
 print('width', width)
 print('nr epochs', n_epoch)
 print('save_file', save_file)
-
-data_dir = os.environ['DATA_PATH']
-save_file = data_dir+f'/trained_models/{model_name}.h5'
 
 params = {'data_folder': data_dir+images_folder, 'dim': img_dim, 'extension': extension, 'mode': data_mode,'n_classes': n_classes}
 
@@ -125,16 +123,12 @@ print('Total params: {:,}'.format(trainable_count + non_trainable_count))
 print('Trainable params: {:,}'.format(trainable_count))
 print('Non-trainable params: {:,}'.format(non_trainable_count))
 
-# create folder if needed
-if not os.path.exists(models_dir):
-    os.makedirs(models_dir)
-
 if weights_file is not None and os.path.exists(weights_file):
    model.load_weights(weights_file)
    print('model weights loaded!')
 
 # compile model
-opt = 'adam'#SGD(lr=1e-2), momentum=0.9, nesterov=True)
+opt = 'adam'
 model.compile(loss=loss, optimizer=opt, metrics=metrics_train)
 
 # train

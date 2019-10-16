@@ -12,15 +12,18 @@ import time
 usecols = [
     'ID', 'RA', 'Dec', 'X', 'Y', 'MUMAX', 's2nDet', 'PhotoFlag', 'nDet_auto', 'FWHM',
     'uJAVA_auto', 'F378_auto', 'F395_auto', 'F410_auto', 'F430_auto', 'g_auto',
-    'F515_auto', 'r_auto', 'F660_auto', 'i_auto', 'F861_auto', 'z_auto'
+    'F515_auto', 'r_auto', 'F660_auto', 'i_auto', 'F861_auto', 'z_auto',
+    'euJAVA_auto','eF378_auto','eF395_auto','eF410_auto','eF430_auto','eg_auto',
+    'eF515_auto','er_auto','eF660_auto','ei_auto','eF861_auto','ez_auto'
 ]
 
 usecols_str = "id,ra,dec,x,y,mumax,s2n,photoflag,ndet,fwhm,u,f378,f395,f410,f430,g,f515,r,f660,i,f861,z\n"
 
 cols = [
     'id', 'ra', 'dec', 'x', 'y', 'mumax', 's2n', 'photoflag', 'ndet', 'fwhm', 
-    'u', 'f378', 'f395', 'f410', 'f430', 'g',
-    'f515', 'r', 'f660', 'i', 'f861', 'z'
+    'u', 'f378', 'f395', 'f410', 'f430', 'g', 'f515', 'r', 'f660', 'i', 'f861', 'z',
+    'u_err','f378_err','f395_err','f410_err','f430_err','g_err',
+    'f515_err','r_err','f660_err','i_err','f861_err','z_err'
 ]
 
 orig_cols = [
@@ -77,9 +80,6 @@ def filter_master_catalog(master_cat_file, output_file):
     generates a catalog from master_catalog_dr_march2019.cat
     filtered by given columns
     '''
-    with open(output_file, 'w') as f:
-        f.write(usecols_str)
-
     cat = pd.read_csv(
         master_cat_file, delimiter=' ', skipinitialspace=True, comment='#',
         index_col=False, usecols=usecols)
@@ -92,7 +92,7 @@ def filter_master_catalog(master_cat_file, output_file):
     cat['id'] = cat.id.str.replace('.griz', '')
     cat['id'] = cat.id.str.replace('SPLUS.', '')
 
-    cat.to_csv(output_file, index=False, header=False, mode='a')
+    cat.to_csv(output_file, index=False)
 
 
 # m = 22.5 - 2.5*log10(FLUX)
@@ -159,7 +159,9 @@ def match_catalogs(new_df, base_df, matched_cat_path=None, max_distance=1.0):
     print(f[['ra','dec','ra_','dec_','d2d']].head(20))
     final_cat = final_cat[cols+[
         'd2d', 'class','subclass', 'z_',
-        'spectroFlux_u', 'spectroFlux_g', 'spectroFlux_r', 'spectroFlux_i', 'spectroFlux_z'
+        'spectroFlux_u', 'spectroFlux_g', 'spectroFlux_r', 'spectroFlux_i', 'spectroFlux_z',
+        'u_err','f378_err','f395_err','f410_err','f430_err','g_err',
+        'f515_err','r_err','f660_err','i_err','f861_err','z_err'
         ]]
 
     final_cat['redshift'] = final_cat.z_
@@ -168,7 +170,9 @@ def match_catalogs(new_df, base_df, matched_cat_path=None, max_distance=1.0):
         'id','ra','dec','x','y','mumax','s2n','photoflag','ndet','fwhm',
         'u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z',
         'spectroFlux_u', 'spectroFlux_g', 'spectroFlux_r', 'spectroFlux_i', 'spectroFlux_z', 
-        'd2d','class','subclass','redshift']]
+        'd2d','class','subclass','redshift',
+        'u_err','f378_err','f395_err','f410_err','f430_err','g_err',
+        'f515_err','r_err','f660_err','i_err','f861_err','z_err']]
 
     print('matched df shape', new_df.shape)
     print('base df shape', base_df.shape)
@@ -318,8 +322,8 @@ if __name__=='__main__':
     # query_sdss(spec_query, 'csv/sdss_spec_full_STRIPE82.csv')
 
     # gen master catalog
-    # data_dir = os.environ['DATA_PATH']
-    # filter_master_catalog(data_dir+'/dr1/SPLUS_STRIPE82_master_catalog_dr_march2019.cat', 'csv/dr1.csv')
+    data_dir = os.environ['DATA_PATH']
+    filter_master_catalog(data_dir+'/dr1/SPLUS_STRIPE82_master_catalog_dr_march2019.cat', 'csv/dr1.csv')
     
     # match catalogs
     splus_cat = pd.read_csv('csv/dr1.csv')

@@ -20,15 +20,34 @@ stretcher = vis.AsinhStretch()
 # scaler = vis.ZScaleInterval()
 
 
-def plot_single_band(im_path):
-	fits_im = fits.open(im_path)
-	data = fits_im[1].data #ndarray
+def plot_single_band(filename, asinh=True, output_file=None):
+	data = fits.getdata(filename)
 	# data = data[650:750, 450:550]
-	# data = data[3500:4500, 7000:8000]
+	data = data[3500:4500, 7000:8000]
 	# data = data[8300:8600,9100:9400]
-	data = stretcher(data, clip=False)
+	if asinh:
+		data = stretcher(data, clip=False)
+	fig = plt.figure(frameon=False)
+	ax = fig.add_axes([0, 0, 1, 1])
+	ax.axis('off')
 	plt.imshow(data, cmap='gray')
-	plt.show()
+	if output_file is None:
+		transform = 'asinh' if asinh else 'linear'
+		output_file = filename.split('/')[-1][:-3] + '_{}.png'.format(transform)
+	plt.savefig(output_file)
+
+
+def plot_single_rgb(filename, output_file=None):
+	data = cv2.imread(filename)
+	data = cv2.flip(data, 0)
+	data = data[3500:4500, 7000:8000]
+	fig = plt.figure(frameon=False)
+	ax = fig.add_axes([0, 0, 1, 1])
+	ax.axis('off')
+	plt.imshow(data, cmap='gray')
+	if output_file is None:
+		output_file = filename.split('/')[-1][:-3] + '_rgb.png'
+	plt.savefig(output_file)
 
 
 def plot_field_rgb(filepath):
@@ -45,16 +64,16 @@ def plot_field_rgb(filepath):
 
 
 # receives 12-band array and plots each band in grayscale + lupton composite + given rgb composite
-def plot_bands(filename, output_file=None, cols=4, rows=3, plot_composites=False):
+def plot_bands(filename, output_file=None, cols=4, rows=3, plot_composites=False, my_dpi=118):
 	arr = np.load(filename) if type(filename) is str else filename
 
 	x, y, n_bands = arr.shape
-	# plt.figure(figsize=(400/100, 50/100), dpi=100) #size: px/dpi
+	# plt.figure(figsize=(cols*x/my_dpi, rows*x/my_dpi), dpi=my_dpi) #size: px/dpi
 	plt.figure()
 	# plt.title(filename.split('/')[-1])
 	for b in range(n_bands):
 		ax = plt.subplot(rows, cols, b+1)
-		ax.set_title(bands[b])
+		# ax.set_title(bands[b])
 		data = arr[:,:,b]
 		# data = stretcher(data, clip=False)
 		# vmin, vmax = scaler.get_limits(data)
@@ -76,24 +95,24 @@ def plot_bands(filename, output_file=None, cols=4, rows=3, plot_composites=False
 		ax = plt.subplot(rows, cols,b+3)
 		ax.set_title('RGU composite')
 		ax.axis('off')
-		ax.imshow(im)
 	
 	plt.tight_layout()
 	if output_file is None:
 		output_file = filename.split('/')[-1][:-4]+'_12bands.png'
-	plt.savefig(output_file, bbox_inches='tight')
+	plt.savefig(output_file, bbox_inches='tight', dpi=.5*my_dpi)
+	plt.close()
 
 
-def plot_3bands(filename, output_file=None, cols=4, rows=1):
+def plot_3bands(filename, output_file=None, cols=4, rows=1, my_dpi=118):
 	im = cv2.imread(filename)
 	arr = cv2.flip(im, 0)
 
 	x, y, n_bands = arr.shape
-	plt.figure(figsize=(400/100, 50/100), dpi=100) #size: px/dpi
+	# plt.figure(figsize=(cols*x/my_dpi, rows*x/my_dpi), dpi=my_dpi) #size: px/dpi
 	plt.figure()
 
 	ax = plt.subplot(rows, cols, 1)
-	ax.set_title('RGB composite')
+	# ax.set_title('RGB composite')
 	ax.imshow(arr)
 	ax.axis('off')
 	ax.axis('scaled')
@@ -101,7 +120,7 @@ def plot_3bands(filename, output_file=None, cols=4, rows=1):
 	bands_rgb = ['R', 'G', 'B']
 	for b in range(n_bands):
 		ax = plt.subplot(rows, cols, b+2)
-		ax.set_title(bands_rgb[b])
+		# ax.set_title(bands_rgb[b])
 		data = arr[:,:,b]
 		ax.imshow(data, cmap=plt.cm.gray)
 		ax.axis('off')
@@ -110,7 +129,8 @@ def plot_3bands(filename, output_file=None, cols=4, rows=1):
 	plt.tight_layout()
 	if output_file is None:
 		output_file = filename.split('/')[-1][:-4]+'_3bands.png'
-	plt.savefig(output_file, bbox_inches='tight')
+	plt.savefig(output_file, bbox_inches='tight', dpi=.5*my_dpi)
+	plt.close()
 
 
 def plot_rgb(filename):
@@ -149,9 +169,9 @@ def magnitude_hist(filename):
 
 
 def update_legend_marker(handle, orig):
-    handle.update_from(orig)
-    handle.set_sizes([64])
-    handle.set_alpha(1)
+	handle.update_from(orig)
+	handle.set_sizes([64])
+	handle.set_alpha(1)
 
 
 '''
@@ -185,11 +205,51 @@ def plot_2d_embedding(X, df, filepath, format_='png', clear=True):
 
 
 if __name__ == '__main__':
-	# STRIPE82-0054.13356
-	# STRIPE82-0067.09898
-	# STRIPE82-0020.14428
-	plot_bands(os.environ['DATA_PATH']+'/crops_asinh/STRIPE82-0067/STRIPE82-0067.09898.npy')
-	plot_3bands(os.environ['DATA_PATH']+'/crops_rgb32/STRIPE82-0067/STRIPE82-0067.09898.png')
+	# plot_single_rgb(os.environ['DATA_PATH']+'/dr1/color_images/STRIPE82-0001_trilogy.png')
+	# plot_single_band(os.environ['DATA_PATH']+'/dr1/coadded/STRIPE82-0001/STRIPE82-0001_R_swp.fz', asinh=True)
+	# plot_single_band(os.environ['DATA_PATH']+'/dr1/coadded/STRIPE82-0001/STRIPE82-0001_R_swp.fz', asinh=False)
+
+	big_objs = ['STRIPE82-0001.17453']
+		# 'STRIPE82-0054.13356', 'STRIPE82-0067.09898', 'STRIPE82-0041.22585',
+		# 'STRIPE82-0161.10812', 'STRIPE82-0008.09679', 'STRIPE82-0019.26365',
+		# 'STRIPE82-0023.26613', 'STRIPE82-0145.04185', 'STRIPE82-0125.39906',
+		# 'STRIPE82-0038.21967', 'STRIPE82-0060.17189', 'STRIPE82-0020.14428',
+		# 'STRIPE82-0111.41405', 'STRIPE82-0168.17021', 'STRIPE82-0030.18417',
+		# 'STRIPE82-0027.05891', 'STRIPE82-0068.39107', 'STRIPE82-0125.20818',
+		# 'STRIPE82-0161.15817', 'STRIPE82-0048.03264', 'STRIPE82-0027.17879',
+		# 'STRIPE82-0032.01313', 'STRIPE82-0073.09287', 'STRIPE82-0058.05029',
+		# 'STRIPE82-0073.14508', 'STRIPE82-0142.12110', 'STRIPE82-0010.01346',
+		# 'STRIPE82-0130.14564', 'STRIPE82-0006.02609', 'STRIPE82-0106.27276',
+		# 'STRIPE82-0119.39689', 'STRIPE82-0021.06304', 'STRIPE82-0127.06016',
+		# 'STRIPE82-0060.02326', 'STRIPE82-0020.21974', 'STRIPE82-0160.17987',
+		# 'STRIPE82-0045.05012', 'STRIPE82-0110.21242', 'STRIPE82-0014.25136',
+		# 'STRIPE82-0030.27947', 'STRIPE82-0027.08560', 'STRIPE82-0067.21155',
+		# 'STRIPE82-0166.02552', 'STRIPE82-0034.27217', 'STRIPE82-0073.10912',
+		# 'STRIPE82-0145.47346', 'STRIPE82-0011.05144', 'STRIPE82-0069.37600',
+		# 'STRIPE82-0112.42596', 'STRIPE82-0113.33875', 'STRIPE82-0144.27807',
+		# 'STRIPE82-0027.12967', 'STRIPE82-0131.14967', 'STRIPE82-0025.09817',
+		# 'STRIPE82-0081.17638', 'STRIPE82-0015.17254', 'STRIPE82-0004.24552',
+		# 'STRIPE82-0126.20307', 'STRIPE82-0072.31330', 'STRIPE82-0035.18858',
+		# 'STRIPE82-0069.24729', 'STRIPE82-0068.24055', 'STRIPE82-0116.00942',
+		# 'STRIPE82-0013.08937', 'STRIPE82-0031.05725', 'STRIPE82-0028.20069',
+		# 'STRIPE82-0019.23235', 'STRIPE82-0125.06951', 'STRIPE82-0074.24768',
+		# 'STRIPE82-0116.37879', 'STRIPE82-0061.12393', 'STRIPE82-0119.50120',
+		# 'STRIPE82-0076.05782', 'STRIPE82-0158.04928', 'STRIPE82-0163.03282',
+		# 'STRIPE82-0036.03090', 'STRIPE82-0169.14340', 'STRIPE82-0084.21242',
+		# 'STRIPE82-0067.06439', 'STRIPE82-0124.30085', 'STRIPE82-0032.01584',
+		# 'STRIPE82-0153.10911', 'STRIPE82-0052.07830', 'STRIPE82-0166.05567',
+		# 'STRIPE82-0060.00943', 'STRIPE82-0163.16694', 'STRIPE82-0046.12101',
+		# 'STRIPE82-0022.15910', 'STRIPE82-0032.08193', 'STRIPE82-0157.20767',
+		# 'STRIPE82-0039.21521', 'STRIPE82-0035.15867', 'STRIPE82-0046.16121',
+		# 'STRIPE82-0075.02509', 'STRIPE82-0141.04656', 'STRIPE82-0169.18337',
+		# 'STRIPE82-0126.21332', 'STRIPE82-0061.15211', 'STRIPE82-0036.14458',
+		# 'STRIPE82-0110.58792']
+
+
+	for b in big_objs:
+		f = b.split('.')[0]
+		plot_bands(os.environ['DATA_PATH']+'/crops_calib/{}/{}.npy'.format(f, b))
+		plot_3bands(os.environ['DATA_PATH']+'/crops_rgb32/{}/{}.png'.format(f, b))
 	exit()
 
 	csv_dataset = 'csv/dr1_classes_split.csv' #dr1_classes_mag1418_split_ndet.csv'
