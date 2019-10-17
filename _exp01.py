@@ -11,7 +11,7 @@ from time import time
 from utils import get_sets
 
 
-def build_dataset(csv_file, target, batch_size=32):
+def build_dataset(csv_file, data_folder, input_dim, n_outputs, target, batch_size=32):
     df = pd.read_csv(csv_dataset)
     df = df[(df.photoflag==0)&(df.ndet==12)]
     print('dataset size', df.shape[0])
@@ -26,14 +26,22 @@ def build_dataset(csv_file, target, batch_size=32):
     print('train size', len(X_train))
     print('val size', len(X_val))
 
-    train_generator = DataGenerator(X_train, labels=labels_train, batch_size=batch_size, **params)
-    val_generator = DataGenerator(X_val, labels=labels_val, batch_size=batch_size, **params)
+    params = {
+        'batch_size': batch_size,
+        'data_folder': data_folder,
+        'dim': input_dim,
+        'n_outputs': n_outputs,
+        'target': target
+        }
+
+    train_generator = DataGenerator(X_train, labels=labels_train, **params)
+    val_generator = DataGenerator(X_val, labels=labels_val, **params)
 
     return X_train, y_train, X_val, y_val, train_generator, val_generator, class_weights
 
 
 def build_model(input_dim, n_outputs, lst_activation, loss, metrics, output_feature_dim=512,
-    top_layer=True, weights_file=None, depth=29, width=16, card=4):
+    top_layer=True, weights_file=None, depth=11, width=16, card=4):
     model = resnext(
         input_dim, depth=depth, cardinality=card, width=width, classes=n_outputs,
         last_activation=lst_activation, weight_decay=0)
@@ -141,9 +149,9 @@ extension_switch = {
 }
 
 images_folder_switch = {
-    3: '/crops32/',
-    5: '/crops_calib/',
-    12: '/crops_calib/'
+    3: 'crops_rgb32',
+    5: 'crops_calib',
+    12: 'crops_calib'
 }
 
 last_activation_switch = {
@@ -210,7 +218,7 @@ if __name__ == '__main__':
     # set parameters
     n_outputs = n_classes_switch.get(target)
     extension = extension_switch.get(n_bands)
-    images_folder = images_folder_switch.get(n_bands)
+    images_folder = os.path.join(data_dir, images_folder_switch.get(n_bands))
     lst_activation = last_activation_switch.get(target)
     loss = loss_switch.get(target)
     metrics_train = metrics_switch.get(target)
@@ -221,7 +229,7 @@ if __name__ == '__main__':
     # TODO time it
 
     # train backbone
-    X_train, _, X_val, y_val, train_gen, val_gen, class_weights = build_dataset(csv_file, target)
+    X_train, _, X_val, y_val, train_gen, val_gen, class_weights = build_dataset(csv_file, images_folder, input_dim, n_outputs, target)
     model = build_model(input_dim, n_outputs, lst_activation, loss, metrics_train, output_dim)
     history = train(model, train_gen, val_gen, model_file, class_weights)
     y_pred = predict(model, X_val)
@@ -236,7 +244,7 @@ if __name__ == '__main__':
     # TODO save feats
 
     # train dense classifier
-    _, y_train, _, y_val, _, _, class_weights = build_dataset(csv_file, 'classes')
+    _, y_train, _, y_val, _, _, class_weights = build_dataset(csv_file, images_folder, input_dim, n_classes_switch.get('classes'), 'classes')
     clf = build_classifier(X_train_feats.shape[1])
     clf_history = train_classifier(clf, X_train_feats, y_train, X_val_feats, y_val, class_weights)
     y_feats_pred = predict(clf, X_val_feats)

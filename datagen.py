@@ -2,29 +2,28 @@ from albumentations import Compose, Flip, HorizontalFlip, RandomRotate90, ShiftS
 from cv2 import imread
 import numpy as np
 import keras
+import os
 
 
 class DataGenerator(keras.utils.Sequence):
     # adapted from https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly
     def __init__(
-        self, object_ids, data_folder, n_bands, target='classes', labels=None, 
-        batch_size=32, dim=(5500,1), n_classes=3, shuffle=True, extension='npy', augmentation=True):
-        self.bands = bands
+        self, object_ids, data_folder, input_dim, target='classes', labels=None, 
+        batch_size=32, n_outputs=3, shuffle=True, extension='npy', augmentation=True):
         self.batch_size = batch_size
         self.data_folder = data_folder
-        self.extension = extension
         self.labels = labels
-        self.mode = mode
-        self.n_classes = n_classes
+        self.n_outputs = n_outputs
         self.object_ids = object_ids
-        self.shape_orig = dim
-        self.shape = dim
+        self.shape = input_dim
         self.shuffle = shuffle
-        self.augmentation = augmentation
-        self.aug = self.compose_augment()
+        self.target = target
 
-        if bands is not None:
-            self.shape = dim[:-1] + (len(bands),)
+        self.augmentation = augmentation
+        self.bands = [0, 5, 7, 9, 11] if shape[2]==5 else None
+        self.aug = self.compose_augment()
+        self.extension = '.npy' if shape[2]>3 else '.png'
+        self.shape_orig = input_dim[:-1] + (12,)
 
         self.on_epoch_end()
 
@@ -39,16 +38,22 @@ class DataGenerator(keras.utils.Sequence):
         indexes = self.indexes[index*self.batch_size:(index+1)*self.batch_size]
         list_ids_temp = [self.object_ids[k] for k in indexes]
         X, y = self.__data_generation(list_ids_temp)
+        # X = np.float32(X)
 
-        X = np.float32(X)
-
-        if self.mode=='autoencoder':
+        if self.target=='autoencoder':
             return X, X
 
         if y is None:
             return X
 
         return X, y
+
+
+    def on_epoch_end(self):
+        # update indexes after each epoch
+        self.indexes = np.arange(len(self.object_ids))
+        if self.shuffle == True:
+            np.random.shuffle(self.indexes)
 
 
     def compose_augment(self, p=.9):
@@ -63,48 +68,42 @@ class DataGenerator(keras.utils.Sequence):
         return self.aug(image=image)['image']
 
 
-    def on_epoch_end(self):
-        # update indexes after each epoch
-        self.indexes = np.arange(len(self.object_ids))
-        if self.shuffle == True:
-            np.random.shuffle(self.indexes)
-
-
     def __data_generation(self, list_ids_temp):
         # generate data containing batch_size samples
         X = np.empty((self.batch_size,)+self.shape)
-        if self.mode=='classes':
+
+        if self.target=='classes':
             y = np.empty((self.batch_size), dtype=int)
-        elif self.mode=='magnitudes':
-            y = np.zeros((self.batch_size, self.n_classes), dtype=float)
+        else:
+            y = np.zeros((self.batch_size, self.n_outputs), dtype=float)
 
         for i, object_id in enumerate(list_ids_temp):
-            if self.extension == 'txt':
-                spec = np.loadtxt(self.data_folder + object_id + '.txt').reshape(self.shape)
-                spec = spec + 30000 # min = -30000
-                spec = spec / 43000 # max = 13000; interval = 13000 - (-30000) = 43000
-                X[i,] = spec
-            elif self.extension == 'png':
-                im = imread(self.data_folder + object_id.split('.')[0] + '/' + object_id + '.png')
-                if self.augmentation:
-                    im = self.augment(im)
-                X[i,] = im
+            # if self.extension == 'txt':
+            #     spec = np.loadtxt(self.data_folder + object_id + '.txt').reshape(self.shape)
+            #     spec = spec + 30000 # min = -30000
+            #     spec = spec / 43000 # max = 13000; interval = 13000 - (-30000) = 43000
+            #     X[i,] = spec
+            filepath = os.path.join(self.data_folder, object_id.split('.')[0], object_id+extension)
+
+            if self.extension == 'png':
+                im = imread(filepath)
             else:
                 if self.bands is not None:
-                    arr = np.load(self.data_folder + object_id.split('.')[0] + '/' + object_id + '.npy').reshape(self.shape_orig)
-                    arr = arr[:,:,self.bands]
-                    X[i,] = arr
+                    im = np.load(filepath).reshape(self.shape_orig)
+                    im = im[:,:,self.bands]
                 else:
-                    im = np.load(self.data_folder + object_id.split('.')[0] + '/' + object_id + '.npy').reshape(self.shape)
-                    if self.augmentation:
-                        im = self.augment(im)
-                    X[i,] = im
+                    im = np.load(filepath).reshape(self.shape)
+
+            if self.augmentation:
+                im = self.augment(im)
+            X[i,] = im
+
             if self.labels is not None:
                 y[i,] = np.array(self.labels[object_id])
 
         if self.labels is None:
             return X, None
-        elif self.mode=='magnitudes':
-            return X, y
+        elif self.target=='classes':
+            return X, keras.utils.to_categorical(y, num_classes=self.n_outputs)
 
-        return X, keras.utils.to_categorical(y, num_classes=self.n_classes)
+        return X, y

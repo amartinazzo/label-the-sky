@@ -1,8 +1,3 @@
-'''
-resnext adapted from https://github.com/titu1994/Keras-ResNeXt/blob/master/resnext.py
-
-'''
-
 from keras.layers.advanced_activations import PReLU
 from keras.layers.core import Activation, Dense, Dropout, Lambda, Flatten
 from keras.layers.convolutional import Conv1D, Conv2D
@@ -60,22 +55,27 @@ def _1d_conv_net(n_filters, kernel_size, strides, input_shape, n_classes):
 
 
 def resnext(input_shape=None, depth=29, cardinality=8, width=64, weight_decay=5e-4,
-            top_layer=True, input_tensor=None, pooling=None, classes=3, last_activation='softmax'):
-    """Instantiate the ResNeXt architecture. Note that ,
-        when using TensorFlow for best performance you should set
-        `image_data_format="channels_last"` in your Keras config
-        at ~/.keras/keras.json.
-        # Arguments
-            depth: number or layers in the ResNeXt model. Can be an
-                integer or a list of integers.
-            cardinality: the size of the set of transformations
-            width: multiplier to the ResNeXt width (number of filters)
-            weight_decay: weight decay (l2 norm)
-            top_layer: include top layer (boolean)
-            weights: `None` (random initialization)
-        # Returns
-            A Keras model instance.
-        """
+            top_layer=True, input_tensor=None, pooling='avg', classes=3, last_activation='softmax',
+            output_dim=512):
+    '''
+    resnext adapted from https://github.com/titu1994/Keras-ResNeXt/blob/master/resnext.py
+
+    Instantiate the ResNeXt architecture. Note that ,
+    when using TensorFlow for best performance you should set
+    `image_data_format="channels_last"` in your Keras config
+    at ~/.keras/keras.json.
+    # Arguments
+        depth: number or layers in the ResNeXt model. Can be an
+            integer or a list of integers.
+        cardinality: the size of the set of transformations
+        width: multiplier to the ResNeXt width (number of filters)
+        weight_decay: weight decay (l2 norm)
+        top_layer: include top layer (boolean)
+        weights: `None` (random initialization)
+    # Returns
+        A Keras model instance.
+
+    '''
 
     if type(depth) == int:
         if (depth - 2) % 9 != 0:
@@ -99,7 +99,8 @@ def resnext(input_shape=None, depth=29, cardinality=8, width=64, weight_decay=5e
 
 
 def __initial_conv_block(input_layer, weight_decay=5e-4):
-    ''' Adds an initial convolution block, with batch normalization and relu activation
+    '''
+    Adds an initial convolution block, with batch normalization and relu activation
     Args:
         input: input tensor
         weight_decay: weight decay factor
@@ -263,15 +264,19 @@ def __create_res_next(nb_classes, img_input, top_layer, depth=29, cardinality=8,
                 x = __bottleneck_block(x, filters_list[block_idx], cardinality, strides=1,
                                        weight_decay=weight_decay)
 
-    if top_layer:
+    if pooling == 'avg':
         x = GlobalAveragePooling2D()(x)
+    elif pooling == 'max':
+        x = GlobalMaxPooling2D()(x)
+
+    if output_dim != 512: # TODO fix hard coded number
+        x = Dense(output_dim, use_bias=False, kernel_regularizer=l2(weight_decay),
+                  kernel_initializer='he_normal')(x)
+
+    if top_layer:
+        x = PReLU()(x)
         x = Dense(nb_classes, use_bias=False, kernel_regularizer=l2(weight_decay),
                   kernel_initializer='he_normal', activation=last_activation)(x)
-    else:
-        if pooling == 'avg':
-            x = GlobalAveragePooling2D()(x)
-        elif pooling == 'max':
-            x = GlobalMaxPooling2D()(x)
 
     return x
 
