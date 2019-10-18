@@ -20,10 +20,10 @@ class DataGenerator(keras.utils.Sequence):
         self.target = target
 
         self.augmentation = augmentation
-        self.bands = [0, 5, 7, 9, 11] if shape[2]==5 else None
+        self.bands = [0, 5, 7, 9, 11] if self.shape[2]==5 else None
         self.aug = self.compose_augment()
-        self.extension = '.npy' if shape[2]>3 else '.png'
-        self.shape_orig = input_dim[:-1] + (12,)
+        self.extension = '.npy' if self.shape[2]>3 else '.png'
+        self.shape_orig = self.shape[:-1] + (12,)
 
         self.on_epoch_end()
 
@@ -78,14 +78,15 @@ class DataGenerator(keras.utils.Sequence):
             y = np.zeros((self.batch_size, self.n_outputs), dtype=float)
 
         for i, object_id in enumerate(list_ids_temp):
-            # if self.extension == 'txt':
-            #     spec = np.loadtxt(self.data_folder + object_id + '.txt').reshape(self.shape)
-            #     spec = spec + 30000 # min = -30000
-            #     spec = spec / 43000 # max = 13000; interval = 13000 - (-30000) = 43000
-            #     X[i,] = spec
-            filepath = os.path.join(self.data_folder, object_id.split('.')[0], object_id+extension)
+            # if self.extension == '.txt':
+            #     im = np.loadtxt(self.data_folder + object_id + '.txt').reshape(self.shape)
+            #     im = im + 30000 # min = -30000
+            #     im = im / 43000 # max = 13000; interval = 13000 - (-30000) = 43000
+            #     X[i,] = im
+            
+            filepath = os.path.join(self.data_folder, object_id.split('.')[0], object_id+self.extension)
 
-            if self.extension == 'png':
+            if self.extension == '.png':
                 im = imread(filepath)
             else:
                 if self.bands is not None:

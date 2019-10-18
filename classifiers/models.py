@@ -91,7 +91,7 @@ def resnext(input_shape=None, depth=29, cardinality=8, width=64, weight_decay=5e
             img_input = input_tensor
 
     x = __create_res_next(classes, img_input, top_layer, depth, cardinality, width,
-                          weight_decay, pooling, last_activation)
+                          weight_decay, pooling, last_activation, output_dim)
 
     model = Model(img_input, x, name='resnext')
 
@@ -204,7 +204,7 @@ def __bottleneck_block(input_layer, filters=64, cardinality=8, strides=1, weight
 
 
 def __create_res_next(nb_classes, img_input, top_layer, depth=29, cardinality=8, width=4,
-    weight_decay=5e-4, pooling=None, last_activation='softmax'):
+    weight_decay=5e-4, pooling=None, last_activation='softmax', output_dim=512):
     '''
     Creates a ResNeXt model with specified parameters
     Args:
