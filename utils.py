@@ -1,3 +1,4 @@
+from keras.utils import to_categorical
 import matplotlib.pyplot as plt
 import numpy as np
 from pandas import read_csv
@@ -8,7 +9,7 @@ from sklearn.utils.multiclass import unique_labels
 class_map = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
 
 
-def get_sets(df, target='classes', filters=None):
+def get_sets(df, target='classes', n_bands=12, filters=None):
     """
     receives:
     * df            pandas dataframe
@@ -30,9 +31,13 @@ def get_sets(df, target='classes', filters=None):
     
     if target=='classes':
         y = df['class'].apply(lambda c: class_map[c]).values
+        y = to_categorical(y, num_classes=3)
     elif target=='magnitudes':
-        y = df[['u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z']].values
-        y = y/30
+        if n_bands==5:
+            y = df[['u','g','r','i','z']].values
+        else:
+            y = df[['u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z']].values
+        # y = y/30
     elif target=='redshifts':
         y = df[['redshift_base', 'redshift_exp']].values
     else:
@@ -59,7 +64,7 @@ def plot_confusion_matrix(y_true, y_pred, classes,
     # Compute confusion matrix
     cm = confusion_matrix(y_true, y_pred)
     # Only use the labels that appear in the data
-    #classes = classes[unique_labels(y_true, y_pred)]
+    # classes = classes[unique_labels(y_true, y_pred)]
     if normalize:
         cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
         print("Normalized confusion matrix")

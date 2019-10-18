@@ -1,11 +1,11 @@
 from albumentations import Compose, Flip, HorizontalFlip, RandomRotate90, ShiftScaleRotate
 from cv2 import imread
 import numpy as np
-import keras
+from keras.utils import Sequence, to_categorical
 import os
 
 
-class DataGenerator(keras.utils.Sequence):
+class DataGenerator(Sequence):
     # adapted from https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly
     def __init__(
         self, object_ids, data_folder, input_dim, target='classes', labels=None, 
@@ -105,6 +105,6 @@ class DataGenerator(keras.utils.Sequence):
         if self.labels is None:
             return X, None
         elif self.target=='classes':
-            return X, keras.utils.to_categorical(y, num_classes=self.n_outputs)
+            return X, to_categorical(y, num_classes=self.n_outputs)
 
         return X, y

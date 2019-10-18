@@ -33,11 +33,12 @@ declare -a pids
 
 for feature_dim in ${feature_dims[*]}
 do
-    for nband in ${nbands[*]}
+    for n in ${nbands[*]}
     do
         for output in ${outputs[*]}
         do
-            commands+=("python -u _exp01.py $data_dir csv/dr1_classes_split.csv $output $nbands $feature_dim")
+            commands+=("python -u _exp01.py $data_dir csv/dr1_classes_split.csv $output $n $feature_dim")
+            echo "python -u _exp01.py $data_dir csv/dr1_classes_split.csv $output $n $feature_dim"
         done
     done
 done

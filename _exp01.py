@@ -3,8 +3,12 @@ from datetime import date
 from glob import glob
 from keras import backend as K
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
+from keras.layers import Input
+from keras.layers.core import  Dense
+from keras.models import Model
 import numpy as np
 import pandas as pd
+import pickle
 from classifiers.models import resnext
 import os
 import sklearn.metrics as metrics
@@ -31,7 +35,8 @@ def build_dataset(csv_file, data_folder, input_dim, n_outputs, target, split=Non
     else:
         split = 'full'
 
-    X, y, labels = get_sets(df, target=target)
+    n_bands = input_dim[-1]
+    X, y, labels = get_sets(df, target=target, n_bands=n_bands)
     print(f'{split} size', len(X))
 
     params = {
@@ -48,7 +53,8 @@ def build_dataset(csv_file, data_folder, input_dim, n_outputs, target, split=Non
 
 
 def build_model(input_dim, n_outputs, lst_activation, loss, metrics, output_feature_dim=512,
-    top_layer=True, weights_file=None, depth=11, width=16, card=4):
+    # top_layer=True, weights_file=None, depth=11, width=16, card=4):
+    top_layer=True, weights_file=None, depth=29, width=64, card=8):
     print('depth', depth)
     print('width', width)
     print('cardinality', card)
@@ -58,12 +64,11 @@ def build_model(input_dim, n_outputs, lst_activation, loss, metrics, output_feat
         last_activation=lst_activation, output_dim=output_feature_dim)
 
     if top_layer:
-        # trainable_count = int(np.sum([K.count_params(p) for p in set(model.trainable_weights)]))
-        # non_trainable_count = int(np.sum([K.count_params(p) for p in set(model.non_trainable_weights)]))
-        # print('total params: {:,}'.format(trainable_count + non_trainable_count))
-        # print('trainable params: {:,}'.format(trainable_count))
-        # print('non-trainable params: {:,}'.format(non_trainable_count))
-        model.summary()
+        trainable_count = int(np.sum([K.count_params(p) for p in set(model.trainable_weights)]))
+        non_trainable_count = int(np.sum([K.count_params(p) for p in set(model.non_trainable_weights)]))
+        print('total params: {:,}'.format(trainable_count + non_trainable_count))
+        print('trainable params: {:,}'.format(trainable_count))
+        print('non-trainable params: {:,}'.format(non_trainable_count))
         model.compile(loss=loss, optimizer='adam', metrics=metrics)
         print('compiled model')
 
@@ -104,7 +109,7 @@ def build_classifier(input_dim, n_classes=3):
     return model
 
 
-def train_classifier(model, X_train, y_train, X_val, y_val, clf_file, class_weights=None, batch_size=32, epochs=300):
+def train_classifier(model, X_train, y_train, X_val, y_val, clf_file, class_weights=None, batch_size=32, epochs=10):
     callbacks = [
         ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5, verbose=1),
         ModelCheckpoint(clf_file, monitor='val_accuracy', save_best_only=True, save_weights_only=True, mode='max'),
@@ -116,22 +121,19 @@ def train_classifier(model, X_train, y_train, X_val, y_val, clf_file, class_weig
         callbacks=callbacks,
         validation_data=(X_val, y_val),
         class_weight=class_weights,
-        epochs=300)
+        epochs=300,
+        verbose=2)
 
     return history
 
 
-def predict(model, X):
-    y = model.predict(X)
-    return y
-
-
 def compute_error(y_pred, y_true, target):
     if target=='classes':
-        y_pred_max = np.argmax(y_pred, axis=1)
-        accuracy = metrics.accuracy_score(y_true, np.argmax(y_pred, axis=1))
+        y_true_arg = np.argmax(y_true, axis=1)
+        y_pred_arg = np.argmax(y_pred, axis=1)
+        accuracy = metrics.accuracy_score(y_true_arg, y_pred_arg)
         print('accuracy:', accuracy)
-        cm = metrics.confusion_matrix(y_true, y_pred)
+        cm = metrics.confusion_matrix(y_true_arg, y_pred_arg)
         cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
         print('confusion matrix')
         print(cm)
@@ -148,10 +150,16 @@ def compute_error(y_pred, y_true, target):
 ###########
 
 
-n_classes_switch = {
-    'classes': 3,
-    'magnitudes': 12,
-    'redshifts': 2,
+n_outputs_switch = {
+    'classes12': 3,
+    'classes5': 3,
+    'classes3': 3,
+    'magnitudes12': 12,
+    'magnitudes5': 5,
+    'magnitudes3': 12,
+    'redshifts12': 2,
+    'redshifts5': 2,
+    'redshifts3': 2,
 }
 
 extension_switch = {
@@ -168,7 +176,7 @@ images_folder_switch = {
 
 last_activation_switch = {
     'classes': 'softmax',
-    'magnitudes': 'sigmoid',
+    'magnitudes': 'relu',
     'redshifts': 'sigmoid',
 }
 
@@ -233,7 +241,7 @@ if __name__ == '__main__':
     print('output_dim', output_dim)
 
     # set parameters
-    n_outputs = n_classes_switch.get(target)
+    n_outputs = n_outputs_switch.get(target+str(n_bands))
     extension = extension_switch.get(n_bands)
     images_folder = os.path.join(data_dir, images_folder_switch.get(n_bands))
     lst_activation = last_activation_switch.get(target)
@@ -258,8 +266,11 @@ if __name__ == '__main__':
     history = train(model, train_gen, val_gen, model_file, class_weights)
     with open(os.path.join(results_folder, f'{model_name}_history.pkl'), 'wb') as f:
         pickle.dump(history.history, f)
-
-    y_pred = predict(model, X_val)
+    train_gen = DataGenerator(
+        X_train, shuffle=False, batch_size=1, data_folder=images_folder, input_dim=input_dim, n_outputs=n_outputs, target=target)
+    val_gen = DataGenerator(
+        X_val, shuffle=False, batch_size=1, data_folder=images_folder, input_dim=input_dim, n_outputs=n_outputs, target=target)
+    y_pred = model.predict_generator(val_gen)
     compute_error(y_pred, y_val, target)
     np.save(os.path.join(results_folder, f'{model_name}_y_train.npy'), y_train)
     np.save(os.path.join(results_folder, f'{model_name}_y_val.npy'), y_val)
@@ -269,19 +280,19 @@ if __name__ == '__main__':
     print('extracting features')
     model = build_model(input_dim, n_outputs, lst_activation, loss, metrics_train, output_dim,
         top_layer=False, weights_file=model_file)
-    X_train_feats = predict(model, X_train)
-    X_val_feats = predict(model, X_val)
+    X_train_feats = model.predict_generator(train_gen)
+    X_val_feats = model.predict_generator(val_gen)
     np.save(os.path.join(results_folder, f'{model_name}_X_train_features.npy'), X_train_feats)
     np.save(os.path.join(results_folder, f'{model_name}_X_val_features.npy'), X_val_feats)
     print('--- minutes taken:', int((time()-start)/60))
 
-    print('training dense classifier')
-    _, y_train, _, y_val, _, _, class_weights = build_dataset(csv_file, images_folder, input_dim, n_classes_switch.get('classes'), 'classes')
-    clf = build_classifier(X_train_feats.shape[1])
-    clf_history = train_classifier(clf, X_train_feats, y_train, X_val_feats, y_val, clf_file, class_weights)
-    y_feats_pred = predict(clf, X_val_feats)
-    compute_error(y_feats_pred, y_val, 'classes')
-    print('--- minutes taken:', int((time()-start)/60))
+    if target != 'classes':
+        print('training dense classifier')        
+        clf = build_classifier(X_train_feats.shape[1])
+        clf_history = train_classifier(clf, X_train_feats, y_train, X_val_feats, y_val, clf_file, class_weights)
+        y_feats_pred = clf.predict(X_val_feats)
+        compute_error(y_feats_pred, y_val, 'classes')
+        print('--- minutes taken:', int((time()-start)/60))
 
     print('extracting UMAP projections')
     X_features = np.concatenate([X_train_feats, X_val_feats])
