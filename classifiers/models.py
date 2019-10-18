@@ -272,9 +272,9 @@ def __create_res_next(nb_classes, img_input, top_layer, depth=29, cardinality=8,
     if output_dim != 512: # TODO fix hard coded number
         x = Dense(output_dim, use_bias=False, kernel_regularizer=l2(weight_decay),
                   kernel_initializer='he_normal')(x)
+        x = PReLU()(x)
 
     if top_layer:
-        x = PReLU()(x)
         x = Dense(nb_classes, use_bias=False, kernel_regularizer=l2(weight_decay),
                   kernel_initializer='he_normal', activation=last_activation)(x)
 

@@ -10,6 +10,7 @@ import os
 import sklearn.metrics as metrics
 import sys
 from time import time
+from umap import UMAP
 from utils import get_sets
 
 
@@ -18,7 +19,6 @@ def get_class_weights(csv_file):
     df = df[(df.photoflag==0)&(df.ndet==12)]
     print('dataset size', df.shape)
     return np.round(1/df['class'].value_counts(normalize=True).values, 1)
-
 
 
 def build_dataset(csv_file, data_folder, input_dim, n_outputs, target, split=None, batch_size=32):
@@ -211,7 +211,7 @@ if __name__ == '__main__':
     * target (classes, magnitudes, redshifts)
     (ordered from outer to inner loop)
 
-    total runs: 3*3*4 = 36
+    total runs: 4*3*3 = 36
 
     '''
 
@@ -288,5 +288,5 @@ if __name__ == '__main__':
     y_features = np.concatenate([y_train, y_val])
     X_umap = UMAP().fit_transform(X_features)
     np.save(os.path.join(results_folder, f'{model_name}_X_features_umap.npy'), X_umap)
-    np.save(os.path.join(results_folder, f'{model_name}_y_umap.npy'), X_umap)
+    np.save(os.path.join(results_folder, f'{model_name}_y_umap.npy'), y_features)
     print('--- minutes taken:', int((time()-start)/60))
