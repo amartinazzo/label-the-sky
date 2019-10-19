@@ -31,7 +31,6 @@ def get_sets(df, target='classes', n_bands=12, filters=None):
     
     if target=='classes':
         y = df['class'].apply(lambda c: class_map[c]).values
-        y = to_categorical(y, num_classes=3)
     elif target=='magnitudes':
         if n_bands==5:
             y = df[['u','g','r','i','z']].values

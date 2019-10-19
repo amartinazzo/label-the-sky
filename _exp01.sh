@@ -26,7 +26,7 @@ data_dir=$DATA_PATH
 
 declare -a outputs=(classes magnitudes)
 declare -a nbands=(12 5 3)
-declare -a feature_dims=(512 256 128 64)
+declare -a feature_dims=(1024) #(512 256 128 64)
 
 declare -a commands
 declare -a pids
@@ -38,7 +38,6 @@ do
         for output in ${outputs[*]}
         do
             commands+=("python -u _exp01.py $data_dir csv/dr1_classes_split.csv $output $n $feature_dim")
-            echo "python -u _exp01.py $data_dir csv/dr1_classes_split.csv $output $n $feature_dim"
         done
     done
 done

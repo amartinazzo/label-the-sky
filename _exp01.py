@@ -9,7 +9,7 @@ from keras.models import Model
 import numpy as np
 import pandas as pd
 import pickle
-from classifiers.models import resnext
+from classifiers.models import ResNeXt29
 import os
 import sklearn.metrics as metrics
 import sys
@@ -53,14 +53,12 @@ def build_dataset(csv_file, data_folder, input_dim, n_outputs, target, split=Non
 
 
 def build_model(input_dim, n_outputs, lst_activation, loss, metrics, output_feature_dim=512,
-    # top_layer=True, weights_file=None, depth=11, width=16, card=4):
-    top_layer=True, weights_file=None, depth=29, width=64, card=8):
-    print('depth', depth)
+    top_layer=True, weights_file=None, width=64, card=4):
     print('width', width)
     print('cardinality', card)
 
-    model = resnext(
-        input_dim, depth=depth, width=width, cardinality=card, classes=n_outputs,
+    model = ResNeXt29(
+        input_dim, num_classes=n_outputs, cardinality=card, bottleneck_width=width, top_layer=top_layer,
         last_activation=lst_activation, output_dim=output_feature_dim)
 
     if top_layer:
@@ -105,6 +103,7 @@ def build_classifier(input_dim, n_classes=3):
     outputs = Dense(n_classes, activation='softmax')(x)
     model = Model(inputs, outputs)
     model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+    model.summary()
 
     return model
 
@@ -129,11 +128,10 @@ def train_classifier(model, X_train, y_train, X_val, y_val, clf_file, class_weig
 
 def compute_error(y_pred, y_true, target):
     if target=='classes':
-        y_true_arg = np.argmax(y_true, axis=1)
         y_pred_arg = np.argmax(y_pred, axis=1)
-        accuracy = metrics.accuracy_score(y_true_arg, y_pred_arg)
+        accuracy = metrics.accuracy_score(y_true, y_pred_arg)
         print('accuracy:', accuracy)
-        cm = metrics.confusion_matrix(y_true_arg, y_pred_arg)
+        cm = metrics.confusion_matrix(y_true, y_pred_arg)
         cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
         print('confusion matrix')
         print(cm)
@@ -266,6 +264,9 @@ if __name__ == '__main__':
     history = train(model, train_gen, val_gen, model_file, class_weights)
     with open(os.path.join(results_folder, f'{model_name}_history.pkl'), 'wb') as f:
         pickle.dump(history.history, f)
+    print('--- minutes taken:', int((time()-start)/60))
+
+    print('evaluating model')
     train_gen = DataGenerator(
         X_train, shuffle=False, batch_size=1, data_folder=images_folder, input_dim=input_dim, n_outputs=n_outputs, target=target)
     val_gen = DataGenerator(
@@ -278,6 +279,8 @@ if __name__ == '__main__':
     print('--- minutes taken:', int((time()-start)/60))
 
     print('extracting features')
+    train_gen = DataGenerator(
+        X_train, shuffle=False, batch_size=1, data_folder=images_folder, input_dim=input_dim, n_outputs=n_outputs, target=target)
     model = build_model(input_dim, n_outputs, lst_activation, loss, metrics_train, output_dim,
         top_layer=False, weights_file=model_file)
     X_train_feats = model.predict_generator(train_gen)
