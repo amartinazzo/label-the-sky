@@ -19,7 +19,7 @@ def get_sets(df, target='classes', n_bands=12, filters=None):
 
     returns: (X, y, labels) triplet, where
     * X is a list of object ids
-    * y are integer-valued labels
+    * y are categorical labels
     * labels is a dict mapping each id to its label, e.g. {'x1': 0, 'x2': 1, ...}
     """
     # print('original set size', df.shape)
@@ -31,6 +31,7 @@ def get_sets(df, target='classes', n_bands=12, filters=None):
     
     if target=='classes':
         y = df['class'].apply(lambda c: class_map[c]).values
+        y = to_categorical(y, num_classes=3)
     elif target=='magnitudes':
         if n_bands==5:
             y = df[['u','g','r','i','z']].values

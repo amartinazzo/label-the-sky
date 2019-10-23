@@ -2,12 +2,15 @@ from keras.layers.advanced_activations import PReLU
 from keras.layers.core import Activation, Dense, Dropout, Lambda, Flatten
 from keras.layers.convolutional import Conv1D, Conv2D
 from keras.layers.pooling import GlobalAveragePooling2D, GlobalMaxPooling2D, MaxPooling2D, MaxPooling1D
-from keras.layers import Input
+from keras.layers import Input, Dense, Activation, Flatten
+from keras.layers import Convolution2D, AveragePooling2D, BatchNormalization, MaxPooling2D, ZeroPadding2D
 from keras.layers.merge import concatenate, add
 from keras.layers.normalization import BatchNormalization
 from keras.models import Model, Sequential
 from keras.regularizers import l2
+from keras.utils import np_utils
 import keras.backend as K
+import numpy as np
 
 
 def dense_net(input_shape, width=64, n_layers=2, n_classes=3):
@@ -54,14 +57,7 @@ def _1d_conv_net(n_filters, kernel_size, strides, input_shape, n_classes):
     return model
 
 
-from keras.layers import Input, Dense, Activation, Flatten
-from keras.layers import Convolution2D, AveragePooling2D, BatchNormalization, MaxPooling2D, ZeroPadding2D
-from keras.models import Model
-from keras import layers
-from keras.layers.merge import concatenate, add
-from keras.utils import np_utils
-from keras import backend as K
-import numpy as np
+
 
 if (K.image_data_format() == 'channels_first'):
     channel_axis = 1
@@ -123,7 +119,7 @@ def make_layer(block, input, numFilters, numBlocks, stride, cardinality, bottlen
 
 
 def ResNeXt_builder(
-    block, num_blocks, input_shape, num_classes, cardinality, bottleneck_width, top_layer, last_activation, output_dim):
+    block, num_blocks, input_shape, num_classes, cardinality, bottleneck_width, last_activation, output_dim):
     img_input = Input(shape=input_shape)
     x = my_conv(img_input, 64, (1, 1))
     x = BatchNormalization(axis=channel_axis)(x)
@@ -138,18 +134,20 @@ def ResNeXt_builder(
     x = Flatten()(x)
 
     if output_dim is not None and output_dim != x.shape[1]:
-        x = Dense(output_dim, activation='relu')
+        # TODO try conv1D
+        x = Dense(output_dim, activation='relu')(x)
 
-    if top_layer:
-        x = Dense(num_classes, activation=last_activation)(x)
+    top = Dense(num_classes, activation=last_activation)(x)
     
-    return Model(inputs=img_input, outputs=x)
+    return Model(img_input, [top, x])
 
 
-def ResNeXt29(input_shape, num_classes, cardinality=8, bottleneck_width=64, top_layer=True, last_activation='softmax', output_dim=None):
-    return ResNeXt_builder(Block, (3, 3, 3), input_shape, num_classes, cardinality, bottleneck_width, top_layer, last_activation, output_dim)
+def ResNeXt29(input_shape, num_classes, width=64, cardinality=8, last_activation='softmax', output_dim=None):
+    depth_seq = (3,3,3)
+    return ResNeXt_builder(
+        Block, depth_seq, input_shape, num_classes, cardinality, width, last_activation, output_dim)
 
 
 if __name__ == '__main__':
-    model = ResNeXt29((32, 32, 3), num_classes=10, cardinality=4, bottleneck_width=64)
+    model = ResNeXt29((32, 32, 3), num_classes=3, width=64, cardinality=4)
     model.summary()

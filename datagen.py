@@ -1,7 +1,7 @@
 from albumentations import Compose, Flip, HorizontalFlip, RandomRotate90, ShiftScaleRotate
 from cv2 import imread
 import numpy as np
-from keras.utils import Sequence, to_categorical
+from keras.utils import Sequence
 import os
 
 
@@ -104,7 +104,5 @@ class DataGenerator(Sequence):
 
         if self.labels is None:
             return X, None
-        elif self.target=='classes':
-            return X, to_categorical(y, num_classes=self.n_outputs)
 
         return X, y

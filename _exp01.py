@@ -58,21 +58,23 @@ def build_model(input_dim, n_outputs, lst_activation, loss, metrics, output_feat
     print('cardinality', card)
 
     model = ResNeXt29(
-        input_dim, num_classes=n_outputs, cardinality=card, bottleneck_width=width, top_layer=top_layer,
+        input_dim, num_classes=n_outputs, width=width, cardinality=card,
         last_activation=lst_activation, output_dim=output_feature_dim)
-
-    if top_layer:
-        trainable_count = int(np.sum([K.count_params(p) for p in set(model.trainable_weights)]))
-        non_trainable_count = int(np.sum([K.count_params(p) for p in set(model.non_trainable_weights)]))
-        print('total params: {:,}'.format(trainable_count + non_trainable_count))
-        print('trainable params: {:,}'.format(trainable_count))
-        print('non-trainable params: {:,}'.format(non_trainable_count))
-        model.compile(loss=loss, optimizer='adam', metrics=metrics)
-        print('compiled model')
 
     if weights_file is not None and os.path.exists(weights_file):
         model.load_weights(weights_file)
         print('loaded weights')
+
+    if not top_layer:
+        model.layers.pop()
+
+    model.compile(loss=loss, optimizer='adam', metrics=metrics)
+
+    # trainable_count = int(np.sum([K.count_params(p) for p in set(model.trainable_weights)]))
+    # non_trainable_count = int(np.sum([K.count_params(p) for p in set(model.non_trainable_weights)]))
+    # print('total params: {:,}'.format(trainable_count + non_trainable_count))
+    # print('trainable params: {:,}'.format(trainable_count))
+    # print('non-trainable params: {:,}'.format(non_trainable_count))
 
     return model
 
@@ -99,7 +101,7 @@ def train(model, train_gen, val_gen, model_file, class_weights=None, epochs=500)
 
 def build_classifier(input_dim, n_classes=3):
     inputs = Input(shape=(input_dim,))
-    x = Dense(input_dim, activation='relu')(inputs)
+    x = Dense(512, activation='relu')(inputs)
     outputs = Dense(n_classes, activation='softmax')(x)
     model = Model(inputs, outputs)
     model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
@@ -110,17 +112,14 @@ def build_classifier(input_dim, n_classes=3):
 
 def train_classifier(model, X_train, y_train, X_val, y_val, clf_file, class_weights=None, batch_size=32, epochs=10):
     callbacks = [
-        ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5, verbose=1),
         ModelCheckpoint(clf_file, monitor='val_accuracy', save_best_only=True, save_weights_only=True, mode='max'),
-        EarlyStopping(monitor='val_accuracy', mode='max', patience=8, restore_best_weights=True, verbose=1)
     ]
 
     history = model.fit(
         X_train, y_train,
-        callbacks=callbacks,
         validation_data=(X_val, y_val),
         class_weight=class_weights,
-        epochs=300,
+        epochs=epochs,
         verbose=2)
 
     return history
@@ -129,16 +128,17 @@ def train_classifier(model, X_train, y_train, X_val, y_val, clf_file, class_weig
 def compute_error(y_pred, y_true, target):
     if target=='classes':
         y_pred_arg = np.argmax(y_pred, axis=1)
-        accuracy = metrics.accuracy_score(y_true, y_pred_arg)
+        y_true_arg = np.argmax(y_true, axis=1)
+        accuracy = metrics.accuracy_score(y_true_arg, y_pred_arg)
         print('accuracy:', accuracy)
-        cm = metrics.confusion_matrix(y_true, y_pred_arg)
+        cm = metrics.confusion_matrix(y_true_arg, y_pred_arg)
         cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
         print('confusion matrix')
         print(cm)
     else:
         err_abs = np.absolute(y_true-y_pred)
         df = pd.DataFrame(err_abs)
-        print(df.describe())
+        print(df.describe().to_string())
         print('MAE:', np.mean(err_abs))
         print('MAPE:', np.mean(err_abs/y_true)*100)
 
@@ -247,8 +247,10 @@ if __name__ == '__main__':
     metrics_train = metrics_switch.get(target)
 
     input_dim = (32, 32, n_bands)
-    model_name = '{}_{}_{}bands_{}'.format(date.today().strftime('%y%m%d'), target, n_bands, output_dim)
-    clf_name = '{}_{}_{}bands_{}'.format(date.today().strftime('%y%m%d'), 'topclf', n_bands, output_dim)
+    # model_name = '{}_{}_{}bands_{}'.format(date.today().strftime('%y%m%d'), target, n_bands, output_dim)
+    # clf_name = '{}_{}_{}bands_{}'.format(date.today().strftime('%y%m%d'), 'topclf', n_bands, output_dim)
+    model_name = '{}_{}_{}bands_{}'.format(191018, target, n_bands, output_dim)
+    clf_name = '{}_{}_{}bands_{}'.format(191018, 'topclf', n_bands, output_dim)
     model_file = data_dir+f'/trained_models/{model_name}.h5'
     clf_file = data_dir+f'/trained_models/{clf_name}.h5'
     results_folder = os.getenv('HOME')+'/label_the_sky/results'
@@ -256,51 +258,50 @@ if __name__ == '__main__':
 
     start = time()
 
-    print('training backbone')
+    # print('training backbone')
     class_weights = get_class_weights(csv_file)
     X_train, y_train, train_gen = build_dataset(csv_file, images_folder, input_dim, n_outputs, target, 'train')
     X_val, y_val, val_gen = build_dataset(csv_file, images_folder, input_dim, n_outputs, target, 'val')
     model = build_model(input_dim, n_outputs, lst_activation, loss, metrics_train, output_dim)
-    history = train(model, train_gen, val_gen, model_file, class_weights)
-    with open(os.path.join(results_folder, f'{model_name}_history.pkl'), 'wb') as f:
-        pickle.dump(history.history, f)
-    print('--- minutes taken:', int((time()-start)/60))
+
+    # history = train(model, train_gen, val_gen, model_file, class_weights)
+    # with open(os.path.join(results_folder, f'{model_name}_history.pkl'), 'wb') as f:
+    #     pickle.dump(history.history, f)
+    # print('--- minutes taken:', int((time()-start)/60))
 
     print('evaluating model')
     train_gen = DataGenerator(
         X_train, shuffle=False, batch_size=1, data_folder=images_folder, input_dim=input_dim, n_outputs=n_outputs, target=target)
     val_gen = DataGenerator(
         X_val, shuffle=False, batch_size=1, data_folder=images_folder, input_dim=input_dim, n_outputs=n_outputs, target=target)
-    y_pred = model.predict_generator(val_gen)
-    compute_error(y_pred, y_val, target)
+    model = build_model(input_dim, n_outputs, lst_activation, loss, metrics_train, output_dim, weights_file=model_file)
+    y_val_hat, X_val_feats = model.predict_generator(val_gen)
+    compute_error(y_val_hat, y_val, target)
     np.save(os.path.join(results_folder, f'{model_name}_y_train.npy'), y_train)
     np.save(os.path.join(results_folder, f'{model_name}_y_val.npy'), y_val)
-    np.save(os.path.join(results_folder, f'{model_name}_y_val_pred.npy'), y_pred)
+    np.save(os.path.join(results_folder, f'{model_name}_y_val_hat.npy'), y_val_hat)
     print('--- minutes taken:', int((time()-start)/60))
 
-    print('extracting features')
-    train_gen = DataGenerator(
-        X_train, shuffle=False, batch_size=1, data_folder=images_folder, input_dim=input_dim, n_outputs=n_outputs, target=target)
-    model = build_model(input_dim, n_outputs, lst_activation, loss, metrics_train, output_dim,
-        top_layer=False, weights_file=model_file)
-    X_train_feats = model.predict_generator(train_gen)
-    X_val_feats = model.predict_generator(val_gen)
-    np.save(os.path.join(results_folder, f'{model_name}_X_train_features.npy'), X_train_feats)
-    np.save(os.path.join(results_folder, f'{model_name}_X_val_features.npy'), X_val_feats)
-    print('--- minutes taken:', int((time()-start)/60))
-
-    if target != 'classes':
-        print('training dense classifier')        
-        clf = build_classifier(X_train_feats.shape[1])
-        clf_history = train_classifier(clf, X_train_feats, y_train, X_val_feats, y_val, clf_file, class_weights)
-        y_feats_pred = clf.predict(X_val_feats)
-        compute_error(y_feats_pred, y_val, 'classes')
+    if model_name != '191018_classes_12bands_1024':
+        print('extracting features')
+        train_gen = DataGenerator(
+            X_train, shuffle=False, batch_size=1, data_folder=images_folder, input_dim=input_dim, n_outputs=n_outputs, target=target)
+        model = build_model(input_dim, n_outputs, lst_activation, loss, metrics_train, output_dim, weights_file=model_file)
+        y_train_hat, X_train_feats = model.predict_generator(train_gen)
+        X_val_feats = model.predict_generator(val_gen)
+        np.save(os.path.join(results_folder, f'{model_name}_X_train_features.npy'), X_train_feats)
+        np.save(os.path.join(results_folder, f'{model_name}_X_val_features.npy'), X_val_feats)
         print('--- minutes taken:', int((time()-start)/60))
+
+    print('training dense classifier')        
+    clf = build_classifier(X_train_feats.shape[1])
+    clf_history = train_classifier(clf, X_train_feats, y_train, X_val_feats, y_val, clf_file, class_weights)
+    y_feats_pred = clf.predict(X_val_feats)
+    compute_error(y_feats_pred, y_val, 'classes')
+    print('--- minutes taken:', int((time()-start)/60))
 
     print('extracting UMAP projections')
     X_features = np.concatenate([X_train_feats, X_val_feats])
-    y_features = np.concatenate([y_train, y_val])
     X_umap = UMAP().fit_transform(X_features)
     np.save(os.path.join(results_folder, f'{model_name}_X_features_umap.npy'), X_umap)
-    np.save(os.path.join(results_folder, f'{model_name}_y_umap.npy'), y_features)
     print('--- minutes taken:', int((time()-start)/60))

@@ -21,7 +21,7 @@ declare -a servers=($(hostname))
 #     exit 1
 # fi
 
-date=`date "+%y%m%d"`
+date=191018 #`date "+%y%m%d"`
 data_dir=$DATA_PATH
 
 declare -a outputs=(classes magnitudes)
@@ -53,7 +53,7 @@ while true
 do
     server=${servers[$s]}
 
-    for gpu in 0
+    for gpu in 1
     do
         cmd=${commands[$i]}
         task=$(echo $cmd | cut -d" " -f6)
@@ -63,9 +63,9 @@ do
         if [ "$cmd" != "" ]
         then
             logfile="logs/${date}_${task}_${nbands}bands_${feat_dim}.log"
-            echo "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"
-            echo "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &" >> $logfile
-            eval "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"
+            echo "CUDA_VISIBLE_DEVICES=$gpu $cmd >> $logfile 2>&1 &"
+            echo "CUDA_VISIBLE_DEVICES=$gpu $cmd >> $logfile 2>&1 &" >> $logfile
+            eval "CUDA_VISIBLE_DEVICES=$gpu $cmd >> $logfile 2>&1 &"
             pids+=($!)
             i=$((i + 1))
         fi
