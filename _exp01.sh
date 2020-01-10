@@ -22,9 +22,9 @@ declare -a servers=($(hostname))
 # fi
 
 date=191018 #`date "+%y%m%d"`
-data_dir=$DATA_PATH
+data_dir=$HOME/label_the_sky/results #$DATA_PATH
 
-declare -a outputs=(classes magnitudes)
+declare -a outputs=(classes)
 declare -a nbands=(12 5 3)
 declare -a feature_dims=(1024) #(512 256 128 64)
 
@@ -37,7 +37,7 @@ do
     do
         for output in ${outputs[*]}
         do
-            commands+=("python -u _exp01.py $data_dir csv/dr1_classes_split.csv $output $n $feature_dim")
+            commands+=("python -u eval.py $data_dir csv/dr1_classes_split.csv $output $n $feature_dim $date")
         done
     done
 done

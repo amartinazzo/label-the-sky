@@ -63,15 +63,17 @@ def delete(catalog_path, folder_pattern):
             print('Error:', str(e))
 
 
-def get_observation_dates(folder_pattern, save_file):
+def get_metadata(folder_pattern, save_file):
     files = glob(folder_pattern)
     files.sort()
     print('nr of files', len(files))
     dates = []
+    airmasses = []
     for f in files:
         im = fits.open(f)
         dates.append(im[1].header['HIERARCH OAJ PRO REFDATEOBS'])
-    df = pd.DataFrame({'file': files, 'date': dates})
+        airmasses.append(im[1].header['HIERARCH OAJ PRO REFAIRMASS'])
+    df = pd.DataFrame({'file': files, 'date': dates, 'airmass': airmasses})
     df.to_csv(save_file, index=False)
     print('saved csv')
     df['file'] =df.file.apply(lambda s: s.split('/')[-1])
@@ -94,9 +96,9 @@ def crop_objects_in_rgb(df, input_folder, save_folder, size=32, fwhm_radius=1.5)
     df['field'] = df.id.apply(lambda s: s.split('.')[0])
 
     # ignore objects that have already been cropped
-    # imgfiles = glob(save_folder+'*/*.png')
-    # imgfiles = [i.split('/')[-1][:-4] for i in imgfiles]
-    # df = df[~df.id.isin(imgfiles)]
+    imgfiles = glob(save_folder+'*/*.png')
+    imgfiles = [i.split('/')[-1][:-4] for i in imgfiles]
+    df = df[~df.id.isin(imgfiles)]
     print('df after ignoring existing crops', df.shape)
     
     lst_field = ''
@@ -379,16 +381,17 @@ def normalize_images(input_folder, output_folder, bounds_lower, bounds_upper):
 
 if __name__=='__main__':
     data_dir = os.environ['DATA_PATH']
-    sweep_fields(
-        fields_path=data_dir+'/dr1/coadded/*/*.fz',
-        catalog_path='csv/dr1_classes_split.csv',
-        crops_folder=data_dir+'/crops_asinh/',
-        calibrate=False,
-        asinh=True,
-        )
-
+    # sweep_fields(
+    #     fields_path=data_dir+'/dr1/coadded/*/*.fz',
+    #     catalog_path='csv/dr1_classes_split.csv',
+    #     crops_folder=data_dir+'/crops_asinh/',
+    #     calibrate=False,
+    #     asinh=True,
+    #     )
+    
+    get_metadata(data_dir+'/dr1/coadded/*/*.fz', 'fields_metadata.csv')
     exit()
 
-    df = pd.read_csv(data_dir+'/astromega/SGu.csv')
+    df = pd.read_csv(data_dir+'/astromega/SGu-100.csv')
     print('shape', df.shape)
-    crop_objects_in_rgb(df, data_dir+'/dr1/color_images/', data_dir+'/crops_rgb/', 76)
+    crop_objects_in_rgb(df, data_dir+'/dr1/color_images/', data_dir+'/crops_rgb32/', 32)

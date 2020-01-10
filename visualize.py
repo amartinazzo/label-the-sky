@@ -199,7 +199,6 @@ def plot_2d_embedding(X, df, filepath, format_='png', clear=True):
 	else:
 		plt.scatter(X[:,0], X[:,1], c='k', s=0.5, marker='.', alpha=0.1) #c=k => black
 	plt.setp(plt.gcf().get_axes(), xticks=[], yticks=[])
-	fig = plt.gcf()
 	plt.tight_layout()
 	plt.savefig(f'{filepath}.{format_}', dpi=100, format=format_)
 
