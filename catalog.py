@@ -209,11 +209,16 @@ def fill_undetected(df):
     df[mags] = df_mags.values
 
 
-def stratified_split(filepath, mag_range=None, fill_undet=False, test_split=0.1, val_split=0.11):
+def stratified_split(filepath, mag_range=None, fill_undet=False, test_split=0.1, val_split=0.11, e=0.5):
     df = pd.read_csv(filepath)
     df = df[(~df['class'].isna()) & (df.ndet==12) & (df.photoFlag==0)]
+    df = df[(
+        df.u_err <= e) & (df.f378_err <= e) & (df.f395_err <= e) & (df.f410_err <= e) & (df.f430_err <= e) & (df.g_err <= e) & (
+        df.f515_err <= e) & (df.r_err <= e) & (df.f660_err <= e) & (df.i_err <= e) & (df.f861_err <= e) & (df.z_err <= e)]
     if mag_range is not None:
         df = df[df.r.between(mag_range[0], mag_range[1])]
+
+    print('shape after filtering', df.shape)
 
     if fill_undet:
         print('filling undetected')
@@ -264,7 +269,7 @@ def stratified_split(filepath, mag_range=None, fill_undet=False, test_split=0.1,
         print()
 
     df.drop(columns=['class_mag', 'class_mag_int'], inplace=True)
-    df.to_csv('{}_split_photoflag0.csv'.format(filepath[:-4]), index=False)
+    df.to_csv('{}_split.csv'.format(filepath[:-4]), index=False)
 
 
 def stratified_split_unlabeled(filepath, mag_range=(0,18), test_split=0.1, val_split=0.11):
@@ -305,7 +310,7 @@ if __name__=='__main__':
     petroRad_u, petroRad_g, petroRad_r, petroRad_i, petroRad_z, 
     petroRadErr_u, petroRadErr_g, petroRadErr_r, petroRadErr_i, petroRadErr_z
     from PhotoObj
-    where abs(ra) < 60 and abs(dec) < 1.25 and objID>{}
+    where abs(dec) < 1.25 and objID>{}
     order by objID
     '''
 
@@ -317,9 +322,9 @@ if __name__=='__main__':
     from SpecObj
     where abs(dec) < 1.46
     '''
+    # master catalog: dec in (-1.4139, 1.4503)
     
-    # query_sdss(photo_query, 'sdss_photo_{}.csv')
-    # query_sdss(spec_query, 'csv/sdss_spec_full_STRIPE82.csv')
+    query_sdss(spec_query, 'csv/sdss_spec_full_STRIPE82.csv')
 
     # gen master catalog
     data_dir = os.environ['DATA_PATH']
@@ -332,4 +337,4 @@ if __name__=='__main__':
     c = match_catalogs(sloan_cat, splus_cat, matched_cat)
 
     # gen split catalog
-    # stratified_split_unsup('csv/dr1.csv')
+    stratified_split(matched_cat)

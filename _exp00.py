@@ -99,6 +99,8 @@ if __name__ == '__main__':
     csv_file = sys.argv[2]
     n_bands = int(sys.argv[3])
 
+    print('building dataset')
+
     # build datasets
     X, y = build_flattened_dataset(csv_file, data_dir, n_bands)
     X_catalog, y_catalog = build_catalog_dataset(csv_file)
