@@ -186,7 +186,7 @@ def get_zps(field):
 
 def calibrate(data, zp):
     '''
-    applies corrections to given data (image) according to given zp value
+    applies corrections to given data (image) according to given zp (zero-point) value
     receives:
         * data (np array)  single band bidimensional image
         * zp   (float)     zero point value to be used for calibrating the image
