@@ -43,7 +43,6 @@ from utils import get_sets
 
 def get_class_weights(csv_file):
     df = pd.read_csv(csv_file)
-    df = df[(df.photoflag==0)&(df.ndet==12)]
     print('dataset size', df.shape)
     return np.round(1/df['class'].value_counts(normalize=True).values, 1)
 
@@ -227,7 +226,7 @@ if __name__ == '__main__':
     target = sys.argv[-4]
     n_bands = int(sys.argv[-3])
     output_dim = int(sys.argv[-2])
-    timestamp = 191019 #sys.argv[-1]
+    timestamp = sys.argv[-1]
 
     print('data_dir', data_dir)
     print('csv_file', csv_file)

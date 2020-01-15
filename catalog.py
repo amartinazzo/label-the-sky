@@ -9,22 +9,6 @@ import pandas as pd
 from sklearn.model_selection import StratifiedShuffleSplit
 import time
 
-usecols = [
-    'ID', 'RA', 'Dec', 'X', 'Y', 'MUMAX', 's2nDet', 'PhotoFlag', 'nDet_auto', 'FWHM',
-    'uJAVA_auto', 'F378_auto', 'F395_auto', 'F410_auto', 'F430_auto', 'g_auto',
-    'F515_auto', 'r_auto', 'F660_auto', 'i_auto', 'F861_auto', 'z_auto',
-    'euJAVA_auto','eF378_auto','eF395_auto','eF410_auto','eF430_auto','eg_auto',
-    'eF515_auto','er_auto','eF660_auto','ei_auto','eF861_auto','ez_auto'
-]
-
-usecols_str = "id,ra,dec,x,y,mumax,s2n,photoflag,ndet,fwhm,u,f378,f395,f410,f430,g,f515,r,f660,i,f861,z\n"
-
-cols = [
-    'id', 'ra', 'dec', 'x', 'y', 'mumax', 's2n', 'photoflag', 'ndet', 'fwhm', 
-    'u', 'f378', 'f395', 'f410', 'f430', 'g', 'f515', 'r', 'f660', 'i', 'f861', 'z',
-    'u_err','f378_err','f395_err','f410_err','f430_err','g_err',
-    'f515_err','r_err','f660_err','i_err','f861_err','z_err'
-]
 
 orig_cols = [
     'ID', 'RA', 'Dec', 'X', 'Y', 'ISOarea', 's2nDet', 'PhotoFlag', 'FWHM', 'MUMAX', 'A', 'B', 'THETA', 'FlRadDet', 'KrRadDet',
@@ -75,7 +59,7 @@ def gen_master_catalog(catalogs_path, output_file, header_file='csv/fits_header_
         cat.to_csv(output_file, index=False, header=False, mode='a')
 
 
-def filter_master_catalog(master_cat_file, output_file):
+def filter_master_catalog(master_cat_file, output_file, usecols_orig, usecols_renamed):
     '''
     generates a catalog from master_catalog_dr_march2019.cat
     filtered by given columns
@@ -87,8 +71,8 @@ def filter_master_catalog(master_cat_file, output_file):
     cat.dropna(inplace=True)
     int_cols = ['X', 'Y']
     cat[int_cols] = cat[int_cols].apply(lambda x: round(x)).astype(int)
-    cat = cat[usecols]
-    cat.columns = cols
+    cat = cat[usecols_orig]
+    cat.columns = usecols_renamed
     cat['id'] = cat.id.str.replace('.griz', '')
     cat['id'] = cat.id.str.replace('SPLUS.', '')
 
@@ -155,22 +139,15 @@ def match_catalogs(new_df, base_df, matched_cat_path=None, max_distance=1.0):
     # print(agg.d2d.min(), agg.d2d.max())
 
     final_cat = base_df.merge(new_df, how='left', left_index=True, right_on='base_idx', suffixes=('', '_'))
-    f = final_cat[~final_cat.matched.isna()]
-    print(f[['ra','dec','ra_','dec_','d2d']].head(20))
-    final_cat = final_cat[cols+[
-        'd2d', 'class','subclass', 'z_',
-        'spectroFlux_u', 'spectroFlux_g', 'spectroFlux_r', 'spectroFlux_i', 'spectroFlux_z',
-        'u_err','f378_err','f395_err','f410_err','f430_err','g_err',
-        'f515_err','r_err','f660_err','i_err','f861_err','z_err'
-        ]]
+    final_cat = final_cat[~final_cat.matched.isna()]
 
     final_cat['redshift'] = final_cat.z_
 
     final_cat = final_cat[[
-        'id','ra','dec','x','y','mumax','s2n','photoflag','ndet','fwhm',
+        'id','ra','dec','class','subclass','x','y','mumax','s2n','photoflag','ndet','fwhm',
         'u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z',
         'spectroFlux_u', 'spectroFlux_g', 'spectroFlux_r', 'spectroFlux_i', 'spectroFlux_z', 
-        'd2d','class','subclass','redshift',
+        'd2d','redshift',
         'u_err','f378_err','f395_err','f410_err','f430_err','g_err',
         'f515_err','r_err','f660_err','i_err','f861_err','z_err']]
 
@@ -211,7 +188,7 @@ def fill_undetected(df):
 
 def stratified_split(filepath, mag_range=None, fill_undet=False, test_split=0.1, val_split=0.11, e=0.5):
     df = pd.read_csv(filepath)
-    df = df[(~df['class'].isna()) & (df.ndet==12) & (df.photoFlag==0)]
+    df = df[(~df['class'].isna()) & (df.ndet==12) & (df.photoflag==0)]
     df = df[(
         df.u_err <= e) & (df.f378_err <= e) & (df.f395_err <= e) & (df.f410_err <= e) & (df.f430_err <= e) & (df.g_err <= e) & (
         df.f515_err <= e) & (df.r_err <= e) & (df.f660_err <= e) & (df.i_err <= e) & (df.f861_err <= e) & (df.z_err <= e)]
@@ -224,7 +201,8 @@ def stratified_split(filepath, mag_range=None, fill_undet=False, test_split=0.1,
         print('filling undetected')
         fill_undetected(df)
 
-    df.loc[df.r<13,'r'] = 13
+    df.loc[df.r<14,'r'] = 14
+    df.loc[df.r>21,'r'] = 21
     df['class_mag'] = np.round(df.r.values).astype(np.uint8)
     df.loc[df['class']=='QSO', 'class_mag'] = df.class_mag.apply(lambda r: r if r%2==0 else r+1)
     df['class_mag'] = df['class'] + df['class_mag'].astype(str)
@@ -324,11 +302,27 @@ if __name__=='__main__':
     '''
     # master catalog: dec in (-1.4139, 1.4503)
     
-    query_sdss(spec_query, 'csv/sdss_spec_full_STRIPE82.csv')
+    # query_sdss(spec_query, 'csv/sdss_spec_full_STRIPE82.csv')
 
     # gen master catalog
     data_dir = os.environ['DATA_PATH']
-    filter_master_catalog(data_dir+'/dr1/SPLUS_STRIPE82_master_catalog_dr_march2019.cat', 'csv/dr1.csv')
+
+    usecols = [
+        'ID', 'RA', 'Dec', 'X', 'Y', 'MUMAX', 's2nDet', 'PhotoFlag', 'nDet_auto', 'FWHM',
+        'uJAVA_auto', 'F378_auto', 'F395_auto', 'F410_auto', 'F430_auto', 'g_auto',
+        'F515_auto', 'r_auto', 'F660_auto', 'i_auto', 'F861_auto', 'z_auto',
+        'euJAVA_auto','eF378_auto','eF395_auto','eF410_auto','eF430_auto','eg_auto',
+        'eF515_auto','er_auto','eF660_auto','ei_auto','eF861_auto','ez_auto'
+    ]
+
+    usecols_renamed = [
+        'id', 'ra', 'dec', 'x', 'y', 'mumax', 's2n', 'photoflag', 'ndet', 'fwhm', 
+        'u', 'f378', 'f395', 'f410', 'f430', 'g', 'f515', 'r', 'f660', 'i', 'f861', 'z',
+        'u_err','f378_err','f395_err','f410_err','f430_err','g_err',
+        'f515_err','r_err','f660_err','i_err','f861_err','z_err'
+    ]
+
+    # filter_master_catalog(data_dir+'/dr1/SPLUS_STRIPE82_master_catalog_dr_march2019.cat', 'csv/dr1.csv', usecols, usecols_renamed)
     
     # match catalogs
     splus_cat = pd.read_csv('csv/dr1.csv')

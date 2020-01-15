@@ -69,7 +69,6 @@ def build_flattened_dataset(csv_file, input_dir, nbands):
 
 def build_catalog_dataset(csv_file):
     df_orig = pd.read_csv(csv_file)
-    df_orig = df_orig[(df_orig.photoflag==0)&(df_orig.ndet==12)]
 
     X = {}
     y = {}
