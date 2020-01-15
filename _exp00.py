@@ -17,6 +17,7 @@ import os
 import numpy as np
 import pandas as pd
 from skimage import io
+from sklearn.linear_model import LogisticRegression
 import sys
 from time import time
 
@@ -39,10 +40,11 @@ def build_flattened_dataset(csv_file, input_dir, nbands):
         print('processing', split)
         df = df_orig[df_orig.split==split]
 
-        y[split] = to_categorical(df['class'].apply(lambda c: class_map[c]).values, num_classes=3)
+        y[split] = df['class'].apply(lambda c: class_map[c]).values
 
-        if os.path.exists(os.path.join(os.environ['DATA_PATH'], f'X_flattened_{split}.npy')):
+        if os.path.exists(os.path.join(os.environ['DATA_PATH'], f'X_flattened_{split}_{nbands}bands.npy')):
             X[split] = np.load(os.path.join(os.environ['DATA_PATH'], f'X_flattened_{split}_{nbands}bands.npy'))
+            print(f'loaded: X_flattened_{split}_{nbands}bands.npy')
         else:
             img_list = df.id.values
             img_list = [os.path.join(input_dir, file.split('.')[0], file+ext) for file in img_list]
@@ -62,7 +64,7 @@ def build_flattened_dataset(csv_file, input_dir, nbands):
                 X[split][ix,:] = x.flatten()
             print('final shape', X[split].shape)
             np.save(os.path.join(os.environ['DATA_PATH'], f'X_flattened_{split}_{nbands}bands.npy'), X[split])
-            print('{}saved flattenned array;'.format(int((time()-start)/60)), split)
+            print('{} min. saved flattenned array;'.format(int((time()-start)/60)), split)
 
     return X, y
 
@@ -78,7 +80,7 @@ def build_catalog_dataset(csv_file):
         df = df_orig[df_orig.split==split]
 
         X[split] = df[['u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z', 'fwhm']].values
-        y[split] = to_categorical(df['class'].apply(lambda c: class_map[c]).values, num_classes=3)
+        y[split] = df['class'].apply(lambda c: class_map[c]).values
 
     return X, y
 
@@ -102,6 +104,23 @@ if __name__ == '__main__':
 
     # build datasets
     X, y = build_flattened_dataset(csv_file, data_dir, n_bands)
-    X_catalog, y_catalog = build_catalog_dataset(csv_file)
+    X_cat, y_cat = build_catalog_dataset(csv_file)
 
     # train log reg
+    # lr_cat = LogisticRegression(
+    #     max_iter=10000,
+    #     multi_class='multinomial',
+    #     n_jobs=-1,
+    #     solver='lbfgs'
+    #     ).fit(X_cat['train'], y_cat['train'])
+    # print('LogisticRegression; catalog')
+    # print(lr_cat.score(X_cat['val'], y_cat['val']))
+
+    lr = LogisticRegression(
+        max_iter=10000,
+        multi_class='multinomial',
+        n_jobs=-1,
+        solver='lbfgs'
+        ).fit(X['train'], y['train'])
+    print('LogisticRegression; images')
+    lr.score(X['val'], y['val'])
