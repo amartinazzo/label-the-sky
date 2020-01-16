@@ -116,9 +116,9 @@ def train(model, train_gen, val_gen, model_file, class_weights=None, epochs=500)
     return history
 
 
-def build_classifier(input_dim, n_classes=3):
+def build_classifier(input_dim, n_intermed=512, n_classes=3):
     inputs = Input(shape=(input_dim,))
-    x = Dense(512, activation='relu')(inputs)
+    x = Dense(n_intermed, activation='relu')(inputs)
     outputs = Dense(n_classes, activation='softmax')(x)
     model = Model(inputs, outputs)
     model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
@@ -142,10 +142,14 @@ def train_classifier(model, X_train, y_train, X_val, y_val, clf_file, class_weig
     return history
 
 
-def compute_metrics(y_pred, y_true, target):
+def compute_metrics(y_pred, y_true, target='classes', mode='onehot'):
     if target=='classes':
-        y_pred_arg = np.argmax(y_pred, axis=1)
-        y_true_arg = np.argmax(y_true, axis=1)
+        if mode=='onehot':
+            y_pred_arg = np.argmax(y_pred, axis=1)
+            y_true_arg = np.argmax(y_true, axis=1)
+        else:
+            y_pred_arg = np.copy(y_pred)
+            y_true_arg = np.copy(y_true)
         print(metrics.classification_report(y_true_arg, y_pred_arg, target_names=['GALAXY', 'STAR', 'QSO']))
         cm = metrics.confusion_matrix(y_true_arg, y_pred_arg)
         cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]

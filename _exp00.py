@@ -12,6 +12,7 @@ compare raw images (32x32xn features) to catalog (12+1 features)
 
 '''
 
+from _exp01 import build_classifier, train_classifier, compute_metrics
 from keras.utils import to_categorical
 import os
 import numpy as np
@@ -107,13 +108,15 @@ if __name__ == '__main__':
     X_cat, y_cat = build_catalog_dataset(csv_file)
 
     # train log reg
-    # lr_cat = LogisticRegression(
-    #     max_iter=10000,
-    #     multi_class='multinomial',
-    #     n_jobs=-1,
-    #     solver='lbfgs'
-    #     ).fit(X_cat['train'], y_cat['train'])
-    # print('LogisticRegression; catalog')
+    lr_cat = LogisticRegression(
+        max_iter=10000,
+        multi_class='multinomial',
+        n_jobs=-1,
+        solver='lbfgs'
+        ).fit(X_cat['train'], y_cat['train'])
+    print('LogisticRegression; catalog')
+    yy_cat = lr_cat.predict(X_cat['val'])
+    compute_metrics(yy_cat, y_cat['val'], mode='categorical')
     # print(lr_cat.score(X_cat['val'], y_cat['val']))
 
     lr = LogisticRegression(
@@ -123,4 +126,26 @@ if __name__ == '__main__':
         solver='lbfgs'
         ).fit(X['train'], y['train'])
     print('LogisticRegression; images')
-    lr.score(X['val'], y['val'])
+    yy = lr.predict(X['val'])
+    compute_metrics(yy, y['val'], mode='categorical')
+    # lr.score(X['val'], y['val'])
+
+    # train dense nn
+    clf_basepath = os.getenv('DATA_PATH')+'/trained_models'
+    n_units = X_cat.shape[1]
+    
+    nn_cat = build_classifier((n_units,), n_intermed=n_units)
+    train_classifier(
+        nn_cat,
+        X_cat['train'], y_cat['train'], X_cat['val'], y_cat['val'],
+        clf_basepath+'/exp00_catalog_v0.h5')
+    yy_cat = nn_cat.predict(X_cat['val'])
+    compute_metrics(yy_cat, y_cat['val'], mode='categorical')
+
+    nn = build_classifier((X['train'].shape[1],), n_intermed=n_units)
+    train_classifier(
+        nn,
+        X['train'], y['train'], X['val'], y['val'],
+        clf_basepath+'/exp00_im_v0.h5')
+    yy = nn.predict(X['val'])
+    compute_metrics(yy, y['val'], mode='categorical')
