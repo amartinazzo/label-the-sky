@@ -24,11 +24,11 @@ total runs: 4*3*3 = 36
 
 from datagen import DataGenerator
 from glob import glob
-# from keras import backend as K
-# from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
-# from keras.layers import Input
-# from keras.layers.core import  Dense
-# from keras.models import Model
+from keras import backend as K
+from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
+from keras.layers import Input
+from keras.layers.core import  Dense
+from keras.models import Model
 import numpy as np
 import pandas as pd
 import pickle
@@ -43,7 +43,6 @@ from utils import get_sets
 
 def get_class_weights(csv_file):
     df = pd.read_csv(csv_file)
-    print('dataset size', df.shape)
     return np.round(1/df['class'].value_counts(normalize=True).values, 1)
 
 
@@ -127,9 +126,10 @@ def build_classifier(input_dim, n_intermed=512, n_classes=3):
     return model
 
 
-def train_classifier(model, X_train, y_train, X_val, y_val, clf_file, class_weights=None, batch_size=32, epochs=10):
+def train_classifier(model, X_train, y_train, X_val, y_val, clf_file, class_weights=None, batch_size=32, epochs=100):
     callbacks = [
         ModelCheckpoint(clf_file, monitor='val_accuracy', save_best_only=True, save_weights_only=True, mode='max'),
+        EarlyStopping(monitor='val_loss', mode='min', patience=8, restore_best_weights=True, verbose=1)
     ]
 
     history = model.fit(
@@ -142,9 +142,9 @@ def train_classifier(model, X_train, y_train, X_val, y_val, clf_file, class_weig
     return history
 
 
-def compute_metrics(y_pred, y_true, target='classes', mode='onehot'):
+def compute_metrics(y_pred, y_true, target='classes', onehot=True):
     if target=='classes':
-        if mode=='onehot':
+        if onehot:
             y_pred_arg = np.argmax(y_pred, axis=1)
             y_true_arg = np.argmax(y_true, axis=1)
         else:

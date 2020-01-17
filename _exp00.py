@@ -12,13 +12,14 @@ compare raw images (32x32xn features) to catalog (12+1 features)
 
 '''
 
-from _exp01 import build_classifier, train_classifier, compute_metrics
+from _exp01 import build_classifier, compute_metrics, get_class_weights, train_classifier
 from keras.utils import to_categorical
 import os
 import numpy as np
 import pandas as pd
 from skimage import io
 from sklearn.linear_model import LogisticRegression
+from sklearn.preprocessing import MinMaxScaler
 import sys
 from time import time
 
@@ -70,8 +71,9 @@ def build_flattened_dataset(csv_file, input_dir, nbands):
     return X, y
 
 
-def build_catalog_dataset(csv_file):
+def build_catalog_dataset(csv_file, features=['u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z']):
     df_orig = pd.read_csv(csv_file)
+    print('catalog features', features)
 
     X = {}
     y = {}
@@ -80,7 +82,7 @@ def build_catalog_dataset(csv_file):
         print('processing', split)
         df = df_orig[df_orig.split==split]
 
-        X[split] = df[['u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z', 'fwhm']].values
+        X[split] = df[features].values
         y[split] = df['class'].apply(lambda c: class_map[c]).values
 
     return X, y
@@ -109,6 +111,7 @@ if __name__ == '__main__':
 
     # train log reg
     lr_cat = LogisticRegression(
+        class_weight='balanced',
         max_iter=10000,
         multi_class='multinomial',
         n_jobs=-1,
@@ -116,10 +119,11 @@ if __name__ == '__main__':
         ).fit(X_cat['train'], y_cat['train'])
     print('LogisticRegression; catalog')
     yy_cat = lr_cat.predict(X_cat['val'])
-    compute_metrics(yy_cat, y_cat['val'], mode='categorical')
+    compute_metrics(yy_cat, y_cat['val'], onehot=False)
     # print(lr_cat.score(X_cat['val'], y_cat['val']))
 
     lr = LogisticRegression(
+        class_weight='balanced',
         max_iter=10000,
         multi_class='multinomial',
         n_jobs=-1,
@@ -127,25 +131,41 @@ if __name__ == '__main__':
         ).fit(X['train'], y['train'])
     print('LogisticRegression; images')
     yy = lr.predict(X['val'])
-    compute_metrics(yy, y['val'], mode='categorical')
+    compute_metrics(yy, y['val'], onehot=False)
     # lr.score(X['val'], y['val'])
 
     # train dense nn
     clf_basepath = os.getenv('DATA_PATH')+'/trained_models'
-    n_units = X_cat.shape[1]
+    n_units = X_cat['train'].shape[1]
+    class_weights = get_class_weights(csv_file)
+    print('class weights', class_weights)
+
+    # one hot encoding targets
+    y['train'] = to_categorical(y['train'], 3)
+    y['val'] = to_categorical(y['val'], 3)
+    y_cat['train'] = to_categorical(y_cat['train'], 3)
+    y_cat['val'] = to_categorical(y_cat['val'], 3)
     
-    nn_cat = build_classifier((n_units,), n_intermed=n_units)
+    scaler = MinMaxScaler()
+    X_cat['train'] = scaler.fit_transform(X_cat['train'])
+    X_cat['val'] = scaler.transform(X_cat['val'])
+
+    nn_cat = build_classifier(n_units, n_intermed=n_units)
     train_classifier(
         nn_cat,
         X_cat['train'], y_cat['train'], X_cat['val'], y_cat['val'],
-        clf_basepath+'/exp00_catalog_v0.h5')
+        clf_basepath+'/exp00_catalog_v0.h5',
+        class_weights)
     yy_cat = nn_cat.predict(X_cat['val'])
-    compute_metrics(yy_cat, y_cat['val'], mode='categorical')
+    print('Dense NN; catalog')
+    compute_metrics(yy_cat, y_cat['val'])
 
-    nn = build_classifier((X['train'].shape[1],), n_intermed=n_units)
+    nn = build_classifier(X['train'].shape[1], n_intermed=n_units)
     train_classifier(
         nn,
         X['train'], y['train'], X['val'], y['val'],
-        clf_basepath+'/exp00_im_v0.h5')
+        clf_basepath+'/exp00_im_v0.h5',
+        class_weights)
     yy = nn.predict(X['val'])
-    compute_metrics(yy, y['val'], mode='categorical')
+    print('Dense NN; catalog')
+    compute_metrics(yy, y['val'])
