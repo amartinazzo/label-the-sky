@@ -7,72 +7,82 @@ based on: https://jwalton.info/Embed-Publication-Matplotlib-Latex/
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 
-def set_size(width='thesis', fraction=1, subplot=[1, 1]):
-    '''
-    Set aesthetic figure dimensions to avoid scaling in latex.
+def set_size(width='thesis', fraction=1, subplots=[1, 1]):
+	if width == 'thesis':
+		width_pt = 426.79135
+	else:
+		width_pt = width
 
-    Parameters
-    ----------
-    width: float
-            Width in pts
-    fraction: float
-            Fraction of the width which you wish the figure to occupy
+	fig_width_pt = width_pt * fraction
+	inches_per_pt = 1 / 72.27 # pt to in conversion
+	golden_ratio = (5**.5 - 1) / 2
 
-    Returns
-    -------
-    fig_dim: tuple
-            Dimensions of figure in inches
-    '''
-    if width == 'thesis':
-        width_pt = 426.79135
-    else:
-        width_pt = width
+	fig_width_in = fig_width_pt * inches_per_pt
+	fig_height_in = fig_width_in * golden_ratio * subplots[0] / subplots[1]
 
-    # Width of figure
-    fig_width_pt = width * fraction
+	fig_dim = (fig_width_in, fig_height_in)
 
-    # Convert from pt to inches
-    inches_per_pt = 1 / 72.27
+	return fig_dim
 
-    # Golden ratio to set aesthetic figure height
-    golden_ratio = (5**.5 - 1) / 2
 
-    # Figure width in inches
-    fig_width_in = fig_width_pt * inches_per_pt
-    # Figure height in inches
-    fig_height_in = fig_width_in * golden_ratio * (subplot[0] / subplot[1])
+def make_hists(arr, rows=4, cols=3, xmax=0.5):
+	cmap = mpl.cm.get_cmap('rainbow_r', 12)
+	legend = ['U', 'F378', 'F395', 'F410', 'F430', 'G', 'F515', 'R', 'F660', 'I', 'F861', 'Z']
+	fig, ax = plt.subplots(rows, cols, figsize=set_size('thesis', subplots=[rows, cols]))
+	plt.setp(ax, xticks=[], xticklabels=[], yticks=[])
+	for i in range(rows):
+		for j in range(cols):
+			n = (i+1)*(j+1)-1
+			a = arr[(arr[:,n]<=xmax),n]
+			ax[i,j].hist(a, bins=50, color=cmap(n))
+			ax[i,j].set_xlabel(legend[n])
+			ax[i,j].set_xlim(0, xmax)
+			ax[i,j].set_ylim(0, 50000)
+	plt.xticks([], [])
+	plt.savefig('error_hists.svg', format='svg', bbox_inches='tight')
 
-    fig_dim = (fig_width_in, fig_height_in)
 
-    return fig_dim
+def make_hists_overlapped(arr, xmax=0.5):
+	cmap = mpl.cm.get_cmap('rainbow_r', 12)
+	legend = ['U', 'F378', 'F395', 'F410', 'F430', 'G', 'F515', 'R', 'F660', 'I', 'F861', 'Z']
+	legend.reverse()
+	print(legend)
+	fig, ax = plt.subplots(figsize=set_size('thesis'))
+	plt.setp(ax, xticks=[0, 0.25, 0.5], yticks=[]) #xticklabels=[])
+	for n in range(11, -1, -1):
+		print(n)
+		a = arr[(arr[:,n]<=xmax),n]
+		plt.hist(a, bins=50, color=cmap(n), alpha=0.5, label=legend[n])
+		# ax[i,j].set_xlabel(legend[n])
+		# ax[i,j].set_xlim(0, xmax)
+		# ax[i,j].set_ylim(0, 50000)
+	plt.legend()
+	plt.xticks([], [])
+	plt.savefig('error_hists_overlap.svg', format='svg', bbox_inches='tight')
 
 
 if __name__ == '__main__':
-	plt.style.use('seaborn')
-	width = 345
+	# plt.style.use('seaborn')
 
 	nice_fonts = {
-	        # Use LaTeX to write all text
-	        'text.usetex': True,
-	        'font.family': 'serif',
-	        # Use 10pt font in plots, to match 10pt font in document
-	        'axes.labelsize': 10,
-	        'font.size': 10,
-	        # Make the legend/label fonts a little smaller
-	        'legend.fontsize': 8,
-	        'xtick.labelsize': 8,
-	        'ytick.labelsize': 8,
+			'text.usetex': True,
+			'font.family': 'serif',
+			'axes.labelsize': 4,
+			'font.size': 4,
+			'legend.fontsize': 4,
+			'xtick.labelsize': 4,
+			'ytick.labelsize': 4,
 	}
 
 	mpl.rcParams.update(nice_fonts)
 
-	x = np.linspace(0, 2*np.pi, 100)
-	fig, ax = plt.subplots(1, 1, figsize=set_size(width))
-	ax.plot(x, np.sin(x))
-	ax.set_xlim(0, 2*np.pi)
-	ax.set_xlabel(r'$\theta$')
-	ax.set_ylabel(r'$\sin{(\theta)}$')
+	df = pd.read_csv('csv/dr1_classes_split.csv')
+	df = df.loc[:, [
+			'u_err','f378_err','f395_err','f410_err','f430_err','g_err',
+			'f515_err','r_err','f660_err','i_err','f861_err','z_err']]
+	arr = df.values
 
-	plt.savefig('/home/ana/test.svg', format='svg', bbox_inches='tight')
+	make_hists(arr)
