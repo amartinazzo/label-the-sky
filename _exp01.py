@@ -27,7 +27,7 @@ from glob import glob
 from keras import backend as K
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from keras.layers import Input
-from keras.layers.core import  Dense
+from keras.layers import  Conv3D, Dense, Flatten
 from keras.models import Model
 import numpy as np
 import pandas as pd
@@ -43,7 +43,9 @@ from utils import get_sets
 
 def get_class_weights(csv_file):
     df = pd.read_csv(csv_file)
-    return np.round(1/df['class'].value_counts(normalize=True).values, 1)
+    x = np.round(1/df['class'].value_counts(normalize=True).values, 1)
+    x = x / np.min(x)
+    return x
 
 
 def build_dataset(csv_file, data_folder, input_dim, n_outputs, target, split=None, batch_size=32):
@@ -115,9 +117,13 @@ def train(model, train_gen, val_gen, model_file, class_weights=None, epochs=500)
     return history
 
 
-def build_classifier(input_dim, n_intermed=512, n_classes=3):
+def build_classifier(input_dim, n_intermed=512, n_classes=3, layer_type='dense'):
     inputs = Input(shape=(input_dim,))
-    x = Dense(n_intermed, activation='relu')(inputs)
+    if layer_type=='conv':
+        x = Conv3D(24, 3, activation='relu')(inputs)
+        x = Flatten()(x)
+    else:
+        x = Dense(n_intermed, activation='relu')(inputs)
     outputs = Dense(n_classes, activation='softmax')(x)
     model = Model(inputs, outputs)
     model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])

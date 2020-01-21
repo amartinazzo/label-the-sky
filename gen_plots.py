@@ -28,20 +28,19 @@ def set_size(width='thesis', fraction=1, subplots=[1, 1]):
 	return fig_dim
 
 
-def make_hists(arr, rows=4, cols=3, xmax=0.5):
+def make_hists(arr, rows=3, cols=4, xmax=0.5):
 	cmap = mpl.cm.get_cmap('rainbow_r', 12)
 	legend = ['U', 'F378', 'F395', 'F410', 'F430', 'G', 'F515', 'R', 'F660', 'I', 'F861', 'Z']
 	fig, ax = plt.subplots(rows, cols, figsize=set_size('thesis', subplots=[rows, cols]))
-	plt.setp(ax, xticks=[], xticklabels=[], yticks=[])
+	plt.setp(ax, xticks=[0.1, 0.2, 0.3, 0.4, 0.5], yticks=[10000, 20000, 30000, 40000, 50000, 60000, 70000], xticklabels=[], yticklabels=[])
+	n = 0
 	for i in range(rows):
 		for j in range(cols):
-			n = (i+1)*(j+1)-1
 			a = arr[(arr[:,n]<=xmax),n]
-			ax[i,j].hist(a, bins=50, color=cmap(n))
-			ax[i,j].set_xlabel(legend[n])
+			ax[i,j].hist(a, bins=25, color=cmap(12-n), edgecolor=cmap(12-n), linewidth=0.0)
+			ax[i,j].set_xlabel(legend[n], labelpad=-5)
 			ax[i,j].set_xlim(0, xmax)
-			ax[i,j].set_ylim(0, 50000)
-	plt.xticks([], [])
+			n = n+1
 	plt.savefig('error_hists.svg', format='svg', bbox_inches='tight')
 
 
@@ -53,11 +52,10 @@ def make_hists_overlapped(arr, xmax=0.5):
 	fig, ax = plt.subplots(figsize=set_size('thesis'))
 	plt.setp(ax, xticks=[0, 0.25, 0.5], yticks=[]) #xticklabels=[])
 	for n in range(11, -1, -1):
-		print(n)
 		a = arr[(arr[:,n]<=xmax),n]
 		plt.hist(a, bins=50, color=cmap(n), alpha=0.5, label=legend[n])
-		# ax[i,j].set_xlabel(legend[n])
-		# ax[i,j].set_xlim(0, xmax)
+		ax[i,j].set_xlabel(legend[n])
+		ax[i,j].set_xlim(0, xmax)
 		# ax[i,j].set_ylim(0, 50000)
 	plt.legend()
 	plt.xticks([], [])
@@ -65,16 +63,16 @@ def make_hists_overlapped(arr, xmax=0.5):
 
 
 if __name__ == '__main__':
-	# plt.style.use('seaborn')
+	plt.style.use('seaborn')
 
 	nice_fonts = {
 			'text.usetex': True,
 			'font.family': 'serif',
-			'axes.labelsize': 4,
+			'axes.labelsize': 6,
 			'font.size': 4,
 			'legend.fontsize': 4,
-			'xtick.labelsize': 4,
-			'ytick.labelsize': 4,
+			'xtick.labelsize': 6,
+			'ytick.labelsize': 6,
 	}
 
 	mpl.rcParams.update(nice_fonts)
