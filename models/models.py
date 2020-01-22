@@ -1,4 +1,4 @@
-from keras.layers import Input, Dense, Dropout Conv1D, Conv2D, Flatten
+from keras.layers import Conv1D, Conv2D, Dense, Dropout, Flatten, Input
 from keras.layers.merge import, add
 from keras.models import Model, Sequential
 from keras.regularizers import l2
