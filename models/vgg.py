@@ -1,3 +1,9 @@
+'''
+VGG-like architecture
+https://github.com/anokland/local-loss
+'''
+
+
 from keras.layers import Activation, BatchNormalization, Input, Dense, Dropout, Conv2D, Flatten, MaxPooling2D,  ZeroPadding2D
 from keras.models import Model
 
@@ -49,5 +55,5 @@ def VGG11b(input_shape, num_classes, m=2):
 
 
 if __name__ == '__main__':
-    model = VGG11b((32, 32, 3), num_classes=3)
+    model = VGG11b((32, 32, 3), num_classes=10)
     model.summary()
