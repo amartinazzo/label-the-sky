@@ -12,12 +12,11 @@ exp01:
 09. generate 2d projections
 
 input args:
-* feature vector dim (512, 256, 128, 64)
 * nbands (12, 5, 3)
-* target (classes, magnitudes, redshifts)
+* target (classes, magnitudes) # redshifts later
 (ordered from outer to inner loop)
 
-total runs: 4*3*3 = 36
+total runs: 3*2 = 6
 
 '''
 
@@ -27,12 +26,12 @@ from glob import glob
 from keras import backend as K
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from keras.layers import Input
-from keras.layers import  Conv3D, Dense, Flatten
+from keras.layers import  Conv2D, Dense, Flatten, MaxPool2D
 from keras.models import Model
+from models.resnext import ResNeXt29
 import numpy as np
 import pandas as pd
 import pickle
-from classifiers.models import ResNeXt29
 import os
 import sklearn.metrics as metrics
 import sys
@@ -117,11 +116,16 @@ def train(model, train_gen, val_gen, model_file, class_weights=None, epochs=500)
     return history
 
 
-def build_classifier(input_dim, n_intermed=512, n_classes=3, layer_type='dense'):
-    inputs = Input(shape=(input_dim,))
+def build_classifier(input_dim, n_intermed=12, n_classes=3, layer_type='dense'):
+    if type(input_dim)==int:
+        input_dim = (input_dim,)
+    inputs = Input(shape=input_dim)
     if layer_type=='conv':
-        x = Conv3D(24, 3, activation='relu')(inputs)
+        x = Conv2D(16, kernel_size=3, activation='relu')(inputs)
+        x = Conv2D(16, kernel_size=3, activation='relu')(x)
+        x = MaxPool2D(pool_size=3)(x)
         x = Flatten()(x)
+        x = Dense(n_intermed, activation='relu')(x)
     else:
         x = Dense(n_intermed, activation='relu')(inputs)
     outputs = Dense(n_classes, activation='softmax')(x)
@@ -132,7 +136,7 @@ def build_classifier(input_dim, n_intermed=512, n_classes=3, layer_type='dense')
     return model
 
 
-def train_classifier(model, X_train, y_train, X_val, y_val, clf_file, class_weights=None, batch_size=32, epochs=100):
+def train_classifier(model, X_train, y_train, X_val, y_val, clf_file, class_weights=None, batch_size=32, epochs=300):
     callbacks = [
         ModelCheckpoint(clf_file, monitor='val_accuracy', save_best_only=True, save_weights_only=True, mode='max'),
         EarlyStopping(monitor='val_loss', mode='min', patience=8, restore_best_weights=True, verbose=1)
@@ -140,9 +144,11 @@ def train_classifier(model, X_train, y_train, X_val, y_val, clf_file, class_weig
 
     history = model.fit(
         X_train, y_train,
-        validation_data=(X_val, y_val),
+        batch_size=batch_size,
+        callbacks=callbacks,
         class_weight=class_weights,
         epochs=epochs,
+        validation_data=(X_val, y_val),
         verbose=2)
 
     return history
@@ -226,17 +232,18 @@ metrics_switch = {
 
 if __name__ == '__main__':
 
-    if len(sys.argv) != 7:
-        print('usage: python %s <data_dir> <csv_file> <target> <nbands> <feature_vector_dim> <timestamp>' % sys.argv[0])
+    if len(sys.argv) != 6:
+        print('usage: python %s <data_dir> <csv_file> <target> <nbands> <timestamp>' % sys.argv[0])
         exit(1)
 
     # read input args
-    data_dir = sys.argv[-6] #os.getenv('HOME')+'/label_the_sky'
-    csv_file = sys.argv[-5]
-    target = sys.argv[-4]
-    n_bands = int(sys.argv[-3])
-    output_dim = int(sys.argv[-2])
-    timestamp = sys.argv[-1]
+    data_dir = sys.argv[1] #os.getenv('HOME')+'/label_the_sky'
+    csv_file = sys.argv[2]
+    target = sys.argv[3]
+    n_bands = int(sys.argv[4])
+    timestamp = sys.argv[5]
+
+    output_dim = 512
 
     print('data_dir', data_dir)
     print('csv_file', csv_file)
@@ -260,9 +267,6 @@ if __name__ == '__main__':
     results_folder = os.getenv('HOME')+'/label_the_sky/results'
     print('results_folder', results_folder)
 
-    if model_name == '191019_classes_12bands_1024':
-        model_name = '191018_classes_12bands_1024'
-
     start = time()
 
     print('training backbone')
@@ -271,6 +275,8 @@ if __name__ == '__main__':
     X_val, y_val, val_gen = build_dataset(csv_file, images_folder, input_dim, n_outputs, target, 'val')
 
     model = build_model(input_dim, n_outputs, lst_activation, loss, metrics_train, output_dim)
+    model.summary()
+    exit()
     history = train(model, train_gen, val_gen, model_file, class_weights)
     with open(os.path.join(results_folder, f'{model_name}_history.pkl'), 'wb') as f:
         pickle.dump(history.history, f)

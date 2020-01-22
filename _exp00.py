@@ -160,7 +160,11 @@ if __name__ == '__main__':
     # print('Dense NN; catalog')
     # compute_metrics(yy_cat, y_cat['val'])
 
-    nn = build_classifier(X['train'].shape[1], n_intermed=n_units, layer_type='conv')
+    X['train'] = np.reshape(X['train'], (-1,32,32,12))
+    X['val'] = np.reshape(X['val'], (-1,32,32,12))
+    print(X['train'].shape)
+
+    nn = build_classifier(X['train'].shape[1:], n_intermed=n_units, layer_type='conv')
     train_classifier(
         nn,
         X['train'], y['train'], X['val'], y['val'],

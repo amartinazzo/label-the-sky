@@ -21,24 +21,20 @@ declare -a servers=($(hostname))
 #     exit 1
 # fi
 
-date=191018 #`date "+%y%m%d"`
+date=`date "+%y%m%d"`
 data_dir=$HOME/label_the_sky/results #$DATA_PATH
 
 declare -a outputs=(classes)
 declare -a nbands=(12 5 3)
-declare -a feature_dims=(1024) #(512 256 128 64)
 
 declare -a commands
 declare -a pids
 
-for feature_dim in ${feature_dims[*]}
+for n in ${nbands[*]}
 do
-    for n in ${nbands[*]}
+    for output in ${outputs[*]}
     do
-        for output in ${outputs[*]}
-        do
-            commands+=("python -u eval.py $data_dir csv/dr1_classes_split.csv $output $n $feature_dim $date")
-        done
+        commands+=("python -u _exp01.py $data_dir csv/dr1_classes_split.csv $output $n $date")
     done
 done
 

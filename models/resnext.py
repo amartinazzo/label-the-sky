@@ -1,4 +1,9 @@
-from keras.layers.advanced_activations import PReLU
+'''
+ResNeXt
+https://github.com/verbpronoun/keras-dl-benchmark/blob/master/resnext_builder.py
+'''
+
+
 from keras.layers.core import Activation, Dense, Dropout, Lambda, Flatten
 from keras.layers.convolutional import Conv1D, Conv2D
 from keras.layers.pooling import GlobalAveragePooling2D, GlobalMaxPooling2D, MaxPooling2D, MaxPooling1D
@@ -11,64 +16,6 @@ from keras.regularizers import l2
 from keras.utils import np_utils
 import keras.backend as K
 import numpy as np
-
-
-def dense_net(input_shape, width=64, n_layers=2, n_classes=3):
-    inputs = Input(shape=input_shape)
-    x = Dense(width, activation='relu')(inputs)
-    for i in range(n_layers-1):
-        x = Dense(width, activation='relu')(x)
-    outputs = Dense(n_classes, activation='softmax')(x)
-
-    model = Model(inputs, outputs)
-    model.summary()
-    # model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
-
-    return model
-
-
-def dimension_reducer(input_dim=512, output_dim=64, n_classes=12, activation='softmax'):
-    inputs = Input(shape=input_dim)
-    x = Dense(output_dim, activation='relu')(inputs)
-    outputs = Dense(n_classes, activation=activation)(x)
-    model = Model(inputs, [x, outputs])
-
-    return model    
-
-
-def top_layer_net(input_shape=(512,), nb_classes=3):
-    inputs = Input(shape=input_shape)
-    outputs = Dense(nb_classes, use_bias=False, kernel_regularizer=l2(5e-4),
-        kernel_initializer='he_normal', activation='softmax')(inputs)
-    model = Model(inputs, outputs)
-    return model
-
-
-def _1d_conv_net(n_filters, kernel_size, strides, input_shape, n_classes):
-    model = Sequential()
-    model.add(Conv1D(
-        filters=n_filters, kernel_size=kernel_size, strides=strides, activation='relu', input_shape=input_shape))
-    model.add(Dropout(0.5))
-    model.add(MaxPooling1D(pool_size=1))
-    model.add(Flatten())
-    model.add(Dense(n_classes, activation='softmax'))
-    model.summary()
-
-    return model
-
-
-
-
-if (K.image_data_format() == 'channels_first'):
-    channel_axis = 1
-else:
-    channel_axis = 3
-
-
-'''
-ResNeXt
-https://github.com/verbpronoun/keras-dl-benchmark/blob/master/resnext_builder.py
-'''
 
 
 def my_conv(input, num_filters, kernel_size_tuple, strides=1, padding='valid'):
@@ -133,9 +80,8 @@ def ResNeXt_builder(
     x = AveragePooling2D((8, 8), strides=8)(x)
     x = Flatten()(x)
 
-    if output_dim is not None and output_dim != x.shape[1]:
-        # TODO try conv1D
-        x = Dense(output_dim, activation='relu')(x)
+    # if output_dim is not None:
+    #     x = Dense(output_dim, activation='relu')(x)
 
     top = Dense(num_classes, activation=last_activation)(x)
     
