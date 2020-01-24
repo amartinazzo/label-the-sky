@@ -12,7 +12,7 @@ import pandas as pd
 
 def set_size(width='thesis', fraction=1, subplots=[1, 1]):
 	if width == 'thesis':
-		width_pt = 426.79135
+		width_pt = 468.33257
 	else:
 		width_pt = width
 
@@ -41,7 +41,7 @@ def make_hists(arr, rows=3, cols=4, xmax=0.5):
 			ax[i,j].set_xlabel(legend[n], labelpad=-5)
 			ax[i,j].set_xlim(0, xmax)
 			n = n+1
-	plt.savefig('error_hists.svg', format='svg', bbox_inches='tight')
+	plt.savefig('magnitude_errors.svg', format='svg', bbox_inches='tight')
 
 
 def make_hists_overlapped(arr, xmax=0.5):
@@ -59,7 +59,7 @@ def make_hists_overlapped(arr, xmax=0.5):
 		# ax[i,j].set_ylim(0, 50000)
 	plt.legend()
 	plt.xticks([], [])
-	plt.savefig('error_hists_overlap.svg', format='svg', bbox_inches='tight')
+	plt.savefig('magnitude_errors_overlap.svg', format='svg', bbox_inches='tight')
 
 
 if __name__ == '__main__':

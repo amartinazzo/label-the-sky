@@ -110,29 +110,29 @@ if __name__ == '__main__':
     X_cat, y_cat = build_catalog_dataset(csv_file)
 
     # train log reg
-    # lr_cat = LogisticRegression(
-    #     class_weight='balanced',
-    #     max_iter=10000,
-    #     multi_class='multinomial',
-    #     n_jobs=-1,
-    #     solver='lbfgs'
-    #     ).fit(X_cat['train'], y_cat['train'])
-    # print('LogisticRegression; catalog')
-    # yy_cat = lr_cat.predict(X_cat['val'])
-    # compute_metrics(yy_cat, y_cat['val'], onehot=False)
-    # print(lr_cat.score(X_cat['val'], y_cat['val']))
+    lr_cat = LogisticRegression(
+        class_weight='balanced',
+        max_iter=10000,
+        multi_class='multinomial',
+        n_jobs=-1,
+        solver='lbfgs'
+        ).fit(X_cat['train'], y_cat['train'])
+    print('LogisticRegression; catalog')
+    yy_cat = lr_cat.predict(X_cat['val'])
+    compute_metrics(yy_cat, y_cat['val'], onehot=False)
+    print(lr_cat.score(X_cat['val'], y_cat['val']))
 
-    # lr = LogisticRegression(
-    #     class_weight='balanced',
-    #     max_iter=10000,
-    #     multi_class='multinomial',
-    #     n_jobs=-1,
-    #     solver='lbfgs'
-    #     ).fit(X['train'], y['train'])
-    # print('LogisticRegression; images')
-    # yy = lr.predict(X['val'])
-    # compute_metrics(yy, y['val'], onehot=False)
-    # lr.score(X['val'], y['val'])
+    lr = LogisticRegression(
+        class_weight='balanced',
+        max_iter=10000,
+        multi_class='multinomial',
+        n_jobs=-1,
+        solver='lbfgs'
+        ).fit(X['train'], y['train'])
+    print('LogisticRegression; images')
+    yy = lr.predict(X['val'])
+    compute_metrics(yy, y['val'], onehot=False)
+    lr.score(X['val'], y['val'])
 
     # train dense nn
     clf_basepath = os.getenv('DATA_PATH')+'/trained_models'
@@ -146,19 +146,19 @@ if __name__ == '__main__':
     y_cat['train'] = to_categorical(y_cat['train'], 3)
     y_cat['val'] = to_categorical(y_cat['val'], 3)
     
-    # scaler = MinMaxScaler()
-    # X_cat['train'] = scaler.fit_transform(X_cat['train'])
-    # X_cat['val'] = scaler.transform(X_cat['val'])
+    scaler = MinMaxScaler()
+    X_cat['train'] = scaler.fit_transform(X_cat['train'])
+    X_cat['val'] = scaler.transform(X_cat['val'])
 
-    # nn_cat = build_classifier(n_units, n_intermed=n_units)
-    # train_classifier(
-    #     nn_cat,
-    #     X_cat['train'], y_cat['train'], X_cat['val'], y_cat['val'],
-    #     clf_basepath+'/exp00_catalog_v0.h5',
-    #     class_weights)
-    # yy_cat = nn_cat.predict(X_cat['val'])
-    # print('Dense NN; catalog')
-    # compute_metrics(yy_cat, y_cat['val'])
+    nn_cat = build_classifier(n_units, n_intermed=n_units)
+    train_classifier(
+        nn_cat,
+        X_cat['train'], y_cat['train'], X_cat['val'], y_cat['val'],
+        clf_basepath+'/exp00_catalog_v0.h5',
+        class_weights)
+    yy_cat = nn_cat.predict(X_cat['val'])
+    print('Dense NN; catalog')
+    compute_metrics(yy_cat, y_cat['val'])
 
     X['train'] = np.reshape(X['train'], (-1,32,32,12))
     X['val'] = np.reshape(X['val'], (-1,32,32,12))

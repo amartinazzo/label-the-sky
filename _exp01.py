@@ -28,6 +28,7 @@ from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from keras.layers import Input
 from keras.layers import  Conv2D, Dense, Flatten, MaxPool2D
 from keras.models import Model
+from models.callbacks import TimeHistory
 from models.resnext import ResNeXt29
 import numpy as np
 import pandas as pd
@@ -136,10 +137,12 @@ def build_classifier(input_dim, n_intermed=12, n_classes=3, layer_type='dense'):
     return model
 
 
-def train_classifier(model, X_train, y_train, X_val, y_val, clf_file, class_weights=None, batch_size=32, epochs=300):
+def train_classifier(model, X_train, y_train, X_val, y_val, clf_file, class_weights=None, batch_size=32, epochs=300, verbose=True):
+    time_callback = TimeHistory()
     callbacks = [
         ModelCheckpoint(clf_file, monitor='val_accuracy', save_best_only=True, save_weights_only=True, mode='max'),
-        EarlyStopping(monitor='val_loss', mode='min', patience=8, restore_best_weights=True, verbose=1)
+        EarlyStopping(monitor='val_loss', mode='min', patience=8, restore_best_weights=True, verbose=1),
+        time_callback,
     ]
 
     history = model.fit(
@@ -150,6 +153,14 @@ def train_classifier(model, X_train, y_train, X_val, y_val, clf_file, class_weig
         epochs=epochs,
         validation_data=(X_val, y_val),
         verbose=2)
+
+    if verbose:
+        print('HISTORY')
+        for k in ['acc', 'val_acc', 'loss', 'val_loss']:
+            print(k)
+            print(history.history[k])
+        print('time taken')
+        print(time_callback.times)
 
     return history
 
