@@ -21,6 +21,7 @@ from skimage import io
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import MinMaxScaler
 import sys
+from time import time
 
 
 class_map = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
