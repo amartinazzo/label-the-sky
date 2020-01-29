@@ -1,6 +1,7 @@
 from keras.callbacks import Callback
 import keras.backend as K
 import numpy as np
+from time import time
 
 
 class SGDRScheduler(Callback):

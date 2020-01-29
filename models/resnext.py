@@ -80,8 +80,8 @@ def ResNeXt_builder(
     x = AveragePooling2D((8, 8), strides=8)(x)
     x = Flatten()(x)
 
-    # if output_dim is not None:
-    #     x = Dense(output_dim, activation='relu')(x)
+    if output_dim is not None:
+        x = Dense(output_dim, activation='relu')(x)
 
     top = Dense(num_classes, activation=last_activation)(x)
     

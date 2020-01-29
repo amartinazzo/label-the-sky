@@ -22,6 +22,7 @@ total runs: 3*2 = 6
 
 
 from datagen import DataGenerator
+from efficientnet.keras import EfficientNetB0
 from glob import glob
 from keras import backend as K
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
@@ -30,6 +31,7 @@ from keras.layers import  Conv2D, Dense, Flatten, MaxPool2D
 from keras.models import Model
 from models.callbacks import TimeHistory
 from models.resnext import ResNeXt29
+from models.vgg import VGG11b
 import numpy as np
 import pandas as pd
 import pickle
@@ -74,13 +76,17 @@ def build_dataset(csv_file, data_folder, input_dim, n_outputs, target, split=Non
     return X, y, data_gen
 
 
-def build_model(input_dim, n_outputs, lst_activation, loss, metrics, output_feature_dim=512, weights_file=None, width=64, card=4):
-    print('width', width)
-    print('cardinality', card)
-
-    model = ResNeXt29(
-        input_dim, num_classes=n_outputs, width=width, cardinality=card,
-        last_activation=lst_activation, output_dim=output_feature_dim)
+def build_model(input_dim, n_outputs, last_activation, loss, metrics, backbone='resnext', weights_file=None):
+    if backbone=='resnext':
+        model = ResNeXt29(input_dim, num_classes=n_outputs, last_activation=last_activation)
+    elif backbone=='efficientnet':
+        model = EfficientNetB0(
+            classes=n_outputs, weights=None, input_shape=input_dim, include_top=False, last_activation=last_activation)
+    elif backbone_model=='vgg':
+        model = VGG11b(input_dim, num_classes=n_outputs, last_activation=last_activation)
+    else:
+        print('accepted backbones: resnext, efficientnet, vgg')
+        exit()
 
     if weights_file is not None and os.path.exists(weights_file):
         model.load_weights(weights_file)

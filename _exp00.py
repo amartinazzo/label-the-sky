@@ -21,7 +21,6 @@ from skimage import io
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import MinMaxScaler
 import sys
-from time import time
 
 
 class_map = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
@@ -111,7 +110,7 @@ if __name__ == '__main__':
 
     # train log reg
     lr_cat = LogisticRegression(
-        class_weight='balanced',
+        # class_weight='balanced',
         max_iter=10000,
         multi_class='multinomial',
         n_jobs=-1,
@@ -123,7 +122,7 @@ if __name__ == '__main__':
     print(lr_cat.score(X_cat['val'], y_cat['val']))
 
     lr = LogisticRegression(
-        class_weight='balanced',
+        # class_weight='balanced',
         max_iter=10000,
         multi_class='multinomial',
         n_jobs=-1,
