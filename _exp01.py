@@ -12,11 +12,16 @@ exp01:
 09. generate 2d projections
 
 input args:
-* nbands (12, 5, 3)
-* target (classes, magnitudes) # redshifts later
+* backbone      (resnext, efficientnet, vgg)
+* n_bands       (12, 5, 3)
+* target        (classes, magnitudes)
 (ordered from outer to inner loop)
 
-total runs: 3*2 = 6
+total runs: 3*3*2 = 18
+
+part II:
+vary dataset_perc in [1, 100]
+* dataset_perc  (10, 25, 50, 75)
 
 '''
 
@@ -29,6 +34,8 @@ from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from keras.layers import Input
 from keras.layers import  Conv2D, Dense, Flatten, MaxPool2D
 from keras.models import Model
+from keras_lookahead import Lookahead
+from keras_radam import RAdam
 from models.callbacks import TimeHistory
 from models.resnext import ResNeXt29
 from models.vgg import VGG11b
@@ -38,22 +45,28 @@ import pickle
 import os
 import sklearn.metrics as metrics
 import sys
+import tensorflow as tf
 from time import time
 from umap import UMAP
 from utils import get_sets
 
 
-def get_class_weights(csv_file):
-    df = pd.read_csv(csv_file)
+def set_random_seeds():
+    os.environ['PYTHONHASHSEED'] = '0'
+    np.random.seed(42)
+    tf.set_random_seed(420)
+    session_conf = tf.ConfigProto(intra_op_parallelism_threads=1, inter_op_parallelism_threads=1)
+    sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
+    K.set_session(sess)
+
+
+def get_class_weights(df):
     x = np.round(1/df['class'].value_counts(normalize=True).values, 1)
-    x = x / np.min(x)
+    x = x / np.max(x)
     return x
 
 
-def build_dataset(csv_file, data_folder, input_dim, n_outputs, target, split=None, batch_size=32):
-    df = pd.read_csv(csv_file)
-    df = df[(df.photoflag==0)&(df.ndet==12)]
-
+def build_dataset(df, data_folder, input_dim, n_outputs, target, split=None, batch_size=32):
     if split is not None:
         df = df[df.split==split]
     else:
@@ -76,7 +89,7 @@ def build_dataset(csv_file, data_folder, input_dim, n_outputs, target, split=Non
     return X, y, data_gen
 
 
-def build_model(input_dim, n_outputs, last_activation, loss, metrics, backbone='resnext', weights_file=None):
+def build_model(input_dim, n_outputs, last_activation, loss, metrics=['accuracy'], backbone='resnext', weights_file=None):
     if backbone=='resnext':
         model = ResNeXt29(input_dim, num_classes=n_outputs, last_activation=last_activation)
     elif backbone=='efficientnet':
@@ -92,13 +105,14 @@ def build_model(input_dim, n_outputs, last_activation, loss, metrics, backbone='
         model.load_weights(weights_file)
         print('loaded weights')
 
-    model.compile(loss=loss, optimizer='adam', metrics=metrics)
+    optimizer = Lookahead(RAdam())
+    model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
 
-    # trainable_count = int(np.sum([K.count_params(p) for p in set(model.trainable_weights)]))
-    # non_trainable_count = int(np.sum([K.count_params(p) for p in set(model.non_trainable_weights)]))
-    # print('total params: {:,}'.format(trainable_count + non_trainable_count))
-    # print('trainable params: {:,}'.format(trainable_count))
-    # print('non-trainable params: {:,}'.format(non_trainable_count))
+    trainable_count = int(np.sum([K.count_params(p) for p in set(model.trainable_weights)]))
+    non_trainable_count = int(np.sum([K.count_params(p) for p in set(model.non_trainable_weights)]))
+    print('total params: {:,}'.format(trainable_count + non_trainable_count))
+    print('trainable params: {:,}'.format(trainable_count))
+    print('non-trainable params: {:,}'.format(non_trainable_count))
 
     return model
 
@@ -120,6 +134,14 @@ def train(model, train_gen, val_gen, model_file, class_weights=None, epochs=500)
         class_weight=class_weights,
         verbose=2)
 
+    if verbose:
+        print('HISTORY')
+        for k in ['acc', 'val_acc', 'loss', 'val_loss']:
+            print(k)
+            print(history.history[k])
+        print('time taken per epoch')
+        print(time_callback.times)
+
     return history
 
 
@@ -137,7 +159,9 @@ def build_classifier(input_dim, n_intermed=12, n_classes=3, layer_type='dense'):
         x = Dense(n_intermed, activation='relu')(inputs)
     outputs = Dense(n_classes, activation='softmax')(x)
     model = Model(inputs, outputs)
-    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+
+    optimizer = Lookahead(RAdam())
+    model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
     model.summary()
 
     return model
@@ -165,7 +189,7 @@ def train_classifier(model, X_train, y_train, X_val, y_val, clf_file, class_weig
         for k in ['acc', 'val_acc', 'loss', 'val_loss']:
             print(k)
             print(history.history[k])
-        print('time taken')
+        print('time taken per epoch')
         print(time_callback.times)
 
     return history
@@ -235,12 +259,6 @@ loss_switch = {
     'redshifts': 'mean_absolute_error',
 }
 
-metrics_switch = {
-    'classes': ['accuracy'],
-    'magnitudes': None,
-    'redshifts': None,
-}
-
 
 ########
 # MAIN #
@@ -249,24 +267,30 @@ metrics_switch = {
 
 if __name__ == '__main__':
 
-    if len(sys.argv) != 6:
-        print('usage: python %s <data_dir> <csv_file> <target> <nbands> <timestamp>' % sys.argv[0])
+    set_random_seeds()
+
+    if len(sys.argv) < 7:
+        print('usage: python %s <data_dir> <csv_file> <backbone> <target> <nbands> <timestamp> <dataset_perc : optional>' % sys.argv[0])
         exit(1)
 
     # read input args
-    data_dir = sys.argv[1] #os.getenv('HOME')+'/label_the_sky'
+    data_dir = sys.argv[1]
     csv_file = sys.argv[2]
-    target = sys.argv[3]
-    n_bands = int(sys.argv[4])
-    timestamp = sys.argv[5]
+    backbone = sys.argv[3]
+    target = sys.argv[4]
+    n_bands = int(sys.argv[5])
+    timestamp = sys.argv[6]
 
-    output_dim = 512
+    if len(sys.arg) == 8:
+        dataset_perc = int(dataset_perc)/100.
+    else:
+        dataset_perc = 1
 
     print('data_dir', data_dir)
     print('csv_file', csv_file)
+    print('backbone', backbone)
     print('target', target)
     print('n_bands', n_bands)
-    print('output_dim', output_dim)
 
     # set parameters
     n_outputs = n_outputs_switch.get(target+str(n_bands))
@@ -274,11 +298,10 @@ if __name__ == '__main__':
     images_folder = os.path.join(data_dir, images_folder_switch.get(n_bands))
     lst_activation = last_activation_switch.get(target)
     loss = loss_switch.get(target)
-    metrics_train = metrics_switch.get(target)
 
     input_dim = (32, 32, n_bands)
-    model_name = '{}_{}_{}bands_{}'.format(timestamp, target, n_bands, output_dim)
-    clf_name = '{}_{}_{}bands_{}'.format(timestamp, 'topclf', n_bands, output_dim)
+    model_name = '{}_{}_{}_{}'.format(timestamp, backbone, target, n_bands)
+    clf_name = '{}_{}_{}_{}_topclf'.format(timestamp, backbone, target, n_bands)
     model_file = data_dir+f'/trained_models/{model_name}.h5'
     clf_file = data_dir+f'/trained_models/{clf_name}.h5'
     results_folder = os.getenv('HOME')+'/label_the_sky/results'
@@ -286,14 +309,24 @@ if __name__ == '__main__':
 
     start = time()
 
-    print('training backbone')
-    class_weights = get_class_weights(csv_file)
-    X_train, y_train, train_gen = build_dataset(csv_file, images_folder, input_dim, n_outputs, target, 'train')
-    X_val, y_val, val_gen = build_dataset(csv_file, images_folder, input_dim, n_outputs, target, 'val')
+    print('generating subset of data')
+    df = pd.read_csv(csv_file)
+    if dataset_perc < 1:
+        orig_shape = df.shape
+        df['random'] = np.random.rand(df.shape[0])
+        df = df.loc[:, df.random <= dataset_perc]
+        print('new shape', df.shape)
+        print('proportion', df.shape[0]/orig_shape[0])
+        print('split proportions', df.split.value_counts(normalize=True))
+        print('class proportions', df['class'].value_counts(normalize=True))
+    class_weights = get_class_weights(df)
+    print('class weights', class_weights)
 
-    model = build_model(input_dim, n_outputs, lst_activation, loss, metrics_train, output_dim)
-    model.summary()
-    exit()
+    print('training backbone')
+    X_train, y_train, train_gen = build_dataset(df, images_folder, input_dim, n_outputs, target, 'train')
+    X_val, y_val, val_gen = build_dataset(df, images_folder, input_dim, n_outputs, target, 'val')
+
+    model = build_model(input_dim, n_outputs, lst_activation, loss)
     history = train(model, train_gen, val_gen, model_file, class_weights)
     with open(os.path.join(results_folder, f'{model_name}_history.pkl'), 'wb') as f:
         pickle.dump(history.history, f)
@@ -304,7 +337,7 @@ if __name__ == '__main__':
         X_train, shuffle=False, batch_size=1, data_folder=images_folder, input_dim=input_dim, n_outputs=n_outputs, target=target)
     val_gen = DataGenerator(
         X_val, shuffle=False, batch_size=1, data_folder=images_folder, input_dim=input_dim, n_outputs=n_outputs, target=target)
-    model = build_model(input_dim, n_outputs, lst_activation, loss, metrics_train, output_dim, weights_file=model_file)
+    model = build_model(input_dim, n_outputs, lst_activation, loss, weights_file=model_file)
     y_val_hat, X_val_feats = model.predict_generator(val_gen)
     compute_metrics(y_val_hat, y_val, target)
     np.save(os.path.join(results_folder, f'{model_name}_y_train.npy'), y_train)
@@ -319,8 +352,8 @@ if __name__ == '__main__':
     print('--- minutes taken:', int((time()-start)/60))
 
     print('training dense classifier')
-    _, y_train, _ = build_dataset(csv_file, images_folder, input_dim, n_outputs, 'classes', 'train')
-    _, y_val, _ = build_dataset(csv_file, images_folder, input_dim, n_outputs, 'classes', 'val')
+    _, y_train, _ = build_dataset(df, images_folder, input_dim, n_outputs, 'classes', 'train')
+    _, y_val, _ = build_dataset(df, images_folder, input_dim, n_outputs, 'classes', 'val')
     clf = build_classifier(X_train_feats.shape[1])
     clf_history = train_classifier(clf, X_train_feats, y_train, X_val_feats, y_val, clf_file, class_weights)
     y_feats_hat = clf.predict(X_val_feats)

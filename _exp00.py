@@ -103,6 +103,11 @@ if __name__ == '__main__':
     csv_file = sys.argv[2]
     n_bands = int(sys.argv[3])
 
+    df = pd.read_csv(csv_file)
+    class_weights = get_class_weights(df)
+    print('class weights', class_weights)
+    del df
+
     print('building dataset')
 
     # build datasets
@@ -111,7 +116,7 @@ if __name__ == '__main__':
 
     # train log reg
     lr_cat = LogisticRegression(
-        # class_weight='balanced',
+        class_weight=dict(zip(range(2), class_weights)),
         max_iter=10000,
         multi_class='multinomial',
         n_jobs=-1,
@@ -123,7 +128,7 @@ if __name__ == '__main__':
     print(lr_cat.score(X_cat['val'], y_cat['val']))
 
     lr = LogisticRegression(
-        # class_weight='balanced',
+        class_weight=dict(zip(range(2), class_weights)),
         max_iter=10000,
         multi_class='multinomial',
         n_jobs=-1,
@@ -132,13 +137,11 @@ if __name__ == '__main__':
     print('LogisticRegression; images')
     yy = lr.predict(X['val'])
     compute_metrics(yy, y['val'], onehot=False)
-    lr.score(X['val'], y['val'])
+    print(lr.score(X['val'], y['val']))
 
     # train dense nn
     clf_basepath = os.getenv('DATA_PATH')+'/trained_models'
     n_units = X_cat['train'].shape[1]
-    class_weights = get_class_weights(csv_file)
-    print('class weights', class_weights)
 
     # one hot encoding targets
     y['train'] = to_categorical(y['train'], 3)

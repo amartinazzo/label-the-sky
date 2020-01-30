@@ -15,26 +15,24 @@ function waitpids {
 
 declare -a servers=($(hostname))
 
-# if [ "$1" = "" ]
-# then
-#     echo "Usage: $0 <timestamp>"
-#     exit 1
-# fi
-
 date=`date "+%y%m%d"`
-data_dir=$HOME/label_the_sky/results #$DATA_PATH
+data_dir=$DATA_PATH
 
+declare -a backbones=(resnext efficientnet vgg)
 declare -a outputs=(classes)
 declare -a nbands=(12 5 3)
 
 declare -a commands
 declare -a pids
 
-for n in ${nbands[*]}
+for backbone in ${backbones[*]}
 do
-    for output in ${outputs[*]}
+    for n in ${nbands[*]}
     do
-        commands+=("python -u _exp01.py $data_dir csv/dr1_classes_split.csv $output $n $date")
+        for output in ${outputs[*]}
+        do
+            commands+=("python -u _exp01.py $data_dir csv/dr1_classes_split.csv $backbone $output $n $date")
+        done
     done
 done
 
