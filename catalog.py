@@ -186,12 +186,13 @@ def fill_undetected(df):
     df[mags] = df_mags.values
 
 
-def stratified_split(filepath, mag_range=None, fill_undet=False, test_split=0.1, val_split=0.11, e=0.5):
+def stratified_split(filepath, mag_range=None, fill_undet=False, test_split=0.1, val_split=0.11, e=None):
     df = pd.read_csv(filepath)
     df = df[(~df['class'].isna()) & (df.ndet==12) & (df.photoflag==0)]
-    df = df[(
-        df.u_err <= e) & (df.f378_err <= e) & (df.f395_err <= e) & (df.f410_err <= e) & (df.f430_err <= e) & (df.g_err <= e) & (
-        df.f515_err <= e) & (df.r_err <= e) & (df.f660_err <= e) & (df.i_err <= e) & (df.f861_err <= e) & (df.z_err <= e)]
+    if e is not None:
+        df = df[(
+            df.u_err <= e) & (df.f378_err <= e) & (df.f395_err <= e) & (df.f410_err <= e) & (df.f430_err <= e) & (df.g_err <= e) & (
+            df.f515_err <= e) & (df.r_err <= e) & (df.f660_err <= e) & (df.i_err <= e) & (df.f861_err <= e) & (df.z_err <= e)]
     if mag_range is not None:
         df = df[df.r.between(mag_range[0], mag_range[1])]
 

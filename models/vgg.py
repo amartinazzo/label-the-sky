@@ -47,9 +47,9 @@ def VGG11b(input_shape, num_classes, last_activation='softmax', m=2):
 
 	x = Flatten()(x)
 	x = Dense(1024, activation='relu')(x)
-	x = Dense(num_classes, activation=last_activation)(x)
+	top = Dense(num_classes, activation=last_activation)(x)
 
-	return Model(inpt, x)
+	return Model(inpt, [top, x])
 
 
 if __name__ == '__main__':

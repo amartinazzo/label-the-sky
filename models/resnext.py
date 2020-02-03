@@ -95,5 +95,5 @@ def ResNeXt29(input_shape, num_classes, width=64, cardinality=8, last_activation
 
 
 if __name__ == '__main__':
-    model = ResNeXt29((32, 32, 3), num_classes=3, width=64, cardinality=4)
+    model = ResNeXt29((32, 32, 3), num_classes=3, width=64, cardinality=8)
     model.summary()

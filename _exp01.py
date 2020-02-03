@@ -61,8 +61,8 @@ def set_random_seeds():
 
 
 def get_class_weights(df):
-    x = np.round(1/df['class'].value_counts(normalize=True).values, 1)
-    x = x / np.max(x)
+    x = 1/df['class'].value_counts(normalize=True).values
+    x = np.round(x / np.max(x), 4)
     return x
 
 
@@ -89,12 +89,12 @@ def build_dataset(df, data_folder, input_dim, n_outputs, target, split=None, bat
     return X, y, data_gen
 
 
-def build_model(input_dim, n_outputs, last_activation, loss, metrics=['accuracy'], backbone='resnext', weights_file=None):
+def build_model(input_dim, n_outputs, last_activation, loss,backbone='resnext', weights_file=None, metrics=['accuracy']):
     if backbone=='resnext':
         model = ResNeXt29(input_dim, num_classes=n_outputs, last_activation=last_activation)
     elif backbone=='efficientnet':
         model = EfficientNetB0(
-            classes=n_outputs, weights=None, input_shape=input_dim, include_top=False, last_activation=last_activation)
+            classes=n_outputs, weights=None, input_shape=input_dim, last_activation=last_activation)
     elif backbone_model=='vgg':
         model = VGG11b(input_dim, num_classes=n_outputs, last_activation=last_activation)
     else:
@@ -118,10 +118,12 @@ def build_model(input_dim, n_outputs, last_activation, loss, metrics=['accuracy'
 
 
 def train(model, train_gen, val_gen, model_file, class_weights=None, epochs=500):
+    time_callback = TimeHistory()
     callbacks = [
         ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5, verbose=1),
         ModelCheckpoint(model_file, monitor='val_loss', save_best_only=True, save_weights_only=True, mode='min'),
-        EarlyStopping(monitor='val_loss', mode='min', patience=8, restore_best_weights=True, verbose=1)
+        EarlyStopping(monitor='val_loss', mode='min', patience=10, restore_best_weights=True, verbose=1),
+        time_callback
     ]
 
     history = model.fit_generator(
@@ -150,8 +152,8 @@ def build_classifier(input_dim, n_intermed=12, n_classes=3, layer_type='dense'):
         input_dim = (input_dim,)
     inputs = Input(shape=input_dim)
     if layer_type=='conv':
-        x = Conv2D(16, kernel_size=3, activation='relu')(inputs)
-        x = Conv2D(16, kernel_size=3, activation='relu')(x)
+        x = Conv2D(64, kernel_size=3, activation='relu')(inputs)
+        x = Conv2D(64, kernel_size=3, activation='relu')(x)
         x = MaxPool2D(pool_size=3)(x)
         x = Flatten()(x)
         x = Dense(n_intermed, activation='relu')(x)
@@ -160,7 +162,7 @@ def build_classifier(input_dim, n_intermed=12, n_classes=3, layer_type='dense'):
     outputs = Dense(n_classes, activation='softmax')(x)
     model = Model(inputs, outputs)
 
-    optimizer = Lookahead(RAdam())
+    optimizer = RAdam() #Lookahead(RAdam())
     model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
     model.summary()
 
@@ -171,7 +173,7 @@ def train_classifier(model, X_train, y_train, X_val, y_val, clf_file, class_weig
     time_callback = TimeHistory()
     callbacks = [
         ModelCheckpoint(clf_file, monitor='val_accuracy', save_best_only=True, save_weights_only=True, mode='max'),
-        EarlyStopping(monitor='val_loss', mode='min', patience=8, restore_best_weights=True, verbose=1),
+        EarlyStopping(monitor='val_loss', mode='min', patience=10, restore_best_weights=True, verbose=1),
         time_callback,
     ]
 
@@ -186,7 +188,7 @@ def train_classifier(model, X_train, y_train, X_val, y_val, clf_file, class_weig
 
     if verbose:
         print('HISTORY')
-        for k in ['acc', 'val_acc', 'loss', 'val_loss']:
+        for k in ['accuracy', 'val_accuracy', 'loss', 'val_loss']:
             print(k)
             print(history.history[k])
         print('time taken per epoch')
@@ -266,7 +268,6 @@ loss_switch = {
 
 
 if __name__ == '__main__':
-
     set_random_seeds()
 
     if len(sys.argv) < 7:
@@ -291,6 +292,7 @@ if __name__ == '__main__':
     print('backbone', backbone)
     print('target', target)
     print('n_bands', n_bands)
+    print('dataset_perc', dataset_perc)
 
     # set parameters
     n_outputs = n_outputs_switch.get(target+str(n_bands))
@@ -309,16 +311,24 @@ if __name__ == '__main__':
 
     start = time()
 
-    print('generating subset of data')
     df = pd.read_csv(csv_file)
+    orig_shape = df.shape
+
+    if target=='magnitudes':
+        e = 0.5
+        df = df[(
+            df.u_err <= e) & (df.f378_err <= e) & (df.f395_err <= e) & (df.f410_err <= e) & (df.f430_err <= e) & (df.g_err <= e) & (
+            df.f515_err <= e) & (df.r_err <= e) & (df.f660_err <= e) & (df.i_err <= e) & (df.f861_err <= e) & (df.z_err <= e)]
+
     if dataset_perc < 1:
-        orig_shape = df.shape
+        print('generating subset of data')
         df['random'] = np.random.rand(df.shape[0])
         df = df.loc[:, df.random <= dataset_perc]
-        print('new shape', df.shape)
-        print('proportion', df.shape[0]/orig_shape[0])
-        print('split proportions', df.split.value_counts(normalize=True))
-        print('class proportions', df['class'].value_counts(normalize=True))
+
+    print('new shape', df.shape)
+    print('proportion', df.shape[0]/orig_shape[0])
+    print('split proportions', df.split.value_counts(normalize=True))
+    print('class proportions', df['class'].value_counts(normalize=True))
     class_weights = get_class_weights(df)
     print('class weights', class_weights)
 
@@ -326,45 +336,42 @@ if __name__ == '__main__':
     X_train, y_train, train_gen = build_dataset(df, images_folder, input_dim, n_outputs, target, 'train')
     X_val, y_val, val_gen = build_dataset(df, images_folder, input_dim, n_outputs, target, 'val')
 
-    model = build_model(input_dim, n_outputs, lst_activation, loss)
+    model = build_model(input_dim, n_outputs, lst_activation, loss, backbone)
     history = train(model, train_gen, val_gen, model_file, class_weights)
     with open(os.path.join(results_folder, f'{model_name}_history.pkl'), 'wb') as f:
         pickle.dump(history.history, f)
     print('--- minutes taken:', int((time()-start)/60))
 
     print('evaluating model')
-    train_gen = DataGenerator(
-        X_train, shuffle=False, batch_size=1, data_folder=images_folder, input_dim=input_dim, n_outputs=n_outputs, target=target)
     val_gen = DataGenerator(
         X_val, shuffle=False, batch_size=1, data_folder=images_folder, input_dim=input_dim, n_outputs=n_outputs, target=target)
-    model = build_model(input_dim, n_outputs, lst_activation, loss, weights_file=model_file)
     y_val_hat, X_val_feats = model.predict_generator(val_gen)
     compute_metrics(y_val_hat, y_val, target)
-    np.save(os.path.join(results_folder, f'{model_name}_y_train.npy'), y_train)
     np.save(os.path.join(results_folder, f'{model_name}_y_val.npy'), y_val)
     np.save(os.path.join(results_folder, f'{model_name}_y_val_hat.npy'), y_val_hat)
-    print('--- minutes taken:', int((time()-start)/60))
-
-    print('extracting features')
-    y_train_hat, X_train_feats = model.predict_generator(train_gen)
-    np.save(os.path.join(results_folder, f'{model_name}_X_train_features.npy'), X_train_feats)
     np.save(os.path.join(results_folder, f'{model_name}_X_val_features.npy'), X_val_feats)
     print('--- minutes taken:', int((time()-start)/60))
 
-    print('training dense classifier')
-    _, y_train, _ = build_dataset(df, images_folder, input_dim, n_outputs, 'classes', 'train')
-    _, y_val, _ = build_dataset(df, images_folder, input_dim, n_outputs, 'classes', 'val')
-    clf = build_classifier(X_train_feats.shape[1])
-    clf_history = train_classifier(clf, X_train_feats, y_train, X_val_feats, y_val, clf_file, class_weights)
-    y_feats_hat = clf.predict(X_val_feats)
-    compute_metrics(y_feats_hat, y_val, 'classes')
-    print('--- minutes taken:', int((time()-start)/60))
+    if target!='classes':
+        print('training dense classifier')
+        train_gen = DataGenerator(
+            X_train, shuffle=False, batch_size=1, data_folder=images_folder, input_dim=input_dim, n_outputs=n_outputs, target=target)
+        y_train_hat, X_train_feats = model.predict_generator(train_gen)
+        np.save(os.path.join(results_folder, f'{model_name}_X_train_features.npy'), X_val_feats)
+        _, y_train, _ = build_dataset(df, images_folder, input_dim, n_outputs, 'classes', 'train')
+        _, y_val, _ = build_dataset(df, images_folder, input_dim, n_outputs, 'classes', 'val')
+        clf = build_classifier(X_train_feats.shape[1])
+        clf_history = train_classifier(clf, X_train_feats, y_train, X_val_feats, y_val, clf_file, class_weights)
+        y_feats_hat = clf.predict(X_val_feats)
+        compute_metrics(y_feats_hat, y_val, 'classes')
+        print('--- minutes taken:', int((time()-start)/60))
 
-    X_train_feats = np.load(os.path.join(results_folder, f'{model_name}_X_train_features.npy'))
-    X_val_feats = np.load(os.path.join(results_folder, f'{model_name}_X_val_features.npy'))
+    # X_train_feats = np.load(os.path.join(results_folder, f'{model_name}_X_train_features.npy'))
+    # X_val_feats = np.load(os.path.join(results_folder, f'{model_name}_X_val_features.npy'))
 
     print('extracting UMAP projections')
-    X_features = np.concatenate([X_train_feats, X_val_feats])
+    # X_features = np.concatenate([X_train_feats, X_val_feats])
+    X_features = np.copy(X_val_feats)
     X_umap = UMAP().fit_transform(X_features)
     np.save(os.path.join(results_folder, f'{model_name}_X_features_umap.npy'), X_umap)
     print('--- minutes taken:', int((time()-start)/60))

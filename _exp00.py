@@ -12,7 +12,7 @@ compare raw images (32x32xn features) to catalog (12+1 features)
 
 '''
 
-from _exp01 import build_classifier, compute_metrics, get_class_weights, train_classifier
+from _exp01 import build_classifier, compute_metrics, get_class_weights, set_random_seeds, train_classifier
 from keras.utils import to_categorical
 import os
 import numpy as np
@@ -94,6 +94,7 @@ def build_catalog_dataset(csv_file, features=['u','f378','f395','f410','f430','g
 
 
 if __name__ == '__main__':
+    set_random_seeds()
 
     if len(sys.argv) != 4:
         print('usage: python %s <data_dir> <csv_file> <nbands>' % sys.argv[0])
@@ -105,7 +106,9 @@ if __name__ == '__main__':
 
     df = pd.read_csv(csv_file)
     class_weights = get_class_weights(df)
+    class_weights_dict = dict(zip(range(3), class_weights))
     print('class weights', class_weights)
+    print('class_weights dict', class_weights_dict)
     del df
 
     print('building dataset')
@@ -115,29 +118,29 @@ if __name__ == '__main__':
     X_cat, y_cat = build_catalog_dataset(csv_file)
 
     # train log reg
-    lr_cat = LogisticRegression(
-        class_weight=dict(zip(range(2), class_weights)),
-        max_iter=10000,
-        multi_class='multinomial',
-        n_jobs=-1,
-        solver='lbfgs'
-        ).fit(X_cat['train'], y_cat['train'])
-    print('LogisticRegression; catalog')
-    yy_cat = lr_cat.predict(X_cat['val'])
-    compute_metrics(yy_cat, y_cat['val'], onehot=False)
-    print(lr_cat.score(X_cat['val'], y_cat['val']))
+    # lr_cat = LogisticRegression(
+    #     class_weight=class_weights_dict,
+    #     max_iter=10000,
+    #     multi_class='multinomial',
+    #     n_jobs=-1,
+    #     solver='lbfgs'
+    #     ).fit(X_cat['train'], y_cat['train'])
+    # print('LogisticRegression; catalog')
+    # yy_cat = lr_cat.predict(X_cat['val'])
+    # compute_metrics(yy_cat, y_cat['val'], onehot=False)
+    # print(lr_cat.score(X_cat['val'], y_cat['val']))
 
-    lr = LogisticRegression(
-        class_weight=dict(zip(range(2), class_weights)),
-        max_iter=10000,
-        multi_class='multinomial',
-        n_jobs=-1,
-        solver='lbfgs'
-        ).fit(X['train'], y['train'])
-    print('LogisticRegression; images')
-    yy = lr.predict(X['val'])
-    compute_metrics(yy, y['val'], onehot=False)
-    print(lr.score(X['val'], y['val']))
+    # lr = LogisticRegression(
+    #     class_weight=class_weights_dict,
+    #     max_iter=10000,
+    #     multi_class='multinomial',
+    #     n_jobs=-1,
+    #     solver='lbfgs'
+    #     ).fit(X['train'], y['train'])
+    # print('LogisticRegression; images')
+    # yy = lr.predict(X['val'])
+    # compute_metrics(yy, y['val'], onehot=False)
+    # print(lr.score(X['val'], y['val']))
 
     # train dense nn
     clf_basepath = os.getenv('DATA_PATH')+'/trained_models'
@@ -174,5 +177,5 @@ if __name__ == '__main__':
         clf_basepath+'/exp00_im_v0.h5',
         class_weights)
     yy = nn.predict(X['val'])
-    print('Conv NN; catalog')
+    print('Conv NN; images')
     compute_metrics(yy, y['val'])
