@@ -89,7 +89,7 @@ def build_dataset(df, data_folder, input_dim, n_outputs, target, split=None, bat
     return X, y, data_gen
 
 
-def build_model(input_dim, n_outputs, last_activation, loss,backbone='resnext', weights_file=None, metrics=['accuracy']):
+def build_model(input_dim, n_outputs, last_activation, loss, backbone='resnext', weights_file=None, metrics=['accuracy']):
     if backbone=='resnext':
         model = ResNeXt29(input_dim, num_classes=n_outputs, last_activation=last_activation)
     elif backbone=='efficientnet':
