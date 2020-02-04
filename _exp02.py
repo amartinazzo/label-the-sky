@@ -3,7 +3,7 @@ exp02:
 
 01. load extracted features from val set
 02. load 2d projections from val set
-03. run clustering (k-means, hbdscan)
+03. run clustering
 04. plot clusters in 2d
 
 '''
@@ -17,11 +17,11 @@ from umap import UMAP
 
 
 def load_features(model_path, split='val'):
-	X_feats = np.load(f'{model_path}_X_{split}_features.npy')
-	y = np.load(f'{model_path}_y_{split}.npy')
-	y_hat = np.load(f'{model_path}_y_{split}_hat.npy')
+    X_feats = np.load(f'{model_path}_X_{split}_features.npy')
+    y = np.load(f'{model_path}_y_{split}.npy')
+    y_hat = np.load(f'{model_path}_y_{split}_hat.npy')
 
-	return X_feats, y, y_hat
+    return X_feats, y, y_hat
 
 
 ########
@@ -31,3 +31,28 @@ def load_features(model_path, split='val'):
 
 if __name__ == '__main__':
     set_random_seeds()
+
+    if len(sys.argv) < 2:
+        print('usage: python %s <model_file> <split: optional>' % sys.argv[0])
+        exit(1)
+
+    model_file = sys.argv[1]
+    split = sys.argv[2] if len(sys.argv)==3 else 'val'
+
+    results_folder = os.getenv('HOME')+'/label_the_sky/results'
+    model_path = os.path.join(results_folder, model_file)
+
+    X, y, y_hat = load_features(model_path, split)
+
+    y_labels = {}
+
+    # k-means varying k
+    # TODO silhouette
+    for k in range(3, 8):
+        print('k-means; k=', k)
+        kmeans = KMeans(n_clusters=k, n_init=10, n_jobs=-1).fit(X)
+        y_labels[f'kmeans_{k}'] = kmeans.labels_
+
+    # hdbscan
+    # hdbscan = HDBSCAN(n_jobs=-1).fit(X)
+    # y_labels['hdbscan'] = hdbscan.labels_

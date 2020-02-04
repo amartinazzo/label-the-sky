@@ -18,6 +18,12 @@ import keras.backend as K
 import numpy as np
 
 
+if (K.image_data_format() == 'channels_first'):
+    channel_axis = 1
+else:
+    channel_axis = 3
+
+
 def my_conv(input, num_filters, kernel_size_tuple, strides=1, padding='valid'):
     x = Convolution2D(num_filters, kernel_size_tuple, strides=strides, padding=padding, 
                       use_bias=True, kernel_initializer='he_normal')(input)

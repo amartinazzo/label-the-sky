@@ -17,8 +17,8 @@ def get_sets(df, target='classes', n_bands=12, filters=None):
     * obj_list      list of object ids (used to check existing files)
     * mode          'classes' to return class labels or 'magnitudes' to return 12 magnitudes; other string values will return None for y/labels
 
-    returns: (X, y, labels) triplet, where
-    * X is a list of object ids
+    returns: (ids, y, labels) triplet, where
+    * ids is a list of object ids
     * y are categorical labels
     * labels is a dict mapping each id to its label, e.g. {'x1': 0, 'x2': 1, ...}
     """
@@ -27,7 +27,7 @@ def get_sets(df, target='classes', n_bands=12, filters=None):
         for key, val in filters.items():
             df = df[df[key].between(val[0], val[1])]
             # print('set size after filters', df.shape)
-    X = df.id.values
+    ids = df.id.values
     
     if target=='classes':
         y = df['class'].apply(lambda c: class_map[c]).values
@@ -43,8 +43,8 @@ def get_sets(df, target='classes', n_bands=12, filters=None):
     else:
         return X, _, _
 
-    labels = dict(zip(X, y))
-    return X, y, labels
+    labels = dict(zip(ids, y))
+    return ids, y, labels
 
 
 def plot_confusion_matrix(y_true, y_pred, classes,

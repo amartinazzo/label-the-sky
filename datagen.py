@@ -71,19 +71,9 @@ class DataGenerator(Sequence):
     def __data_generation(self, list_ids_temp):
         # generate data containing batch_size samples
         X = np.empty((self.batch_size,)+self.shape)
-
-        if self.target=='classes':
-            y = np.empty((self.batch_size), dtype=int)
-        else:
-            y = np.zeros((self.batch_size, self.n_outputs), dtype=float)
+        y = np.zeros((self.batch_size, self.n_outputs), dtype=np.float32)
 
         for i, object_id in enumerate(list_ids_temp):
-            # if self.extension == '.txt':
-            #     im = np.loadtxt(self.data_folder + object_id + '.txt').reshape(self.shape)
-            #     im = im + 30000 # min = -30000
-            #     im = im / 43000 # max = 13000; interval = 13000 - (-30000) = 43000
-            #     X[i,] = im
-            
             filepath = os.path.join(self.data_folder, object_id.split('.')[0], object_id+self.extension)
 
             if self.extension == '.png':
@@ -97,10 +87,10 @@ class DataGenerator(Sequence):
 
             if self.augmentation:
                 im = self.augment(im)
-            X[i,] = im
+            X[i,:] = im
 
             if self.labels is not None:
-                y[i,] = np.array(self.labels[object_id])
+                y[i,:] = self.labels[object_id]
 
         if self.labels is None:
             return X, None

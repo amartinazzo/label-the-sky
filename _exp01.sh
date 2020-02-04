@@ -51,12 +51,12 @@ do
     do
         cmd=${commands[$i]}
         task=$(echo $cmd | cut -d" " -f6)
-        nbands=$(echo $cmd | cut -d" " -f7)
-        feat_dim=$(echo $cmd | cut -d" " -f8)
+        target=$(echo $cmd | cut -d" " -f7)
+        nbandss=$(echo $cmd | cut -d" " -f8)
         
         if [ "$cmd" != "" ]
         then
-            logfile="logs/${date}_${task}_${nbands}bands_${feat_dim}.log"
+            logfile="logs/${date}_${task}_${target}_${nbandss}.log"
             echo "CUDA_VISIBLE_DEVICES=$gpu $cmd >> $logfile 2>&1 &"
             echo "CUDA_VISIBLE_DEVICES=$gpu $cmd >> $logfile 2>&1 &" >> $logfile
             eval "CUDA_VISIBLE_DEVICES=$gpu $cmd >> $logfile 2>&1 &"

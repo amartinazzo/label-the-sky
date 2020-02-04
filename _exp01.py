@@ -73,8 +73,8 @@ def build_dataset(df, data_folder, input_dim, n_outputs, target, split=None, bat
         split = 'full'
 
     n_bands = input_dim[-1]
-    X, y, labels = get_sets(df, target=target, n_bands=n_bands)
-    print(f'{split} size', len(X))
+    ids, y, labels = get_sets(df, target=target, n_bands=n_bands)
+    print(f'{split} size', len(ids))
 
     params = {
         'batch_size': batch_size,
@@ -84,9 +84,9 @@ def build_dataset(df, data_folder, input_dim, n_outputs, target, split=None, bat
         'target': target
         }
 
-    data_gen = DataGenerator(X, labels=labels, **params)
+    data_gen = DataGenerator(ids, labels=labels, **params)
 
-    return X, y, data_gen
+    return ids, y, data_gen
 
 
 def build_model(input_dim, n_outputs, last_activation, loss, backbone='resnext', weights_file=None, metrics=['accuracy']):
@@ -95,7 +95,7 @@ def build_model(input_dim, n_outputs, last_activation, loss, backbone='resnext',
     elif backbone=='efficientnet':
         model = EfficientNetB0(
             classes=n_outputs, weights=None, input_shape=input_dim, last_activation=last_activation)
-    elif backbone_model=='vgg':
+    elif backbone=='vgg':
         model = VGG11b(input_dim, num_classes=n_outputs, last_activation=last_activation)
     else:
         print('accepted backbones: resnext, efficientnet, vgg')
@@ -281,11 +281,7 @@ if __name__ == '__main__':
     target = sys.argv[4]
     n_bands = int(sys.argv[5])
     timestamp = sys.argv[6]
-
-    if len(sys.arg) == 8:
-        dataset_perc = int(dataset_perc)/100.
-    else:
-        dataset_perc = 1
+    dataset_perc = int(sys.argv[7])/100. if len(sys.argv) == 8 else 1.
 
     print('data_dir', data_dir)
     print('csv_file', csv_file)
@@ -327,8 +323,10 @@ if __name__ == '__main__':
 
     print('new shape', df.shape)
     print('proportion', df.shape[0]/orig_shape[0])
-    print('split proportions', df.split.value_counts(normalize=True))
-    print('class proportions', df['class'].value_counts(normalize=True))
+    print('split proportions')
+    print(df.split.value_counts(normalize=True))
+    print('class proportions')
+    print(df['class'].value_counts(normalize=True))
     class_weights = get_class_weights(df)
     print('class weights', class_weights)
 
