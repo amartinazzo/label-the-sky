@@ -17,7 +17,8 @@ def conv_block(inpt, n_filters, kernel_size=3):
 	return x
 
 
-def VGG11b(input_shape, num_classes, last_activation='softmax', m=2):
+def VGG11b(
+	input_shape, num_classes, include_top=True, include_features=False, last_activation='softmax', m=2):
 	'''
 	m (int)		multiplier of number of filters in every conv layer
 
@@ -47,11 +48,17 @@ def VGG11b(input_shape, num_classes, last_activation='softmax', m=2):
 
 	x = Flatten()(x)
 	x = Dense(1024, activation='relu')(x)
-	top = Dense(num_classes, activation=last_activation)(x)
 
-	return Model(inpt, [top, x])
+	if include_top:
+		top = Dense(num_classes, activation=last_activation)(x)
+		if include_features:
+			return Model(inpt, [top, x])
+		else:
+	        return Model(inpt, top)
+
+	return Model(inpt, x)
 
 
 if __name__ == '__main__':
-    model = VGG11b((32, 32, 3), num_classes=10, last_activation='softmax')
+    model = VGG11b((32, 32, 3), num_classes=10, include_top=True, last_activation='softmax')
     model.summary()

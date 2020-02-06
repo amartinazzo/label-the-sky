@@ -89,14 +89,21 @@ def build_dataset(df, data_folder, input_dim, n_outputs, target, split=None, bat
     return ids, y, data_gen
 
 
-def build_model(input_dim, n_outputs, last_activation, loss, backbone='resnext', weights_file=None, metrics=['accuracy']):
+def build_model(
+    input_dim, n_outputs, last_activation, loss, backbone='resnext', include_top=True, include_features=False,
+    weights_file=None, metrics=['accuracy']):
     if backbone=='resnext':
-        model = ResNeXt29(input_dim, num_classes=n_outputs, last_activation=last_activation)
+        model = ResNeXt29(
+            input_dim, num_classes=n_outputs, last_activation=last_activation,
+            include_top=include_top, include_features=include_features, weights=weights_file)
     elif backbone=='efficientnet':
         model = EfficientNetB0(
-            classes=n_outputs, weights=None, input_shape=input_dim, last_activation=last_activation)
+            input_dim, classes=n_outputs, last_activation=last_activation,
+            include_top=include_top, include_features=include_features, weights=weights_file)
     elif backbone=='vgg':
-        model = VGG11b(input_dim, num_classes=n_outputs, last_activation=last_activation)
+        model = VGG11b(
+            input_dim, num_classes=n_outputs, last_activation=last_activation,
+            include_top=include_top, include_features=include_features, weights=weights_file)
     else:
         print('accepted backbones: resnext, efficientnet, vgg')
         exit()
@@ -341,6 +348,9 @@ if __name__ == '__main__':
     print('--- minutes taken:', int((time()-start)/60))
 
     print('evaluating model')
+    model = build_model(
+        input_dim, n_outputs, lst_activation, loss, backbone,
+        include_top=True, include_features=True, weights_file=model_file)
     val_gen = DataGenerator(
         X_val, shuffle=False, batch_size=1, data_folder=images_folder, input_dim=input_dim, n_outputs=n_outputs, target=target)
     y_val_hat, X_val_feats = model.predict_generator(val_gen)

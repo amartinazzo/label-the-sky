@@ -72,7 +72,7 @@ def make_layer(block, input, numFilters, numBlocks, stride, cardinality, bottlen
 
 
 def ResNeXt_builder(
-    block, num_blocks, input_shape, num_classes, cardinality, bottleneck_width, last_activation, output_dim):
+    block, num_blocks, input_shape, num_classes, cardinality, bottleneck_width, include_top, include_features, last_activation):
     img_input = Input(shape=input_shape)
     x = my_conv(img_input, 64, (1, 1))
     x = BatchNormalization(axis=channel_axis)(x)
@@ -86,18 +86,20 @@ def ResNeXt_builder(
     x = AveragePooling2D((8, 8), strides=8)(x)
     x = Flatten()(x)
 
-    if output_dim is not None:
-        x = Dense(output_dim, activation='relu')(x)
+    if include_top:
+        top = Dense(num_classes, activation=last_activation)(x)
+        if include_features:
+            return Model(inpt, [top, x])
+        else:
+            return Model(inpt, top)
 
-    top = Dense(num_classes, activation=last_activation)(x)
-    
-    return Model(img_input, [top, x])
+    return Model(img_input, x)
 
 
-def ResNeXt29(input_shape, num_classes, width=64, cardinality=8, last_activation='softmax', output_dim=None):
+def ResNeXt29(input_shape, num_classes, width=64, cardinality=8, include_top=True, include_features=False, last_activation='softmax'):
     depth_seq = (3,3,3)
     return ResNeXt_builder(
-        Block, depth_seq, input_shape, num_classes, cardinality, width, last_activation, output_dim)
+        Block, depth_seq, input_shape, num_classes, cardinality, width, include_top, last_activation)
 
 
 if __name__ == '__main__':
