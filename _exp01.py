@@ -95,15 +95,15 @@ def build_model(
     if backbone=='resnext':
         model = ResNeXt29(
             input_dim, num_classes=n_outputs, last_activation=last_activation,
-            include_top=include_top, include_features=include_features, weights=weights_file)
+            include_top=include_top, include_features=include_features)
     elif backbone=='efficientnet':
         model = EfficientNetB0(
             input_dim, classes=n_outputs, last_activation=last_activation,
-            include_top=include_top, include_features=include_features, weights=weights_file)
+            include_top=include_top, include_features=include_features)
     elif backbone=='vgg':
         model = VGG11b(
             input_dim, num_classes=n_outputs, last_activation=last_activation,
-            include_top=include_top, include_features=include_features, weights=weights_file)
+            include_top=include_top, include_features=include_features, weights=None)
     else:
         print('accepted backbones: resnext, efficientnet, vgg')
         exit()

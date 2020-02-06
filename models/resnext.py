@@ -73,8 +73,8 @@ def make_layer(block, input, numFilters, numBlocks, stride, cardinality, bottlen
 
 def ResNeXt_builder(
     block, num_blocks, input_shape, num_classes, cardinality, bottleneck_width, include_top, include_features, last_activation):
-    img_input = Input(shape=input_shape)
-    x = my_conv(img_input, 64, (1, 1))
+    inpt = Input(shape=input_shape)
+    x = my_conv(inpt, 64, (1, 1))
     x = BatchNormalization(axis=channel_axis)(x)
     x = Activation('relu')(x)
     
@@ -93,13 +93,13 @@ def ResNeXt_builder(
         else:
             return Model(inpt, top)
 
-    return Model(img_input, x)
+    return Model(inpt, x)
 
 
 def ResNeXt29(input_shape, num_classes, width=64, cardinality=8, include_top=True, include_features=False, last_activation='softmax'):
     depth_seq = (3,3,3)
     return ResNeXt_builder(
-        Block, depth_seq, input_shape, num_classes, cardinality, width, include_top, last_activation)
+        Block, depth_seq, input_shape, num_classes, cardinality, width, include_top, include_features, last_activation)
 
 
 if __name__ == '__main__':
