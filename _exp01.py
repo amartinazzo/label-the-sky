@@ -124,7 +124,7 @@ def build_model(
     return model
 
 
-def train(model, train_gen, val_gen, model_file, class_weights=None, epochs=500):
+def train(model, train_gen, val_gen, model_file, class_weights=None, epochs=500, verbose=True):
     time_callback = TimeHistory()
     callbacks = [
         ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5, verbose=1),
