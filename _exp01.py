@@ -94,16 +94,16 @@ def build_model(
     weights_file=None, metrics=['accuracy']):
     if backbone=='resnext':
         model = ResNeXt29(
-            input_dim, num_classes=n_outputs, last_activation=last_activation,
+            input_shape=input_dim, num_classes=n_outputs, last_activation=last_activation,
             include_top=include_top, include_features=include_features)
     elif backbone=='efficientnet':
         model = EfficientNetB0(
-            input_dim, classes=n_outputs, last_activation=last_activation,
-            include_top=include_top, include_features=include_features)
+            input_shape=input_dim, classes=n_outputs, last_activation=last_activation,
+            include_top=include_top, include_features=include_features, weights=None)
     elif backbone=='vgg':
         model = VGG11b(
-            input_dim, num_classes=n_outputs, last_activation=last_activation,
-            include_top=include_top, include_features=include_features, weights=None)
+            input_shape=input_dim, num_classes=n_outputs, last_activation=last_activation,
+            include_top=include_top, include_features=include_features)
     else:
         print('accepted backbones: resnext, efficientnet, vgg')
         exit()
@@ -145,7 +145,7 @@ def train(model, train_gen, val_gen, model_file, class_weights=None, epochs=500,
 
     if verbose:
         print('HISTORY')
-        for k in ['acc', 'val_acc', 'loss', 'val_loss']:
+        for k in ['accuracy', 'val_accuracy', 'loss', 'val_loss']:
             print(k)
             print(history.history[k])
         print('time taken per epoch')
@@ -337,15 +337,15 @@ if __name__ == '__main__':
     class_weights = get_class_weights(df)
     print('class weights', class_weights)
 
-    print('training backbone')
+    # print('training backbone')
     X_train, y_train, train_gen = build_dataset(df, images_folder, input_dim, n_outputs, target, 'train')
     X_val, y_val, val_gen = build_dataset(df, images_folder, input_dim, n_outputs, target, 'val')
 
-    model = build_model(input_dim, n_outputs, lst_activation, loss, backbone)
-    history = train(model, train_gen, val_gen, model_file, class_weights)
-    with open(os.path.join(results_folder, f'{model_name}_history.pkl'), 'wb') as f:
-        pickle.dump(history.history, f)
-    print('--- minutes taken:', int((time()-start)/60))
+    # model = build_model(input_dim, n_outputs, lst_activation, loss, backbone)
+    # history = train(model, train_gen, val_gen, model_file, class_weights)
+    # with open(os.path.join(results_folder, f'{model_name}_history.pkl'), 'wb') as f:
+    #     pickle.dump(history.history, f)
+    # print('--- minutes taken:', int((time()-start)/60))
 
     print('evaluating model')
     model = build_model(
@@ -354,6 +354,8 @@ if __name__ == '__main__':
     val_gen = DataGenerator(
         X_val, shuffle=False, batch_size=1, data_folder=images_folder, input_dim=input_dim, n_outputs=n_outputs, target=target)
     y_val_hat, X_val_feats = model.predict_generator(val_gen)
+    print(y_val_hat[0])
+    print(X_val_feats[0].shape)
     compute_metrics(y_val_hat, y_val, target)
     np.save(os.path.join(results_folder, f'{model_name}_y_val.npy'), y_val)
     np.save(os.path.join(results_folder, f'{model_name}_y_val_hat.npy'), y_val_hat)
@@ -380,6 +382,6 @@ if __name__ == '__main__':
     print('extracting UMAP projections')
     # X_features = np.concatenate([X_train_feats, X_val_feats])
     X_features = np.copy(X_val_feats)
-    X_umap = UMAP().fit_transform(X_features)
+    X_umap = UMAP().fit(X_features).embedding_
     np.save(os.path.join(results_folder, f'{model_name}_X_features_umap.npy'), X_umap)
     print('--- minutes taken:', int((time()-start)/60))
