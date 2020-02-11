@@ -337,15 +337,15 @@ if __name__ == '__main__':
     class_weights = get_class_weights(df)
     print('class weights', class_weights)
 
-    # print('training backbone')
+    print('training backbone')
     X_train, y_train, train_gen = build_dataset(df, images_folder, input_dim, n_outputs, target, 'train')
     X_val, y_val, val_gen = build_dataset(df, images_folder, input_dim, n_outputs, target, 'val')
 
-    # model = build_model(input_dim, n_outputs, lst_activation, loss, backbone)
-    # history = train(model, train_gen, val_gen, model_file, class_weights)
-    # with open(os.path.join(results_folder, f'{model_name}_history.pkl'), 'wb') as f:
-    #     pickle.dump(history.history, f)
-    # print('--- minutes taken:', int((time()-start)/60))
+    model = build_model(input_dim, n_outputs, lst_activation, loss, backbone)
+    history = train(model, train_gen, val_gen, model_file, class_weights)
+    with open(os.path.join(results_folder, f'{model_name}_history.pkl'), 'wb') as f:
+        pickle.dump(history.history, f)
+    print('--- minutes taken:', int((time()-start)/60))
 
     print('evaluating model')
     model = build_model(
