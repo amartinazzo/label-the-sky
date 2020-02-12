@@ -38,7 +38,7 @@ from keras_lookahead import Lookahead
 from keras_radam import RAdam
 from models.callbacks import TimeHistory
 from models.resnext import ResNeXt29
-from models.vgg import VGG11b
+from models.vgg import VGG11b, VGG16
 import numpy as np
 import pandas as pd
 import pickle
@@ -49,6 +49,7 @@ import tensorflow as tf
 from time import time
 from umap import UMAP
 from utils import get_sets
+import warnings
 
 
 def set_random_seeds():
@@ -101,7 +102,7 @@ def build_model(
             input_shape=input_dim, classes=n_outputs, last_activation=last_activation,
             include_top=include_top, include_features=include_features, weights=None)
     elif backbone=='vgg':
-        model = VGG11b(
+        model = VGG16(
             input_shape=input_dim, num_classes=n_outputs, last_activation=last_activation,
             include_top=include_top, include_features=include_features)
     else:
@@ -112,7 +113,7 @@ def build_model(
         model.load_weights(weights_file)
         print('loaded weights')
 
-    optimizer = Lookahead(RAdam())
+    optimizer = RAdam() #Lookahead(RAdam())
     model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
 
     trainable_count = int(np.sum([K.count_params(p) for p in set(model.trainable_weights)]))
@@ -144,11 +145,9 @@ def train(model, train_gen, val_gen, model_file, class_weights=None, epochs=500,
         verbose=2)
 
     if verbose:
-        print('HISTORY')
-        for k in ['accuracy', 'val_accuracy', 'loss', 'val_loss']:
-            print(k)
-            print(history.history[k])
-        print('time taken per epoch')
+        print('History')
+        print(history.history)
+        print('Time taken per epoch (s)')
         print(time_callback.times)
 
     return history
@@ -194,11 +193,9 @@ def train_classifier(model, X_train, y_train, X_val, y_val, clf_file, class_weig
         verbose=2)
 
     if verbose:
-        print('HISTORY')
-        for k in ['accuracy', 'val_accuracy', 'loss', 'val_loss']:
-            print(k)
-            print(history.history[k])
-        print('time taken per epoch')
+        print('History')
+        print(history.history)
+        print('Time taken per epoch (s)')
         print(time_callback.times)
 
     return history
@@ -220,8 +217,11 @@ def compute_metrics(y_pred, y_true, target='classes', onehot=True):
         print(cm)
 
     else:
+        cols = ['u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z']
         err_abs = np.absolute(y_true-y_pred)
-        df = pd.DataFrame(err_abs)
+        df = pd.DataFrame(err_abs, columns=cols)
+        print(df.describe().to_string())
+        df = pd.DataFrame(err_abs*30, columns=cols)
         print(df.describe().to_string())
         print('MAE:', np.mean(err_abs))
         print('MAPE:', np.mean(err_abs/y_true)*100)
@@ -268,6 +268,12 @@ loss_switch = {
     'redshifts': 'mean_absolute_error',
 }
 
+loss_switch = {
+    'classes': ['accuracy'],
+    'magnitudes': ['mae'],
+    'redshifts': ['mae'],
+}
+
 
 ########
 # MAIN #
@@ -275,6 +281,7 @@ loss_switch = {
 
 
 if __name__ == '__main__':
+    warnings.filterwarnings('ignore')
     set_random_seeds()
 
     if len(sys.argv) < 7:
@@ -341,7 +348,8 @@ if __name__ == '__main__':
     X_train, y_train, train_gen = build_dataset(df, images_folder, input_dim, n_outputs, target, 'train')
     X_val, y_val, val_gen = build_dataset(df, images_folder, input_dim, n_outputs, target, 'val')
 
-    model = build_model(input_dim, n_outputs, lst_activation, loss, backbone)
+    metrics = ['accuracy'] if target=='classes' else ['mae']
+    model = build_model(input_dim, n_outputs, lst_activation, loss, backbone, metrics=metrics)
     history = train(model, train_gen, val_gen, model_file, class_weights)
     with open(os.path.join(results_folder, f'{model_name}_history.pkl'), 'wb') as f:
         pickle.dump(history.history, f)

@@ -93,4 +93,4 @@ class TimeHistory(Callback):
         self.epoch_time_start = time()
 
     def on_epoch_end(self, batch, logs={}):
-        self.times.append(round(time() - self.epoch_time_start, 2))
+        self.times.append(int(time() - self.epoch_time_start))

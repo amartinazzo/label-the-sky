@@ -15,11 +15,11 @@ function waitpids {
 
 declare -a servers=($(hostname))
 
-date=200206 #`date "+%y%m%d"`
+date=`date "+%y%m%d"`
 data_dir=$DATA_PATH
 
 declare -a backbones=(resnext efficientnet vgg)
-declare -a outputs=(magnitudes)
+declare -a outputs=(classes magnitudes)
 declare -a nbands=(12 5 3)
 
 declare -a commands
@@ -50,13 +50,13 @@ do
     for gpu in 0 1
     do
         cmd=${commands[$i]}
-        task=$(echo $cmd | cut -d" " -f6)
+        backbone=$(echo $cmd | cut -d" " -f6)
         target=$(echo $cmd | cut -d" " -f7)
         nbandss=$(echo $cmd | cut -d" " -f8)
         
         if [ "$cmd" != "" ]
         then
-            logfile="logs/${date}_${task}_${target}_${nbandss}_mags.log"
+            logfile="logs/${date}_${backbone}_${target}_${nbandss}.log"
             echo "CUDA_VISIBLE_DEVICES=$gpu $cmd >> $logfile 2>&1 &"
             echo "CUDA_VISIBLE_DEVICES=$gpu $cmd >> $logfile 2>&1 &" >> $logfile
             eval "CUDA_VISIBLE_DEVICES=$gpu $cmd >> $logfile 2>&1 &"

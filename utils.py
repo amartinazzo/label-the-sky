@@ -37,7 +37,7 @@ def get_sets(df, target='classes', n_bands=12, filters=None):
             y = df[['u','g','r','i','z']].values
         else:
             y = df[['u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z']].values
-        # y = y/30
+        y = y/30
     elif target=='redshifts':
         y = df[['redshift_base', 'redshift_exp']].values
     else:
