@@ -18,10 +18,11 @@ from umap import UMAP
 
 def load_features(model_path, split='val'):
     X_feats = np.load(f'{model_path}_X_{split}_features.npy')
+    X_umap = np.load(f'{model_path}_X_{split}_features_umap.npy')    
     y = np.load(f'{model_path}_y_{split}.npy')
     y_hat = np.load(f'{model_path}_y_{split}_hat.npy')
 
-    return X_feats, y, y_hat
+    return X_feats, X_umap, y, y_hat
 
 
 ########
@@ -42,7 +43,7 @@ if __name__ == '__main__':
     results_folder = os.getenv('HOME')+'/label_the_sky/results'
     model_path = os.path.join(results_folder, model_file)
 
-    X, y, y_hat = load_features(model_path, split)
+    X, X_umap, y, y_hat = load_features(model_path, split)
 
     y_labels = {}
 

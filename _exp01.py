@@ -43,7 +43,7 @@ import numpy as np
 import pandas as pd
 import pickle
 import os
-import sklearn.metrics as metrics
+from sklearn.metrics import classification_report, confusion_matrix
 import sys
 import tensorflow as tf
 from time import time
@@ -209,15 +209,14 @@ def compute_metrics(y_pred, y_true, target='classes', onehot=True):
         else:
             y_pred_arg = np.copy(y_pred)
             y_true_arg = np.copy(y_true)
-        print(metrics.classification_report(y_true_arg, y_pred_arg, target_names=['GALAXY', 'STAR', 'QSO']))
-        cm = metrics.confusion_matrix(y_true_arg, y_pred_arg)
+        print(classification_report(y_true_arg, y_pred_arg, target_names=['GALAXY', 'STAR', 'QSO']))
+        cm = confusion_matrix(y_true_arg, y_pred_arg)
         cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
         cm = np.round(cm, 2)
         print('confusion matrix')
         print(cm)
 
     else:
-        cols = ['u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z']
         err_abs = np.absolute(y_true-y_pred)
         df = pd.DataFrame(err_abs, columns=cols)
         print(df.describe().to_string())
@@ -264,11 +263,11 @@ last_activation_switch = {
 
 loss_switch = {
     'classes': 'categorical_crossentropy',
-    'magnitudes': 'mean_absolute_error',
-    'redshifts': 'mean_absolute_error',
+    'magnitudes': 'mse',
+    'redshifts': 'mse',
 }
 
-loss_switch = {
+metrics_switch = {
     'classes': ['accuracy'],
     'magnitudes': ['mae'],
     'redshifts': ['mae'],
@@ -310,6 +309,7 @@ if __name__ == '__main__':
     images_folder = os.path.join(data_dir, images_folder_switch.get(n_bands))
     lst_activation = last_activation_switch.get(target)
     loss = loss_switch.get(target)
+    metrics = metrics_switch.get(target)
 
     input_dim = (32, 32, n_bands)
     model_name = '{}_{}_{}_{}'.format(timestamp, backbone, target, n_bands)
@@ -348,7 +348,9 @@ if __name__ == '__main__':
     X_train, y_train, train_gen = build_dataset(df, images_folder, input_dim, n_outputs, target, 'train')
     X_val, y_val, val_gen = build_dataset(df, images_folder, input_dim, n_outputs, target, 'val')
 
-    metrics = ['accuracy'] if target=='classes' else ['mae']
+    print(y_val[:10])
+    exit()
+
     model = build_model(input_dim, n_outputs, lst_activation, loss, backbone, metrics=metrics)
     history = train(model, train_gen, val_gen, model_file, class_weights)
     with open(os.path.join(results_folder, f'{model_name}_history.pkl'), 'wb') as f:
@@ -362,9 +364,7 @@ if __name__ == '__main__':
     val_gen = DataGenerator(
         X_val, shuffle=False, batch_size=1, data_folder=images_folder, input_dim=input_dim, n_outputs=n_outputs, target=target)
     y_val_hat, X_val_feats = model.predict_generator(val_gen)
-    print(y_val_hat[0])
-    print(X_val_feats[0].shape)
-    compute_metrics(y_val_hat, y_val, target)
+    compute_metrics(y_val, y_val_hat, target)
     np.save(os.path.join(results_folder, f'{model_name}_y_val.npy'), y_val)
     np.save(os.path.join(results_folder, f'{model_name}_y_val_hat.npy'), y_val_hat)
     np.save(os.path.join(results_folder, f'{model_name}_X_val_features.npy'), X_val_feats)
@@ -381,7 +381,7 @@ if __name__ == '__main__':
         clf = build_classifier(X_train_feats.shape[1])
         clf_history = train_classifier(clf, X_train_feats, y_train, X_val_feats, y_val, clf_file, class_weights)
         y_feats_hat = clf.predict(X_val_feats)
-        compute_metrics(y_feats_hat, y_val, 'classes')
+        compute_metrics(y_val, y_feats_hat, 'classes')
         print('--- minutes taken:', int((time()-start)/60))
 
     # X_train_feats = np.load(os.path.join(results_folder, f'{model_name}_X_train_features.npy'))
@@ -391,5 +391,5 @@ if __name__ == '__main__':
     # X_features = np.concatenate([X_train_feats, X_val_feats])
     X_features = np.copy(X_val_feats)
     X_umap = UMAP().fit(X_features).embedding_
-    np.save(os.path.join(results_folder, f'{model_name}_X_features_umap.npy'), X_umap)
+    np.save(os.path.join(results_folder, f'{model_name}_X_val_features_umap.npy'), X_umap)
     print('--- minutes taken:', int((time()-start)/60))
