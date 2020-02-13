@@ -19,7 +19,7 @@ date=`date "+%y%m%d"`
 data_dir=$DATA_PATH
 
 declare -a backbones=(resnext efficientnet vgg)
-declare -a outputs=(classes magnitudes)
+declare -a outputs=(magnitudes)
 declare -a nbands=(12 5 3)
 
 declare -a commands

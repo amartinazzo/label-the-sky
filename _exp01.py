@@ -29,6 +29,7 @@ vary dataset_perc in [1, 100]
 from datagen import DataGenerator
 from efficientnet.keras import EfficientNetB0
 from glob import glob
+import json
 from keras import backend as K
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from keras.layers import Input
@@ -41,7 +42,6 @@ from models.resnext import ResNeXt29
 from models.vgg import VGG11b, VGG16
 import numpy as np
 import pandas as pd
-import pickle
 import os
 from sklearn.metrics import classification_report, confusion_matrix
 import sys
@@ -226,6 +226,9 @@ def compute_metrics(y_pred, y_true, target='classes', onehot=True):
         print('MAPE:', np.mean(err_abs/y_true)*100)
 
 
+def relu_saturated(x):
+    return K.relu(x, max_value=1.)
+
 ###########
 # SWITCHS #
 ###########
@@ -257,7 +260,7 @@ images_folder_switch = {
 
 last_activation_switch = {
     'classes': 'softmax',
-    'magnitudes': 'relu',
+    'magnitudes': relu_saturated, #'relu',
     'redshifts': 'sigmoid',
 }
 
@@ -311,6 +314,12 @@ if __name__ == '__main__':
     loss = loss_switch.get(target)
     metrics = metrics_switch.get(target)
 
+    print('n_outputs', n_outputs)
+    print('images_folder', images_folder)
+    print('last activation', lst_activation)
+    print('loss', loss)
+    print('metrics', metrics)
+
     input_dim = (32, 32, n_bands)
     model_name = '{}_{}_{}_{}'.format(timestamp, backbone, target, n_bands)
     clf_name = '{}_{}_{}_{}_topclf'.format(timestamp, backbone, target, n_bands)
@@ -348,13 +357,9 @@ if __name__ == '__main__':
     X_train, y_train, train_gen = build_dataset(df, images_folder, input_dim, n_outputs, target, 'train')
     X_val, y_val, val_gen = build_dataset(df, images_folder, input_dim, n_outputs, target, 'val')
 
-    print(y_val[:10])
-    exit()
-
     model = build_model(input_dim, n_outputs, lst_activation, loss, backbone, metrics=metrics)
     history = train(model, train_gen, val_gen, model_file, class_weights)
-    with open(os.path.join(results_folder, f'{model_name}_history.pkl'), 'wb') as f:
-        pickle.dump(history.history, f)
+    json.dump(history.history, open(f'history_{model_name}.json', 'w'))
     print('--- minutes taken:', int((time()-start)/60))
 
     print('evaluating model')
