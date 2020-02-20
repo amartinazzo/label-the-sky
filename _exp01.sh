@@ -18,7 +18,7 @@ declare -a servers=($(hostname))
 date=`date "+%y%m%d"`
 data_dir=$DATA_PATH
 
-declare -a backbones=(resnext efficientnet vgg)
+declare -a backbones=(vgg11) #(resnext efficientnet vgg16 vgg11)
 declare -a outputs=(magnitudes)
 declare -a nbands=(12 5 3)
 
@@ -57,9 +57,9 @@ do
         if [ "$cmd" != "" ]
         then
             logfile="logs/${date}_${backbone}_${target}_${nbandss}.log"
-            echo "CUDA_VISIBLE_DEVICES=$gpu $cmd >> $logfile 2>&1 &"
-            echo "CUDA_VISIBLE_DEVICES=$gpu $cmd >> $logfile 2>&1 &" >> $logfile
-            eval "CUDA_VISIBLE_DEVICES=$gpu $cmd >> $logfile 2>&1 &"
+            echo "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"
+            echo "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &" >> $logfile
+            eval "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"
             pids+=($!)
             i=$((i + 1))
         fi

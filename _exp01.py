@@ -35,6 +35,7 @@ from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from keras.layers import Input
 from keras.layers import  Conv2D, Dense, Flatten, MaxPool2D
 from keras.models import Model
+from keras.optimizers import SGD
 from keras_lookahead import Lookahead
 from keras_radam import RAdam
 from models.callbacks import TimeHistory
@@ -77,12 +78,16 @@ def build_dataset(df, data_folder, input_dim, n_outputs, target, split=None, bat
     ids, y, labels = get_sets(df, target=target, n_bands=n_bands)
     print(f'{split} size', len(ids))
 
+    shuffle = False if split!='train' else True
+    bs = 1 if split=='test' else batch_size
+
     params = {
-        'batch_size': batch_size,
+        'batch_size': bs,
         'data_folder': data_folder,
         'input_dim': input_dim,
         'n_outputs': n_outputs,
-        'target': target
+        'target': target,
+        'shuffle': shuffle,
         }
 
     data_gen = DataGenerator(ids, labels=labels, **params)
@@ -101,19 +106,23 @@ def build_model(
         model = EfficientNetB0(
             input_shape=input_dim, classes=n_outputs, last_activation=last_activation,
             include_top=include_top, include_features=include_features, weights=None)
-    elif backbone=='vgg':
+    elif backbone=='vgg16':
         model = VGG16(
             input_shape=input_dim, num_classes=n_outputs, last_activation=last_activation,
             include_top=include_top, include_features=include_features)
+    elif backbone=='vgg11':
+        model = VGG11b(
+            input_shape=input_dim, num_classes=n_outputs, last_activation=last_activation,
+            include_top=include_top, include_features=include_features)
     else:
-        print('accepted backbones: resnext, efficientnet, vgg')
+        print('accepted backbones: resnext, efficientnet, vgg16, vgg11')
         exit()
 
     if weights_file is not None and os.path.exists(weights_file):
         model.load_weights(weights_file)
         print('loaded weights')
 
-    optimizer = RAdam() #Lookahead(RAdam())
+    optimizer = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True) #RAdam() #Lookahead(RAdam())
     model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
 
     trainable_count = int(np.sum([K.count_params(p) for p in set(model.trainable_weights)]))
@@ -125,7 +134,7 @@ def build_model(
     return model
 
 
-def train(model, train_gen, val_gen, model_file, class_weights=None, epochs=500, verbose=True):
+def train(model, gen_train, gen_val, model_file, class_weights=None, epochs=500, verbose=True):
     time_callback = TimeHistory()
     callbacks = [
         ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=5, verbose=1),
@@ -135,10 +144,10 @@ def train(model, train_gen, val_gen, model_file, class_weights=None, epochs=500,
     ]
 
     history = model.fit_generator(
-        generator=train_gen,
-        validation_data=val_gen,
-        steps_per_epoch=len(train_gen),
-        validation_steps=len(val_gen),
+        generator=gen_train,
+        validation_data=gen_val,
+        steps_per_epoch=len(gen_train),
+        validation_steps=len(gen_val),
         epochs=epochs,
         callbacks=callbacks,
         class_weight=class_weights,
@@ -168,7 +177,7 @@ def build_classifier(input_dim, n_intermed=12, n_classes=3, layer_type='dense'):
     outputs = Dense(n_classes, activation='softmax')(x)
     model = Model(inputs, outputs)
 
-    optimizer = RAdam() #Lookahead(RAdam())
+    optimizer = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True) #RAdam() #Lookahead(RAdam())
     model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
     model.summary()
 
@@ -266,14 +275,14 @@ last_activation_switch = {
 
 loss_switch = {
     'classes': 'categorical_crossentropy',
-    'magnitudes': 'mse',
-    'redshifts': 'mse',
+    'magnitudes': 'mae',
+    'redshifts': 'mae',
 }
 
 metrics_switch = {
     'classes': ['accuracy'],
-    'magnitudes': ['mae'],
-    'redshifts': ['mae'],
+    'magnitudes': None,
+    'redshifts': None,
 }
 
 
@@ -354,47 +363,45 @@ if __name__ == '__main__':
     print('class weights', class_weights)
 
     print('training backbone')
-    X_train, y_train, train_gen = build_dataset(df, images_folder, input_dim, n_outputs, target, 'train')
-    X_val, y_val, val_gen = build_dataset(df, images_folder, input_dim, n_outputs, target, 'val')
+    X_train, y_train, gen_train = build_dataset(df, images_folder, input_dim, n_outputs, target, 'train')
+    X_val, y_val, gen_val = build_dataset(df, images_folder, input_dim, n_outputs, target, 'val')
+    X_test, y_test, gen_test = build_dataset(df, images_folder, input_dim, n_outputs, target, 'test')
 
     model = build_model(input_dim, n_outputs, lst_activation, loss, backbone, metrics=metrics)
-    history = train(model, train_gen, val_gen, model_file, class_weights)
-    json.dump(history.history, open(f'history_{model_name}.json', 'w'))
+    history = train(model, gen_train, gen_val, model_file, class_weights)
+    # json.dump(dict(history.history), open(f'history/history_{model_name}.json', 'w'))
     print('--- minutes taken:', int((time()-start)/60))
 
     print('evaluating model')
     model = build_model(
         input_dim, n_outputs, lst_activation, loss, backbone,
         include_top=True, include_features=True, weights_file=model_file)
-    val_gen = DataGenerator(
-        X_val, shuffle=False, batch_size=1, data_folder=images_folder, input_dim=input_dim, n_outputs=n_outputs, target=target)
-    y_val_hat, X_val_feats = model.predict_generator(val_gen)
-    compute_metrics(y_val, y_val_hat, target)
-    np.save(os.path.join(results_folder, f'{model_name}_y_val.npy'), y_val)
-    np.save(os.path.join(results_folder, f'{model_name}_y_val_hat.npy'), y_val_hat)
-    np.save(os.path.join(results_folder, f'{model_name}_X_val_features.npy'), X_val_feats)
+    y_test_hat, X_test_feats = model.predict_generator(gen_test)
+    compute_metrics(y_test, y_test_hat, target)
+    np.save(os.path.join(results_folder, f'{model_name}_y_test.npy'), y_val)
+    np.save(os.path.join(results_folder, f'{model_name}_y_test_hat.npy'), y_val_hat)
+    np.save(os.path.join(results_folder, f'{model_name}_X_test_features.npy'), X_val_feats)
     print('--- minutes taken:', int((time()-start)/60))
 
     if target!='classes':
         print('training dense classifier')
-        train_gen = DataGenerator(
+        gen_train = DataGenerator(
             X_train, shuffle=False, batch_size=1, data_folder=images_folder, input_dim=input_dim, n_outputs=n_outputs, target=target)
-        y_train_hat, X_train_feats = model.predict_generator(train_gen)
+        y_train_hat, X_train_feats = model.predict_generator(gen_train)
         np.save(os.path.join(results_folder, f'{model_name}_X_train_features.npy'), X_val_feats)
         _, y_train, _ = build_dataset(df, images_folder, input_dim, n_outputs, 'classes', 'train')
         _, y_val, _ = build_dataset(df, images_folder, input_dim, n_outputs, 'classes', 'val')
         clf = build_classifier(X_train_feats.shape[1])
         clf_history = train_classifier(clf, X_train_feats, y_train, X_val_feats, y_val, clf_file, class_weights)
-        y_feats_hat = clf.predict(X_val_feats)
-        compute_metrics(y_val, y_feats_hat, 'classes')
+        y_test_feats_hat = clf.predict(X_test_feats)
+        compute_metrics(y_test, y_test_feats_hat, 'classes')
         print('--- minutes taken:', int((time()-start)/60))
 
     # X_train_feats = np.load(os.path.join(results_folder, f'{model_name}_X_train_features.npy'))
     # X_val_feats = np.load(os.path.join(results_folder, f'{model_name}_X_val_features.npy'))
 
     print('extracting UMAP projections')
-    # X_features = np.concatenate([X_train_feats, X_val_feats])
-    X_features = np.copy(X_val_feats)
+    X_features = np.copy(X_test_feats)
     X_umap = UMAP().fit(X_features).embedding_
-    np.save(os.path.join(results_folder, f'{model_name}_X_val_features_umap.npy'), X_umap)
+    np.save(os.path.join(results_folder, f'{model_name}_X_test_features_umap.npy'), X_umap)
     print('--- minutes taken:', int((time()-start)/60))

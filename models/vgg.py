@@ -4,16 +4,16 @@ https://github.com/anokland/local-loss
 '''
 
 
-from tensorflow.keras.layers import Activation, BatchNormalization, Input, Dense, Dropout, Conv2D, Flatten, MaxPooling2D,  ZeroPadding2D
-from tensorflow.keras.models import Model
+from keras.layers import Activation, BatchNormalization, Input, Dense, Dropout, Conv2D, Flatten, MaxPooling2D,  ZeroPadding2D
+from keras.models import Model
 
 
 def conv_block(inpt, n_filters, kernel_size=3):
-    x =  ZeroPadding2D(1)(inpt)
+    x = ZeroPadding2D(1)(inpt)
     x = Conv2D(n_filters, kernel_size)(x)
-    x = BatchNormalization()(x)
+    # x = BatchNormalization()(x)
     x = Activation('relu')(x)
-    x = Dropout(0.5)(x)
+    # x = Dropout(0.2)(x)
     return x
 
 
@@ -44,13 +44,15 @@ def VGG11b(
     x = MaxPooling2D(pool_size=2, strides=2)(x)
 
     x = conv_block(x, m*512)
-    x = MaxPooling2D(pool_size=2, strides=2)(x)
+    #x = MaxPooling2D(pool_size=2, strides=2)(x)
+    x = MaxPooling2D(pool_size=4, strides=4)(x)
 
     x = Flatten()(x)
-    x = Dense(1024, activation='relu')(x)
+    # x = Dense(1024, activation='relu')(x)
 
     if include_top:
-        top = Dense(num_classes, activation=last_activation)(x)
+        top = Dropout(0.2)(x)
+        top = Dense(num_classes, activation=last_activation)(top)
         if include_features:
             return Model(inpt, [top, x])
         else:

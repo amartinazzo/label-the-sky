@@ -251,7 +251,7 @@ def stratified_split(filepath, mag_range=None, fill_undet=False, test_split=0.1,
     df.to_csv('{}_split.csv'.format(filepath[:-4]), index=False)
 
 
-def stratified_split_unlabeled(filepath, mag_range=(0,18), test_split=0.1, val_split=0.11):
+def stratified_split_unlabeled(filepath, mag_range=None, test_split=0.1, val_split=0.11):
     df = pd.read_csv(filepath)
     df = df[df.ndet==12]
     if mag_range is not None:
@@ -277,7 +277,7 @@ def stratified_split_unlabeled(filepath, mag_range=(0,18), test_split=0.1, val_s
     df.loc[df_test_idx, 'split'] = 'val'
 
     df.drop(columns=['class_mag'], inplace=True)
-    df.to_csv('{}_unlabeled_split.csv'.format(filepath[:-4]), index=False)
+    df.to_csv('{}_split.csv'.format(filepath[:-4]), index=False)
 
 
 if __name__=='__main__':

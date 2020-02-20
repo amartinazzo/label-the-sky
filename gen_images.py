@@ -381,6 +381,7 @@ def normalize_images(input_folder, output_folder, bounds_lower, bounds_upper):
 
 if __name__=='__main__':
     data_dir = os.environ['DATA_PATH']
+
     # sweep_fields(
     #     fields_path=data_dir+'/dr1/coadded/*/*.fz',
     #     catalog_path='csv/dr1_classes_split.csv',
@@ -388,10 +389,7 @@ if __name__=='__main__':
     #     calibrate=False,
     #     asinh=True,
     #     )
-    
-    get_metadata(data_dir+'/dr1/coadded/*/*.fz', 'fields_metadata.csv')
-    exit()
 
-    df = pd.read_csv(data_dir+'/astromega/SGu-100.csv')
+    df = pd.read_csv(data_dir+'/astromega/dr1_icpr_labeled.csv')
     print('shape', df.shape)
     crop_objects_in_rgb(df, data_dir+'/dr1/color_images/', data_dir+'/crops_rgb32/', 32)

@@ -4,6 +4,7 @@ https://github.com/verbpronoun/keras-dl-benchmark/blob/master/resnext_builder.py
 '''
 
 
+from efficientnet.keras import EfficientNetB0
 from keras.layers.core import Activation, Dense, Dropout, Lambda, Flatten
 from keras.layers.convolutional import Conv1D, Conv2D
 from keras.layers.pooling import GlobalAveragePooling2D, GlobalMaxPooling2D, MaxPooling2D, MaxPooling1D
@@ -87,7 +88,8 @@ def ResNeXt_builder(
     x = Flatten()(x)
 
     if include_top:
-        top = Dense(num_classes, activation=last_activation)(x)
+        top = Dropout(0.2)(x)
+        top = Dense(num_classes, activation=last_activation)(top)
         if include_features:
             return Model(inpt, [top, x])
         else:
@@ -103,5 +105,6 @@ def ResNeXt29(input_shape, num_classes, width=64, cardinality=8, include_top=Tru
 
 
 if __name__ == '__main__':
-    model = ResNeXt29((32, 32, 3), num_classes=3, width=64, cardinality=8)
+    model = ResNeXt29((32, 32, 3), num_classes=3, width=64, cardinality=8, include_top=False)
+    # model = EfficientNetB0(input_shape=(32,32,3), classes=3, include_top=True, weights=None)
     model.summary()
