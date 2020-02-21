@@ -405,7 +405,6 @@ if __name__ == '__main__':
         _, y_test, _ = build_dataset(df, images_folder, input_dim, n_outputs, 'classes', 'test')
         
         clf = build_classifier(X_train_feats.shape[1])
-        clf.load_weights(clf_file)
         clf_history = train_classifier(clf, X_train_feats, y_train, X_val_feats, y_val, clf_file, class_weights)
         y_test_feats_hat = clf.predict(X_test_feats)
         compute_metrics(y_test, y_test_feats_hat, 'classes')
