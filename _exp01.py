@@ -153,7 +153,7 @@ def train(model, gen_train, gen_val, model_file, class_weights=None, epochs=500,
         validation_data=gen_val,
         steps_per_epoch=len(gen_train),
         validation_steps=len(gen_val),
-        epochs=1,
+        epochs=epochs,
         callbacks=callbacks,
         class_weight=class_weights,
         verbose=2)
