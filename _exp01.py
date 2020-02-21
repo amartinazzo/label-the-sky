@@ -33,7 +33,7 @@ import json
 from keras import backend as K
 from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from keras.layers import Input
-from keras.layers import  Conv2D, Dense, Flatten, MaxPool2D
+from keras.layers import  Conv2D, Dense, Dropout, Flatten, MaxPooling2D
 from keras.models import Model
 from keras.optimizers import SGD
 from keras_lookahead import Lookahead
@@ -122,7 +122,12 @@ def build_model(
         model.load_weights(weights_file)
         print('loaded weights')
 
-    optimizer = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True) #RAdam() #Lookahead(RAdam())
+    if n_outputs==3:
+        lr = 0.01
+    else:
+        lr = 0.001
+
+    optimizer = SGD(lr=lr, decay=1e-6, momentum=0.9, nesterov=True) #RAdam() #Lookahead(RAdam())
     model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
 
     trainable_count = int(np.sum([K.count_params(p) for p in set(model.trainable_weights)]))
@@ -148,7 +153,7 @@ def train(model, gen_train, gen_val, model_file, class_weights=None, epochs=500,
         validation_data=gen_val,
         steps_per_epoch=len(gen_train),
         validation_steps=len(gen_val),
-        epochs=epochs,
+        epochs=1,
         callbacks=callbacks,
         class_weight=class_weights,
         verbose=2)
@@ -167,17 +172,17 @@ def build_classifier(input_dim, n_intermed=12, n_classes=3, layer_type='dense'):
         input_dim = (input_dim,)
     inputs = Input(shape=input_dim)
     if layer_type=='conv':
-        x = Conv2D(64, kernel_size=3, activation='relu')(inputs)
-        x = Conv2D(64, kernel_size=3, activation='relu')(x)
-        x = MaxPool2D(pool_size=3)(x)
+        x = Conv2D(32, kernel_size=3, activation='relu')(inputs)
+        x = MaxPooling2D(pool_size=7, stride=7)(x)
         x = Flatten()(x)
         x = Dense(n_intermed, activation='relu')(x)
     else:
         x = Dense(n_intermed, activation='relu')(inputs)
+    x = Dropout(0.5)(x)
     outputs = Dense(n_classes, activation='softmax')(x)
     model = Model(inputs, outputs)
 
-    optimizer = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True) #RAdam() #Lookahead(RAdam())
+    optimizer = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True) #RAdam() #Lookahead(RAdam())
     model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
     model.summary()
 
@@ -227,12 +232,13 @@ def compute_metrics(y_pred, y_true, target='classes', onehot=True):
 
     else:
         err_abs = np.absolute(y_true-y_pred)
-        df = pd.DataFrame(err_abs, columns=cols)
+        df = pd.DataFrame(err_abs)
         print(df.describe().to_string())
-        df = pd.DataFrame(err_abs*30, columns=cols)
+        df = pd.DataFrame(err_abs*30)
         print(df.describe().to_string())
+        err_abs = 30*err_abs
         print('MAE:', np.mean(err_abs))
-        print('MAPE:', np.mean(err_abs/y_true)*100)
+        print('MAPE:', np.mean(err_abs/(30*y_true))*100)
 
 
 def relu_saturated(x):
@@ -351,7 +357,7 @@ if __name__ == '__main__':
     if dataset_perc < 1:
         print('generating subset of data')
         df['random'] = np.random.rand(df.shape[0])
-        df = df.loc[:, df.random <= dataset_perc]
+        df = df[df.random <= dataset_perc]
 
     print('new shape', df.shape)
     print('proportion', df.shape[0]/orig_shape[0])
@@ -378,27 +384,32 @@ if __name__ == '__main__':
         include_top=True, include_features=True, weights_file=model_file)
     y_test_hat, X_test_feats = model.predict_generator(gen_test)
     compute_metrics(y_test, y_test_hat, target)
-    np.save(os.path.join(results_folder, f'{model_name}_y_test.npy'), y_val)
-    np.save(os.path.join(results_folder, f'{model_name}_y_test_hat.npy'), y_val_hat)
-    np.save(os.path.join(results_folder, f'{model_name}_X_test_features.npy'), X_val_feats)
+    np.save(os.path.join(results_folder, f'{model_name}_y_test.npy'), y_test)
+    np.save(os.path.join(results_folder, f'{model_name}_y_test_hat.npy'), y_test_hat)
+    np.save(os.path.join(results_folder, f'{model_name}_X_test_features.npy'), X_test_feats)
     print('--- minutes taken:', int((time()-start)/60))
 
     if target!='classes':
         print('training dense classifier')
         gen_train = DataGenerator(
             X_train, shuffle=False, batch_size=1, data_folder=images_folder, input_dim=input_dim, n_outputs=n_outputs, target=target)
+        gen_val = DataGenerator(
+            X_val, shuffle=False, batch_size=1, data_folder=images_folder, input_dim=input_dim, n_outputs=n_outputs, target=target)
         y_train_hat, X_train_feats = model.predict_generator(gen_train)
-        np.save(os.path.join(results_folder, f'{model_name}_X_train_features.npy'), X_val_feats)
+        y_val_hat, X_val_feats = model.predict_generator(gen_val)
+        np.save(os.path.join(results_folder, f'{model_name}_X_train_features.npy'), X_train_feats)
+        np.save(os.path.join(results_folder, f'{model_name}_X_val_features.npy'), X_val_feats)
+
         _, y_train, _ = build_dataset(df, images_folder, input_dim, n_outputs, 'classes', 'train')
         _, y_val, _ = build_dataset(df, images_folder, input_dim, n_outputs, 'classes', 'val')
+        _, y_test, _ = build_dataset(df, images_folder, input_dim, n_outputs, 'classes', 'test')
+        
         clf = build_classifier(X_train_feats.shape[1])
+        clf.load_weights(clf_file)
         clf_history = train_classifier(clf, X_train_feats, y_train, X_val_feats, y_val, clf_file, class_weights)
         y_test_feats_hat = clf.predict(X_test_feats)
         compute_metrics(y_test, y_test_feats_hat, 'classes')
         print('--- minutes taken:', int((time()-start)/60))
-
-    # X_train_feats = np.load(os.path.join(results_folder, f'{model_name}_X_train_features.npy'))
-    # X_val_feats = np.load(os.path.join(results_folder, f'{model_name}_X_val_features.npy'))
 
     print('extracting UMAP projections')
     X_features = np.copy(X_test_feats)

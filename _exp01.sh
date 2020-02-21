@@ -18,7 +18,7 @@ declare -a servers=($(hostname))
 date=`date "+%y%m%d"`
 data_dir=$DATA_PATH
 
-declare -a backbones=(vgg11) #(resnext efficientnet vgg16 vgg11)
+declare -a backbones=(vgg11 resnext efficientnet)
 declare -a outputs=(magnitudes)
 declare -a nbands=(12 5 3)
 

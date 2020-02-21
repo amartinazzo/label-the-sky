@@ -1,8 +1,8 @@
 '''
 exp02:
 
-01. load extracted features from val set
-02. load 2d projections from val set
+01. load extracted features from test set
+02. load 2d projections from test set
 03. run clustering
 04. plot clusters in 2d
 
@@ -16,7 +16,7 @@ from time import time
 from umap import UMAP
 
 
-def load_features(model_path, split='val'):
+def load_features(model_path, split='test'):
     X_feats = np.load(f'{model_path}_X_{split}_features.npy')
     X_umap = np.load(f'{model_path}_X_{split}_features_umap.npy')    
     y = np.load(f'{model_path}_y_{split}.npy')
