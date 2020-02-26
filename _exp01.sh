@@ -18,7 +18,7 @@ declare -a servers=($(hostname))
 date=`date "+%y%m%d"`
 data_dir=$DATA_PATH
 
-declare -a backbones=(vgg11 resnext efficientnet)
+declare -a backbones=(resnext) #(vgg11 resnext efficientnet)
 declare -a outputs=(magnitudes)
 declare -a nbands=(12 5 3)
 
@@ -31,7 +31,7 @@ do
     do
         for output in ${outputs[*]}
         do
-            commands+=("python -u _exp01.py $data_dir csv/dr1_classes_split.csv $backbone $output $n $date")
+            commands+=("python -u _exp01.py $data_dir $backbone $output $n $date")
         done
     done
 done
@@ -57,9 +57,9 @@ do
         if [ "$cmd" != "" ]
         then
             logfile="logs/${date}_${backbone}_${target}_${nbandss}.log"
-            echo "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"
-            echo "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &" >> $logfile
-            eval "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"
+            echo "CUDA_VISIBLE_DEVICES=$gpu $cmd >> $logfile 2>&1 &"
+            echo "CUDA_VISIBLE_DEVICES=$gpu $cmd >> $logfile 2>&1 &" >> $logfile
+            eval "CUDA_VISIBLE_DEVICES=$gpu $cmd >> $logfile 2>&1 &"
             pids+=($!)
             i=$((i + 1))
         fi

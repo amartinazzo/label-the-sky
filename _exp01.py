@@ -68,7 +68,7 @@ def get_class_weights(df):
     return x
 
 
-def build_dataset(df, data_folder, input_dim, n_outputs, target, split=None, batch_size=32):
+def build_dataset(df, data_folder, input_dim, n_outputs, target, split=None, shuffle=True, bs=32):
     if split is not None:
         df = df[df.split==split]
     else:
@@ -78,11 +78,11 @@ def build_dataset(df, data_folder, input_dim, n_outputs, target, split=None, bat
     ids, y, labels = get_sets(df, target=target, n_bands=n_bands)
     print(f'{split} size', len(ids))
 
-    shuffle = False if split!='train' else True
-    bs = 1 if split=='test' else batch_size
+    shuffle = False if split!='train' else shuffle
+    batch_size = 1 if split=='test' else bs
 
     params = {
-        'batch_size': bs,
+        'batch_size': batch_size,
         'data_folder': data_folder,
         'input_dim': input_dim,
         'n_outputs': n_outputs,
@@ -178,11 +178,10 @@ def build_classifier(input_dim, n_intermed=12, n_classes=3, layer_type='dense'):
         x = Dense(n_intermed, activation='relu')(x)
     else:
         x = Dense(n_intermed, activation='relu')(inputs)
-    x = Dropout(0.5)(x)
     outputs = Dense(n_classes, activation='softmax')(x)
     model = Model(inputs, outputs)
 
-    optimizer = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True) #RAdam() #Lookahead(RAdam())
+    optimizer = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True) #RAdam() #Lookahead(RAdam())
     model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
     model.summary()
 
@@ -244,6 +243,13 @@ def compute_metrics(y_pred, y_true, target='classes', onehot=True):
 def relu_saturated(x):
     return K.relu(x, max_value=1.)
 
+
+def make_serializable(hist):
+    d = {}
+    for k in hist.keys():
+        d[k] = list(hist[k])
+    return d
+
 ###########
 # SWITCHS #
 ###########
@@ -301,18 +307,20 @@ if __name__ == '__main__':
     warnings.filterwarnings('ignore')
     set_random_seeds()
 
-    if len(sys.argv) < 7:
-        print('usage: python %s <data_dir> <csv_file> <backbone> <target> <nbands> <timestamp> <dataset_perc : optional>' % sys.argv[0])
+    if len(sys.argv) < 6:
+        print('usage: python %s <data_dir> <backbone> <target> <nbands> <timestamp> <dataset_perc : optional>' % sys.argv[0])
         exit(1)
 
     # read input args
     data_dir = sys.argv[1]
-    csv_file = sys.argv[2]
-    backbone = sys.argv[3]
-    target = sys.argv[4]
-    n_bands = int(sys.argv[5])
-    timestamp = sys.argv[6]
-    dataset_perc = int(sys.argv[7])/100. if len(sys.argv) == 8 else 1.
+    backbone = sys.argv[2]
+    target = sys.argv[3]
+    n_bands = int(sys.argv[4])
+    timestamp = sys.argv[5]
+    dataset_perc = int(sys.argv[6])/100. if len(sys.argv) == 7 else 1.
+
+    csv_file_clf = os.getenv('HOME')+'/label_the_sky/csv/dr1_classes_split.csv'
+    csv_file = csv_file_clf if target=='classes' else os.getenv('HOME')+'/label_the_sky/csv/dr1_unlabeled_split.csv'
 
     print('data_dir', data_dir)
     print('csv_file', csv_file)
@@ -337,7 +345,7 @@ if __name__ == '__main__':
 
     input_dim = (32, 32, n_bands)
     model_name = '{}_{}_{}_{}'.format(timestamp, backbone, target, n_bands)
-    clf_name = '{}_{}_{}_{}_topclf'.format(timestamp, backbone, target, n_bands)
+    clf_name = '{}_{}_{}_{}_clf'.format(timestamp, backbone, target, n_bands)
     model_file = data_dir+f'/trained_models/{model_name}.h5'
     clf_file = data_dir+f'/trained_models/{clf_name}.h5'
     results_folder = os.getenv('HOME')+'/label_the_sky/results'
@@ -348,11 +356,11 @@ if __name__ == '__main__':
     df = pd.read_csv(csv_file)
     orig_shape = df.shape
 
-    if target=='magnitudes':
-        e = 0.5
-        df = df[(
-            df.u_err <= e) & (df.f378_err <= e) & (df.f395_err <= e) & (df.f410_err <= e) & (df.f430_err <= e) & (df.g_err <= e) & (
-            df.f515_err <= e) & (df.r_err <= e) & (df.f660_err <= e) & (df.i_err <= e) & (df.f861_err <= e) & (df.z_err <= e)]
+    # if target=='magnitudes':
+    #     e = 0.5
+    #     df = df[(
+    #         df.u_err <= e) & (df.f378_err <= e) & (df.f395_err <= e) & (df.f410_err <= e) & (df.f430_err <= e) & (df.g_err <= e) & (
+    #         df.f515_err <= e) & (df.r_err <= e) & (df.f660_err <= e) & (df.i_err <= e) & (df.f861_err <= e) & (df.z_err <= e)]
 
     if dataset_perc < 1:
         print('generating subset of data')
@@ -375,7 +383,7 @@ if __name__ == '__main__':
 
     model = build_model(input_dim, n_outputs, lst_activation, loss, backbone, metrics=metrics)
     history = train(model, gen_train, gen_val, model_file, class_weights)
-    # json.dump(dict(history.history), open(f'history/history_{model_name}.json', 'w'))
+    json.dump(make_serializable(history.history), open(f'history/history_{model_name}.json', 'w'))
     print('--- minutes taken:', int((time()-start)/60))
 
     print('evaluating model')
@@ -391,21 +399,22 @@ if __name__ == '__main__':
 
     if target!='classes':
         print('training dense classifier')
-        gen_train = DataGenerator(
-            X_train, shuffle=False, batch_size=1, data_folder=images_folder, input_dim=input_dim, n_outputs=n_outputs, target=target)
-        gen_val = DataGenerator(
-            X_val, shuffle=False, batch_size=1, data_folder=images_folder, input_dim=input_dim, n_outputs=n_outputs, target=target)
+        df_clf = pd.read_csv(csv_file_clf)
+
+        _, _, gen_train = build_dataset(df_clf, images_folder, input_dim, n_outputs, target, 'train', bs=1, shuffle=False)
+        _, _, gen_val = build_dataset(df_clf, images_folder, input_dim, n_outputs, target, 'val', bs=1, shuffle=False)
         y_train_hat, X_train_feats = model.predict_generator(gen_train)
         y_val_hat, X_val_feats = model.predict_generator(gen_val)
         np.save(os.path.join(results_folder, f'{model_name}_X_train_features.npy'), X_train_feats)
         np.save(os.path.join(results_folder, f'{model_name}_X_val_features.npy'), X_val_feats)
 
-        _, y_train, _ = build_dataset(df, images_folder, input_dim, n_outputs, 'classes', 'train')
-        _, y_val, _ = build_dataset(df, images_folder, input_dim, n_outputs, 'classes', 'val')
-        _, y_test, _ = build_dataset(df, images_folder, input_dim, n_outputs, 'classes', 'test')
+        _, y_train, _ = build_dataset(df_clf, images_folder, input_dim, n_outputs, target, 'train')
+        _, y_val, _ = build_dataset(df_clf, images_folder, input_dim, n_outputs, target, 'val')
+        _, y_test, _ = build_dataset(df_clf, images_folder, input_dim, n_outputs, target, 'test')
         
         clf = build_classifier(X_train_feats.shape[1])
         clf_history = train_classifier(clf, X_train_feats, y_train, X_val_feats, y_val, clf_file, class_weights)
+        json.dump(make_serializable(clf_history.history), open(f'history/history_{clf_name}.json', 'w'))
         y_test_feats_hat = clf.predict(X_test_feats)
         compute_metrics(y_test, y_test_feats_hat, 'classes')
         print('--- minutes taken:', int((time()-start)/60))

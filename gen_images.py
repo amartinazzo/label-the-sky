@@ -184,7 +184,7 @@ def get_zps(field):
     return zps
 
 
-def calibrate(data, zp):
+def make_calibration(data, zp):
     '''
     applies corrections to given data (image) according to given zp (zero-point) value
     receives:
@@ -217,8 +217,6 @@ def sweep_fields(fields_path, catalog_path, crops_folder, calibrate=True, asinh=
     df = pd.read_csv(catalog_path)
 
     # filter
-    df = df[(~df['class'].isna()) & (df.photoflag==0)]# & (df.ndet==12)]
-    print(df.head())
     print('df shape', df.shape)
 
     df['field_name'] = df['id'].apply(lambda s: s.split('.')[0])
@@ -253,7 +251,7 @@ def sweep_fields(fields_path, catalog_path, crops_folder, calibrate=True, asinh=
     prev = files[0].split('/')[-1].split('_')[0]
     if calibrate:
         zps = get_zps(prev)
-        data = calibrate(data, zps[bands[0]])
+        data = make_calibration(data, zps[bands[0]])
     arr[:,:,bands_order[0]] = np.copy(data)
 
     start = time()
@@ -277,7 +275,7 @@ def sweep_fields(fields_path, catalog_path, crops_folder, calibrate=True, asinh=
             i=0
         data = fits.getdata(f)
         if calibrate:
-            data = calibrate(data, zps[bands[i]])
+            data = make_calibration(data, zps[bands[i]])
         arr[:,:,bands_order[i]] = np.copy(data)
         i+=1
 
@@ -382,14 +380,15 @@ def normalize_images(input_folder, output_folder, bounds_lower, bounds_upper):
 if __name__=='__main__':
     data_dir = os.environ['DATA_PATH']
 
-    # sweep_fields(
-    #     fields_path=data_dir+'/dr1/coadded/*/*.fz',
-    #     catalog_path='csv/dr1_classes_split.csv',
-    #     crops_folder=data_dir+'/crops_asinh/',
-    #     calibrate=False,
-    #     asinh=True,
-    #     )
+    sweep_fields(
+        fields_path=data_dir+'/dr1/coadded/*/*.fz',
+        catalog_path='csv/dr1_unlabeled.csv',
+        crops_folder=data_dir+'/crops_calib/',
+        calibrate=True,
+        asinh=False,
+        )
+    exit()
 
-    df = pd.read_csv(data_dir+'/astromega/dr1_icpr_labeled.csv')
+    df = pd.read_csv('csv/dr1_unlabeled.csv')
     print('shape', df.shape)
     crop_objects_in_rgb(df, data_dir+'/dr1/color_images/', data_dir+'/crops_rgb32/', 32)
