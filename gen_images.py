@@ -263,7 +263,6 @@ def sweep_fields(fields_path, catalog_path, crops_folder, calibrate=True, asinh=
             print('{} min. cropping objects in {}'.format(int((time()-start)/60), prev))
             print('min: {}, max: {}'.format(arr.min(), arr.max()))
             objects_df = df[df.field_name==prev].reset_index()
-            print(objects_df)
             if not os.path.exists(crops_folder+prev):
                 os.makedirs(crops_folder+prev)
             Parallel(n_jobs=1)(delayed(

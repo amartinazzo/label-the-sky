@@ -253,7 +253,11 @@ def stratified_split(filepath, mag_range=None, fill_undet=False, test_split=0.1,
 
 def stratified_split_unlabeled(filepath, mag_range=None, test_split=0.1, val_split=0.11):
     df = pd.read_csv(filepath)
-    df = df[df.ndet==12]
+    s0 = df.shape
+    print(s0)
+    df = df[df['min']!=df['max']]
+    print(df.shape)
+    print(s0[0]-df.shape[0])
     if mag_range is not None:
         df = df[df.r.between(mag_range[0], mag_range[1])]
     df['class_mag'] = np.round(df.r.values).astype(np.uint8)

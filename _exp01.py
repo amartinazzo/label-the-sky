@@ -307,18 +307,18 @@ if __name__ == '__main__':
     warnings.filterwarnings('ignore')
     set_random_seeds()
 
-    if len(sys.argv) < 6:
-        print('usage: python %s <data_dir> <backbone> <target> <nbands> <timestamp> <dataset_perc : optional>' % sys.argv[0])
+    if len(sys.argv) < 5:
+        print('usage: python %s <backbone> <target> <nbands> <timestamp> <dataset_perc : optional>' % sys.argv[0])
         exit(1)
 
     # read input args
-    data_dir = sys.argv[1]
-    backbone = sys.argv[2]
-    target = sys.argv[3]
-    n_bands = int(sys.argv[4])
-    timestamp = sys.argv[5]
-    dataset_perc = int(sys.argv[6])/100. if len(sys.argv) == 7 else 1.
+    backbone = sys.argv[1]
+    target = sys.argv[2]
+    n_bands = int(sys.argv[3])
+    timestamp = sys.argv[4]
+    dataset_perc = int(sys.argv[5])/100. if len(sys.argv) == 6 else 1.
 
+    data_dir = os.environ['DATA_PATH']
     csv_file_clf = os.getenv('HOME')+'/label_the_sky/csv/dr1_classes_split.csv'
     csv_file = csv_file_clf if target=='classes' else os.getenv('HOME')+'/label_the_sky/csv/dr1_unlabeled_split.csv'
 
@@ -356,12 +356,6 @@ if __name__ == '__main__':
     df = pd.read_csv(csv_file)
     orig_shape = df.shape
 
-    # if target=='magnitudes':
-    #     e = 0.5
-    #     df = df[(
-    #         df.u_err <= e) & (df.f378_err <= e) & (df.f395_err <= e) & (df.f410_err <= e) & (df.f430_err <= e) & (df.g_err <= e) & (
-    #         df.f515_err <= e) & (df.r_err <= e) & (df.f660_err <= e) & (df.i_err <= e) & (df.f861_err <= e) & (df.z_err <= e)]
-
     if dataset_perc < 1:
         print('generating subset of data')
         df['random'] = np.random.rand(df.shape[0])
@@ -373,7 +367,7 @@ if __name__ == '__main__':
     print(df.split.value_counts(normalize=True))
     print('class proportions')
     print(df['class'].value_counts(normalize=True))
-    class_weights = get_class_weights(df)
+    class_weights = get_class_weights(df) if target=='classes' else None
     print('class weights', class_weights)
 
     print('training backbone')
@@ -400,6 +394,7 @@ if __name__ == '__main__':
     if target!='classes':
         print('training dense classifier')
         df_clf = pd.read_csv(csv_file_clf)
+        class_weights = get_class_weights(df_clf)
 
         _, _, gen_train = build_dataset(df_clf, images_folder, input_dim, n_outputs, target, 'train', bs=1, shuffle=False)
         _, _, gen_val = build_dataset(df_clf, images_folder, input_dim, n_outputs, target, 'val', bs=1, shuffle=False)
