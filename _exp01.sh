@@ -17,16 +17,16 @@ declare -a servers=($(hostname))
 
 timestamp=`date "+%y%m%d"`
 
-declare -a backbones=(vgg16) #(vgg11 resnext efficientnet)
+declare -a backbones=(vgg11 resnext efficientnet)
 declare -a outputs=(magnitudes)
 declare -a nbands_=(3 5 12)
 
 declare -a commands
 declare -a pids
 
-for backbone in ${backbones[*]}
+for nbands in ${nbands_[*]}
 do
-    for nbands in ${nbands_[*]}
+    for backbone in ${backbones[*]}
     do
         for output in ${outputs[*]}
         do
@@ -56,9 +56,9 @@ do
         if [ "$cmd" != "" ]
         then
             logfile="logs/${timestamp}_${backbone}_${target}_${nbandss}.log"
-            echo "CUDA_VISIBLE_DEVICES=$gpu $cmd >> $logfile 2>&1 &"
-            echo "CUDA_VISIBLE_DEVICES=$gpu $cmd >> $logfile 2>&1 &" >> $logfile
-            eval "CUDA_VISIBLE_DEVICES=$gpu $cmd >> $logfile 2>&1 &"
+            echo "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"
+            echo "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &" >> $logfile
+            eval "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"
             pids+=($!)
             i=$((i + 1))
         fi

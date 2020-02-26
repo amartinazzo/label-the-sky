@@ -108,5 +108,5 @@ def VGG16(input_shape, num_classes, include_top=True, include_features=False, la
 
 
 if __name__ == '__main__':
-    model = VGG11b((32, 32, 3), num_classes=3, include_top=False, last_activation='softmax')
+    model = VGG16((32, 32, 3), num_classes=3, include_top=False, last_activation='softmax')
     model.summary()

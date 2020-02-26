@@ -16,4 +16,5 @@ logs/*
 *.pkl
 *.png
 *.pyc
+*.svg
 *.txt

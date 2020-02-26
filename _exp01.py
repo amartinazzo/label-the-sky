@@ -247,7 +247,7 @@ def relu_saturated(x):
 def make_serializable(hist):
     d = {}
     for k in hist.keys():
-        d[k] = list(hist[k])
+        d[k] = [float(item) for item in hist[k]]
     return d
 
 ###########
@@ -377,7 +377,8 @@ if __name__ == '__main__':
 
     model = build_model(input_dim, n_outputs, lst_activation, loss, backbone, metrics=metrics)
     history = train(model, gen_train, gen_val, model_file, class_weights)
-    json.dump(make_serializable(history.history), open(f'history/history_{model_name}.json', 'w'))
+    with open(f'history/history_{model_name}.json', 'w') as f:
+        json.dump(make_serializable(history.history), f)
     print('--- minutes taken:', int((time()-start)/60))
 
     print('evaluating model')
@@ -409,7 +410,8 @@ if __name__ == '__main__':
         
         clf = build_classifier(X_train_feats.shape[1])
         clf_history = train_classifier(clf, X_train_feats, y_train, X_val_feats, y_val, clf_file, class_weights)
-        json.dump(make_serializable(clf_history.history), open(f'history/history_{clf_name}.json', 'w'))
+        with open(f'history/history_{clf_name}.json', 'w') as f:
+            json.dump(make_serializable(clf_history.history), f)
         y_test_feats_hat = clf.predict(X_test_feats)
         compute_metrics(y_test, y_test_feats_hat, 'classes')
         print('--- minutes taken:', int((time()-start)/60))

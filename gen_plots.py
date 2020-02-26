@@ -4,6 +4,8 @@ based on: https://jwalton.info/Embed-Publication-Matplotlib-Latex/
 
 '''
 
+from glob import glob
+import json
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
@@ -28,7 +30,7 @@ def set_size(width='thesis', fraction=1, subplots=[1, 1]):
 	return fig_dim
 
 
-def make_hists(arr, rows=3, cols=4, xmax=0.5):
+def make_histograms(arr, rows=3, cols=4, xmax=0.5):
 	cmap = mpl.cm.get_cmap('rainbow_r', 12)
 	legend = ['U', 'F378', 'F395', 'F410', 'F430', 'G', 'F515', 'R', 'F660', 'I', 'F861', 'Z']
 	fig, ax = plt.subplots(rows, cols, figsize=set_size('thesis', subplots=[rows, cols]))
@@ -44,7 +46,7 @@ def make_hists(arr, rows=3, cols=4, xmax=0.5):
 	plt.savefig('magnitude_errors.svg', format='svg', bbox_inches='tight')
 
 
-def make_hists_overlapped(arr, xmax=0.5):
+def make_histograms_overlapped(arr, xmax=0.5):
 	cmap = mpl.cm.get_cmap('rainbow_r', 12)
 	legend = ['U', 'F378', 'F395', 'F410', 'F430', 'G', 'F515', 'R', 'F660', 'I', 'F861', 'Z']
 	legend.reverse()
@@ -62,11 +64,38 @@ def make_hists_overlapped(arr, xmax=0.5):
 	plt.savefig('magnitude_errors_overlap.svg', format='svg', bbox_inches='tight')
 
 
+def make_history_curves(timestamp, target='magnitudes', rows=1, cols=2):
+	files = glob(f'history/history_{timestamp}_*_{target}_*.json')
+	print('nr of files', len(files))
+	print(files)
+
+	# ax[0] -> backbone loss
+	# ax[1] -> top classifier accuracy
+
+	plt.subplots(rows, cols, figsize=set_size('thesis', subplots=[rows, cols]))
+	for f in files:
+		history = json.load(open(f, 'r'))
+		split = f.split('_')
+		label = split[-3] + ' ' + split[-1][:-5]
+		if 'clf' in f:
+			acc = history['val_accuracy']
+			plt.subplot(121)
+			plt.plot(range(len(acc)), acc, alpha=0.9, label=label)
+			# ax[1].plot(range(len(acc)), acc, alpha=0.9, label=label)
+		else:
+			loss = history['val_loss']
+			plt.subplot(120)
+			plt.plot(range(len(loss)), loss, alpha=0.9, label=label)
+			# ax[0].plot(range(len(loss)), loss, alpha=0.9, label=label)
+	plt.legend()
+	plt.savefig(f'history_{timestamp}_{target}.svg', format='svg', bbox_inches='tight')
+
+
 if __name__ == '__main__':
 	plt.style.use('seaborn')
 
 	nice_fonts = {
-			'text.usetex': True,
+			# 'text.usetex': True,
 			'font.family': 'serif',
 			'axes.labelsize': 6,
 			'font.size': 4,
@@ -77,10 +106,13 @@ if __name__ == '__main__':
 
 	mpl.rcParams.update(nice_fonts)
 
-	df = pd.read_csv('csv/dr1_classes_split.csv')
-	df = df.loc[:, [
-			'u_err','f378_err','f395_err','f410_err','f430_err','g_err',
-			'f515_err','r_err','f660_err','i_err','f861_err','z_err']]
-	arr = df.values
+	# make magnitude uncertainty histograms
+	# df = pd.read_csv('csv/dr1_classes_split.csv')
+	# df = df.loc[:, [
+	# 		'u_err','f378_err','f395_err','f410_err','f430_err','g_err',
+	# 		'f515_err','r_err','f660_err','i_err','f861_err','z_err']]
+	# arr = df.values
+	# make_histograms(arr)
 
-	make_hists(arr)
+	# make training history curves
+	make_history_curves(200220)
