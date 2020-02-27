@@ -95,11 +95,11 @@ if __name__ == '__main__':
 	plt.style.use('seaborn')
 
 	nice_fonts = {
-			# 'text.usetex': True,
+			'text.usetex': True,
 			'font.family': 'serif',
 			'axes.labelsize': 6,
-			'font.size': 4,
-			'legend.fontsize': 4,
+			'font.size': 8,
+			'legend.fontsize': 8,
 			'xtick.labelsize': 6,
 			'ytick.labelsize': 6,
 	}
@@ -115,4 +115,14 @@ if __name__ == '__main__':
 	# make_histograms(arr)
 
 	# make training history curves
-	make_history_curves(200220)
+	# make_history_curves(200220)
+
+	acc_imagenet = [0.500485908649174, 0.9212827988338192, 0.9310009718172984, 0.49951409135082603, 0.500485908649174, 0.49951409135082603, 0.924198250728863, 0.9300291545189504, 0.9203109815354713, 0.8950437317784257, 0.9164237123420796, 0.500485908649174, 0.49951409135082603, 0.8765792031098154, 0.9251700680272109, 0.49951409135082603, 0.49951409135082603, 0.49951409135082603, 0.49951409135082603, 0.49951409135082603]
+	acc = [0.5422740524781341, 0.6491739552964043, 0.652089407191448, 0.6472303206997084, 0.652089407191448, 0.6511175898931001, 0.7366375121477162, 0.6579203109815355, 0.6647230320699709, 0.6482021379980564, 0.6793002915451894, 0.771622934888241, 0.6715257531584062, 0.7774538386783285, 0.6559766763848397, 0.6452866861030127, 0.6559766763848397, 0.7998056365403304, 0.760932944606414, 0.6987366375121478]
+	xlabel = np.linspace(0.5,10, 20)
+	plt.plot(xlabel, acc_imagenet, label='ImageNet features')
+	plt.plot(xlabel, acc, label='magnitude regressor features')
+	plt.legend()
+	plt.xlabel('nr of training examples (thousands)')
+	plt.ylabel('accuracy')
+	plt.savefig(f'accuracies.svg', format='svg', bbox_inches='tight')

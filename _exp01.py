@@ -19,10 +19,6 @@ input args:
 
 total runs: 3*3*2 = 18
 
-part II:
-vary dataset_perc in [1, 100]
-* dataset_perc  (10, 25, 50, 75)
-
 '''
 
 
@@ -44,7 +40,7 @@ from models.vgg import VGG11b, VGG16
 import numpy as np
 import pandas as pd
 import os
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 import sys
 import tensorflow as tf
 from time import time
@@ -119,19 +115,17 @@ def build_model(
         exit()
 
     if weights_file is not None and os.path.exists(weights_file):
-        model.load_weights(weights_file)
+        model.load_weights(weights_file, skip_mismatch=True)
         print('loaded weights')
 
-    if n_outputs==3:
-        lr = 0.01
-    else:
-        lr = 0.001
 
-    optimizer = SGD(lr=lr, decay=1e-6, momentum=0.9, nesterov=True) #RAdam() #Lookahead(RAdam())
+    ## lr=0.01 seems good for VGG+magnitude
+    optimizer = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True) #RAdam() #Lookahead(RAdam())
     model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
 
     trainable_count = int(np.sum([K.count_params(p) for p in set(model.trainable_weights)]))
     non_trainable_count = int(np.sum([K.count_params(p) for p in set(model.non_trainable_weights)]))
+    print('optimizer', optimizer)
     print('total params: {:,}'.format(trainable_count + non_trainable_count))
     print('trainable params: {:,}'.format(trainable_count))
     print('non-trainable params: {:,}'.format(non_trainable_count))
@@ -203,7 +197,7 @@ def train_classifier(model, X_train, y_train, X_val, y_val, clf_file, class_weig
         class_weight=class_weights,
         epochs=epochs,
         validation_data=(X_val, y_val),
-        verbose=2)
+        verbose=0)
 
     if verbose:
         print('History')
@@ -222,7 +216,9 @@ def compute_metrics(y_pred, y_true, target='classes', onehot=True):
         else:
             y_pred_arg = np.copy(y_pred)
             y_true_arg = np.copy(y_true)
-        print(classification_report(y_true_arg, y_pred_arg, target_names=['GALAXY', 'STAR', 'QSO']))
+        print(y_true.shape)
+        target_names = ['GALAXY', 'STAR']
+        print(classification_report(y_true_arg, y_pred_arg, target_names=target_names, digits=4))
         cm = confusion_matrix(y_true_arg, y_pred_arg)
         cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
         cm = np.round(cm, 2)
@@ -308,7 +304,7 @@ if __name__ == '__main__':
     set_random_seeds()
 
     if len(sys.argv) < 5:
-        print('usage: python %s <backbone> <target> <nbands> <timestamp> <dataset_perc : optional>' % sys.argv[0])
+        print('usage: python %s <backbone> <target> <nbands> <timestamp>' % sys.argv[0])
         exit(1)
 
     # read input args
@@ -316,7 +312,6 @@ if __name__ == '__main__':
     target = sys.argv[2]
     n_bands = int(sys.argv[3])
     timestamp = sys.argv[4]
-    dataset_perc = int(sys.argv[5])/100. if len(sys.argv) == 6 else 1.
 
     data_dir = os.environ['DATA_PATH']
     csv_file_clf = os.getenv('HOME')+'/label_the_sky/csv/dr1_classes_split.csv'
@@ -356,11 +351,6 @@ if __name__ == '__main__':
     df = pd.read_csv(csv_file)
     orig_shape = df.shape
 
-    if dataset_perc < 1:
-        print('generating subset of data')
-        df['random'] = np.random.rand(df.shape[0])
-        df = df[df.random <= dataset_perc]
-
     print('new shape', df.shape)
     print('proportion', df.shape[0]/orig_shape[0])
     print('split proportions')
@@ -394,27 +384,48 @@ if __name__ == '__main__':
 
     if target!='classes':
         print('training dense classifier')
+
+        model = build_model(
+            input_dim, n_outputs, lst_activation, loss, backbone,
+            include_top=True, include_features=True, weights_file=model_file)#'models/vgg16_weights_tf_dim_ordering_tf_kernels_notop.h5')
+
         df_clf = pd.read_csv(csv_file_clf)
-        class_weights = get_class_weights(df_clf)
+        df_clf = df_clf[df_clf['class']!='QSO']
+        df_clf = df_clf.sample(10000, random_state=0) # low data regime
+        df_clf['random'] = np.random.uniform(size=df_clf.shape[0])
 
-        _, _, gen_train = build_dataset(df_clf, images_folder, input_dim, n_outputs, target, 'train', bs=1, shuffle=False)
+        # compute validation and testing feature sets (fixed)
         _, _, gen_val = build_dataset(df_clf, images_folder, input_dim, n_outputs, target, 'val', bs=1, shuffle=False)
-        y_train_hat, X_train_feats = model.predict_generator(gen_train)
+        _, _, gen_test = build_dataset(df_clf, images_folder, input_dim, n_outputs, target, 'test')
         y_val_hat, X_val_feats = model.predict_generator(gen_val)
-        np.save(os.path.join(results_folder, f'{model_name}_X_train_features.npy'), X_train_feats)
-        np.save(os.path.join(results_folder, f'{model_name}_X_val_features.npy'), X_val_feats)
+        y_test_hat, X_test_feats = model.predict_generator(gen_test)
 
-        _, y_train, _ = build_dataset(df_clf, images_folder, input_dim, n_outputs, target, 'train')
-        _, y_val, _ = build_dataset(df_clf, images_folder, input_dim, n_outputs, target, 'val')
-        _, y_test, _ = build_dataset(df_clf, images_folder, input_dim, n_outputs, target, 'test')
-        
-        clf = build_classifier(X_train_feats.shape[1])
-        clf_history = train_classifier(clf, X_train_feats, y_train, X_val_feats, y_val, clf_file, class_weights)
-        with open(f'history/history_{clf_name}.json', 'w') as f:
-            json.dump(make_serializable(clf_history.history), f)
-        y_test_feats_hat = clf.predict(X_test_feats)
-        compute_metrics(y_test, y_test_feats_hat, 'classes')
-        print('--- minutes taken:', int((time()-start)/60))
+        _, y_val, _ = build_dataset(df_clf, images_folder, input_dim, 2, 'classes', 'val')
+        _, y_test, _ = build_dataset(df_clf, images_folder, input_dim, 2, 'classes', 'test')
+
+        # vary training set size
+        acc = []
+        for p in np.linspace(0.05,1,20):
+            df_clf_train = df_clf[df_clf.random <= p]
+            print('percentage of full train', df_clf_train[df_clf_train.split=='train'].shape[0]/df_clf[df_clf.split=='train'].shape[0])
+            class_weights = get_class_weights(df_clf_train)
+            print('class weights', class_weights)
+
+            _, _, gen_train = build_dataset(df_clf_train, images_folder, input_dim, n_outputs, target, 'train', bs=1, shuffle=False)
+            y_train_hat, X_train_feats = model.predict_generator(gen_train)
+
+            _, y_train, _ = build_dataset(df_clf_train, images_folder, input_dim, 2, 'classes', 'train')
+            
+            clf = build_classifier(X_train_feats.shape[1])
+            clf_history = train_classifier(clf, X_train_feats, y_train, X_val_feats, y_val, clf_file, class_weights)
+            with open(f'history/history_{clf_name}_p{p}.json', 'w') as f:
+                json.dump(make_serializable(clf_history.history), f)
+            y_test_feats_hat = clf.predict(X_test_feats)
+            compute_metrics(y_test, y_test_feats_hat, 'classes')
+            acc.append(accuracy_score(np.argmax(y_test, axis=1), np.argmax(y_test_feats_hat, axis=1)))
+            print('--- minutes taken:', int((time()-start)/60))
+
+        print('accuracies', acc)
 
     print('extracting UMAP projections')
     X_features = np.copy(X_test_feats)

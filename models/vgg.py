@@ -93,20 +93,19 @@ def VGG16(input_shape, num_classes, include_top=True, include_features=False, la
     x = Conv2D(512, (3, 3), activation='relu', padding='same', name='block5_conv2')(x)
     x = Conv2D(512, (3, 3), activation='relu', padding='same', name='block5_conv3')(x)
     x = MaxPooling2D((2, 2), strides=(2, 2), name='block5_pool')(x)
-    
-    x = Flatten(name='flatten')(x)
-    x = Dense(1024, activation='relu')(x)
+    x = Flatten()(x)
 
     if include_top:
-        top = Dense(num_classes, activation=last_activation)(x)
+        top = Dropout(0.2)(x) # do include dropout always!
+        top = Dense(num_classes, activation=last_activation)(top)
         if include_features:
             return Model(inpt, [top, x])
         else:
             return Model(inpt, top)
-
+    
     return Model(inpt, x)
 
 
 if __name__ == '__main__':
-    model = VGG16((32, 32, 3), num_classes=3, include_top=False, last_activation='softmax')
+    model = VGG16((32, 32, 3), num_classes=12, include_top=True, last_activation='softmax')
     model.summary()
