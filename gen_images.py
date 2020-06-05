@@ -21,10 +21,10 @@ n_cores = multiprocessing.cpu_count()
 def sample_move(df, src_base, dst_base, n_samples=50):
     idx = np.random.choice(df.shape[0], n_samples, replace=False)
     files = df.loc[idx, 'id'].values
-    classes = df.loc[idx,'class'].values
+    classes = df.loc[idx, 'class'].values
     for ix, f in enumerate(files):
-        src = src_base+f.split('/')[-1].split('.')[0]+'/'+f+'.png'
-        dst = dst_base+f+'.'+classes[ix]+'.png'
+        src = src_base + f.split('/')[-1].split('.')[0] + '/' + f + '.png'
+        dst = dst_base + f + '.' + classes[ix] + '.png'
         print(src, dst)
         copyfile(src, dst)
 
@@ -34,7 +34,7 @@ def recast_inner(file):
         arr = np.load(file)
         arr = np.float32(arr)
         np.save(file, arr)
-    except:
+    except Exception:
         print('could not load', file)
 
 
@@ -42,25 +42,6 @@ def recast(folder_pattern):
     files = glob(folder_pattern)
     print('nr of files', len(files))
     Parallel(n_jobs=8)(delayed(recast_inner)(f) for f in tqdm(files))
-
-
-def delete(catalog_path, folder_pattern):
-    imgfiles = glob(folder_pattern)
-    imgfiles = [i.split('/')[-1][:-4] for i in imgfiles]
-    df = pd.read_csv(catalog_path)
-    # df = df[(df['class'].isna()) & (df.id.isin(imgfiles))]
-    df = df[(df.photoflag>0) & (df.id.isin(imgfiles))]
-    print('nr of files to remove', df.shape[0])
-
-    files_to_delete = df.id.values
-    files_to_delete = [os.path.join(os.environ['DATA_PATH'], 'crops_asinh', f.split('.')[0], f+'.npy') for f in files_to_delete]
-    print(files_to_delete[0])
-
-    for f in tqdm(files_to_delete):
-        try:
-            os.remove(f)
-        except Exception as e:
-            print('Error:', str(e))
 
 
 def get_metadata(folder_pattern, save_file):
@@ -76,7 +57,7 @@ def get_metadata(folder_pattern, save_file):
     df = pd.DataFrame({'file': files, 'date': dates, 'airmass': airmasses})
     df.to_csv(save_file, index=False)
     print('saved csv')
-    df['file'] =df.file.apply(lambda s: s.split('/')[-1])
+    df['file'] = df.file.apply(lambda s: s.split('/')[-1])
     df['field'] = df.file.apply(lambda s: s.split('_')[0])
     df['band'] = df.file.apply(lambda s: s.split('_')[1])
     df['year'] = df.date.apply(lambda s: s.split('-')[0])
@@ -85,7 +66,7 @@ def get_metadata(folder_pattern, save_file):
 
 
 def crop_objects_in_rgb(df, input_folder, save_folder, size=32, fwhm_radius=1.5):
-    d = size//2
+    d = size // 2
     print('df (original)', df.shape)
 
     if not os.path.exists(save_folder):
@@ -96,23 +77,23 @@ def crop_objects_in_rgb(df, input_folder, save_folder, size=32, fwhm_radius=1.5)
     df['field'] = df.id.apply(lambda s: s.split('.')[0])
 
     # ignore objects that have already been cropped
-    imgfiles = glob(save_folder+'*/*.png')
+    imgfiles = glob(save_folder + '*/*.png')
     imgfiles = [i.split('/')[-1][:-4] for i in imgfiles]
     df = df[~df.id.isin(imgfiles)]
     print('df after ignoring existing crops', df.shape)
-    
+
     lst_field = ''
     for ix, r in df.iterrows():
         field = r['field']
         if field != lst_field:
-            imgfile = input_folder+'{}_trilogy.png'.format(field)
+            imgfile = input_folder + '{}_trilogy.png'.format(field)
             print('cropping objects in', imgfile)
             fullimg = imread(imgfile)
-            if not os.path.exists(save_folder+field):
-                os.makedirs(save_folder+field)
+            if not os.path.exists(save_folder + field):
+                os.makedirs(save_folder + field)
         lst_field = field
-        # d = np.ceil(np.maximum(radius, fwhm_radius*r['fwhm'])).astype(np.int)
-        img = fullimg[r['Y']-d:r['Y']+d, r['X']-d:r['X']+d]
+        # d = np.ceil(np.maximum(radius, fwhm_radius * r['fwhm'])).astype(np.int)
+        img = fullimg[r['Y'] - d:r['Y'] + d, r['X'] - d:r['X'] + d]
         if img.shape[0] != size or img.shape[1] != size:
             img = resize(img, dsize=(size, size), interpolation=INTER_CUBIC)
             print('resized', r['id'])
@@ -120,8 +101,10 @@ def crop_objects_in_rgb(df, input_folder, save_folder, size=32, fwhm_radius=1.5)
         imwrite('{}{}/{}.png'.format(save_folder, r['field'], r['id']), img)
 
 
-def crop_object_in_field(obj_ix, arr, objects_df, save_folder, asinh=True, size=32, radius=16, fwhm_radius=1.5):
-    '''
+def crop_object_in_field(
+        obj_ix, arr, objects_df, save_folder, asinh=True,
+        size=32, radius=16, fwhm_radius=1.5):
+    """
     crops object in a given field
     receives:
         * obj_ix        (int) index of object to be cropped in objects_df
@@ -129,12 +112,13 @@ def crop_object_in_field(obj_ix, arr, objects_df, save_folder, asinh=True, size=
         * objects_df    (pandas DataFrame) full objects table
         * save_folder   (str) path to folder where crops will be saved
 
-    for an object with fwhm =~ 2, 32x32 px is a good fit
-    size=3*fwhm is good for larger objects (inspected visually) but yields too many resizes
-    '''
+    for an object with fwhm =~ 2, 32x32 px is a good fit.
+    size=3*fwhm is good for larger objects (inspected visually)
+    but yields too many resizes.
+    """
     row = objects_df.loc[obj_ix]
-    d = np.ceil(np.maximum(radius, fwhm_radius*row['fwhm'])).astype(np.int)
-    d = np.minimum(d, 75) # 75 = 3 * (largest fwhm in dataset with photoflag==0) / 2
+    d = np.ceil(np.maximum(radius, fwhm_radius * row['fwhm'])).astype(np.int)
+    d = np.minimum(d, 75)  # 75 = 3 *(largest fwhm with photoflag==0) / 2
     x0 = np.maximum(0, int(row['x']) - d)
     x1 = np.minimum(10999, int(row['x']) + d)
     y0 = np.maximum(0, int(row['y']) - d)
@@ -151,7 +135,7 @@ def crop_object_in_field(obj_ix, arr, objects_df, save_folder, asinh=True, size=
 
 
 def get_bands_order():
-    '''
+    """
     maps desired depthwise position to alphabetical index
     i.e., map
     0   F378
@@ -160,7 +144,7 @@ def get_bands_order():
     3   F430
     4   F515
     5   F660
-    6   F861 
+    6   F861
     7   G
     8   I
     9   R
@@ -168,47 +152,48 @@ def get_bands_order():
     11  Z
 
     to U F378 F395 F410 F430 G F515 R F660 I F861 Z
-    '''
+    """
     return [10, 0, 1, 2, 3, 7, 4, 9, 5, 8, 6, 11]
 
 
 def get_bands():
-    return ['U', 'F378', 'F395', 'F410', 'F430', 'G', 'F515', 'R', 'F660', 'I', 'F861', 'Z']
-
+    return ['U', 'F378', 'F395', 'F410', 'F430', 'G',
+            'F515', 'R', 'F660', 'I', 'F861', 'Z']
 
 
 def get_zps(field):
-    zpfile = os.path.join(os.environ['DATA_PATH'], 'dr1/ZPfiles_Feb2019', '{}_ZP.cat'.format(field))
+    zpfile = os.path.join(
+        os.environ['DATA_PATH'],
+        'dr1/ZPfiles_Feb2019', '{}_ZP.cat'.format(field))
     zpdata = Table.read(zpfile, format="ascii")
     zps = dict([(t['FILTER'], t['ZP']) for t in zpdata])
     return zps
 
 
 def make_calibration(data, zp):
-    '''
+    """
     applies corrections to given data (image) according to given zp (zero-point) value
     receives:
         * data (np array)  single band bidimensional image
         * zp   (float)     zero point value to be used for calibrating the image
-    returns : 
+    returns :
         * S    (np array)  bidimensional calibrated image
-    '''
-    ps = 0.55 # pixel scale [arcsec / pixel]
-    # fnu: spectral flux density
-    fnu = data * np.power(10, -0.4 * zp)
+    """
+    ps = 0.55  # pixel scale [arcsec / pixel]
+    fnu = data * np.power(10, -0.4 * zp)  # spectral flux density
     # Surface brightness using fnu
-    S = 1e5 * fnu / ps**2 # [1e5 erg / (s cm^2 Hz arcsec^2)]
+    S = 1e5 * fnu / ps**2  # [1e5 erg / (s cm^2 Hz arcsec^2)]
     return S
 
 
 def sweep_fields(fields_path, catalog_path, crops_folder, calibrate=True, asinh=False):
-    '''
+    """
     sweeps field images cropping and saving objects in fields
     receives:
         * fields_path   (str) path pattern to get fits.fz field images
         * catalog_path  (str) catalog where x,y coordinates for objects are stored
         * crops_folder  (str) folder where image crops will be saved
-    '''
+    """
 
     files = glob(fields_path, recursive=True)
     files.sort()
@@ -222,7 +207,7 @@ def sweep_fields(fields_path, catalog_path, crops_folder, calibrate=True, asinh=
     df['field_name'] = df['id'].apply(lambda s: s.split('.')[0])
 
     # ignore objects that have already been cropped
-    imgfiles = glob(crops_folder+'*/*.npy')
+    imgfiles = glob(crops_folder + '*/*.npy')
     imgfiles = [i.split('/')[-1][:-4] for i in imgfiles]
     print('df', df.shape)
     df = df[~df.id.isin(imgfiles)]
@@ -235,7 +220,7 @@ def sweep_fields(fields_path, catalog_path, crops_folder, calibrate=True, asinh=
         files = files + files_tmp
     del files_orig
 
-    if len(files)==0:
+    if len(files) == 0:
         print('all objects already have crops')
         exit()
 
@@ -252,52 +237,54 @@ def sweep_fields(fields_path, catalog_path, crops_folder, calibrate=True, asinh=
     if calibrate:
         zps = get_zps(prev)
         data = make_calibration(data, zps[bands[0]])
-    arr[:,:,bands_order[0]] = np.copy(data)
+    arr[:, :, bands_order[0]] = np.copy(data)
 
     start = time()
-    i=1
-    lst_ix = len(files[1:])-1
+    i = 1
+    lst_ix = len(files[1:]) - 1
     for ix, f in enumerate(files[1:]):
         field_name = f.split('/')[-1].split('_')[0]
-        if prev != field_name or ix==lst_ix:
-            print('{} min. cropping objects in {}'.format(int((time()-start)/60), prev))
+        if prev != field_name or ix == lst_ix:
+            print('{} min. cropping objects in {}'.format(
+                int((time() - start) / 60), prev))
             print('min: {}, max: {}'.format(arr.min(), arr.max()))
-            objects_df = df[df.field_name==prev].reset_index()
-            if not os.path.exists(crops_folder+prev):
-                os.makedirs(crops_folder+prev)
-            Parallel(n_jobs=1)(delayed(
-                crop_object_in_field)(ix, arr, objects_df, crops_folder+prev, asinh) for ix in range(objects_df.shape[0]))
+            objects_df = df[df.field_name == prev].reset_index()
+            if not os.path.exists(crops_folder + prev):
+                os.makedirs(crops_folder + prev)
+            Parallel(n_jobs=1)(delayed(crop_object_in_field)(
+                ix, arr, objects_df, crops_folder + prev, asinh) for ix in range(
+                objects_df.shape[0]))
             arr = np.zeros((s0, s1, n_channels), dtype=np.float32)
             if calibrate:
                 zps = get_zps(field_name)
             prev = field_name
-            i=0
+            i = 0
         data = fits.getdata(f)
         if calibrate:
             data = make_calibration(data, zps[bands[i]])
-        arr[:,:,bands_order[i]] = np.copy(data)
-        i+=1
+        arr[:, :, bands_order[i]] = np.copy(data)
+        i += 1
 
 
 def get_min_max(filefolder, n_channels=12):
-    '''
+    """
         receives:
             * filefolder    (str) folder pattern wherein ndarray images are
             * n_channels    (int) number of channels in images
         returns:
-            a tuple (minima, maxima), each an array of length=n_channels 
-                    containing minima and maxima per band across all images 
-    '''
+            a tuple (minima, maxima), each an array of length=n_channels
+                    containing minima and maxima per band across all images
+    """
     start = time()
     files = glob(filefolder)
     minima, maxima = np.zeros(n_channels), np.zeros(n_channels)
-    min_files, max_files = ['']*n_channels, ['']*n_channels
+    min_files, max_files = [''] * n_channels, [''] * n_channels
     n_files = len(files)
     print('nr of files', n_files)
     for file in files:
         im = np.load(file)
-        min_tmp = np.min(im, axis=(0,1))
-        max_tmp =  np.max(im, axis=(0,1))
+        min_tmp = np.min(im, axis=(0, 1))
+        max_tmp = np.max(im, axis=(0, 1))
 
         msk = np.less(min_tmp, minima)
         if msk.any():
@@ -309,7 +296,7 @@ def get_min_max(filefolder, n_channels=12):
             maxima[msk] = max_tmp[msk]
             max_files = [file if msk[i] else max_files[i] for i in range(n_channels)]
 
-    print('minutes taken:', int((time()-start)/60))
+    print('minutes taken:', int((time() - start) / 60))
     print('minima', minima)
     print(min_files)
     print('maxima', maxima)
@@ -319,16 +306,17 @@ def get_min_max(filefolder, n_channels=12):
 
 
 def get_mean_var(filefolder, n_channels=12):
-    '''
+    """
         receives:
             * filefolder    (str) folder pattern wherein ndarray images are
             * n_channels    (int) number of channels in images
         returns:
-            a tuple (mean, var), each an array of length=n_channels 
+            a tuple (mean, var), each an array of length=n_channels
                     containing mean and variance per band across all images
         reference:
-            https://www.researchgate.net/post/How_to_combine_standard_deviations_for_three_groups
-    '''
+            https://www.researchgate.net/post/
+            How_to_combine_standard_deviations_for_three_groups
+    """
     start = time()
     files = glob(filefolder)
     mean, var = np.zeros(n_channels), np.zeros(n_channels)
@@ -336,13 +324,13 @@ def get_mean_var(filefolder, n_channels=12):
     print('nr of files', n_files)
     for file in files:
         im = np.load(file)
-        mean = mean + np.mean(im, axis=(0,1))
-        var =  var + np.std(im, axis=(0,1))
+        mean = mean + np.mean(im, axis=(0, 1))
+        var = var + np.std(im, axis=(0, 1))
 
-    mean = mean/n_files
-    var = var/n_files
+    mean = mean / n_files
+    var = var / n_files
 
-    print('minutes taken:', int((time()-start)/60))
+    print('minutes taken:', int((time() - start) / 60))
     print('means', mean)
     print('variances', var)
 
@@ -350,20 +338,23 @@ def get_mean_var(filefolder, n_channels=12):
 
 
 def normalize_images(input_folder, output_folder, bounds_lower, bounds_upper):
-    '''
-    saves ndarray images resized to (32,32,n_channels) and normalized to values in [0,1]
+    """
+    saves ndarray images resized to (32,32,n_channels) and normalized to [0,1]
     receives:
-        * input_folder      (str) folder path wherein are (x,x,n_channels) ndarray images with varying shapes and value ranges
+        * input_folder      (str) folder path wherein are (x,x,n_channels)
+                            ndarray images with varying shapes and value ranges
         * output_folder     (str) folder wherein normalized images will be saved
-        * bounds_lower      (ndarray) (n_channels,) array that gives lower bounds for normalization
-        * bounds_upper      (ndarray) (n_channels,) array that gives upper bounds for normalization 
-    '''
+        * bounds_lower      (ndarray) (n_channels,) array that gives lower
+                            bounds for normalization
+        * bounds_upper      (ndarray) (n_channels,) array that gives upper
+                            bounds for normalization
+    """
     files = glob(input_folder)
     print('nr of files', len(files))
 
     interval = bounds_upper - bounds_lower
-    interval = interval[None,None,:]
-    lower = bounds_lower[None,None,:]
+    interval = interval[None, None, :]
+    lower = bounds_lower[None, None, :]
 
     start = time()
     for file in files:
@@ -373,21 +364,22 @@ def normalize_images(input_folder, output_folder, bounds_lower, bounds_upper):
         if im.min() < 0 or im.max() > 1:
             print('{} out of [0,1] range'.format(file.split('/')[-1]))
         np.save('{}{}'.format(output_folder, file.split('/')[-1]), im)
-    print('minutes taken:', int((time()-start)/60))
+    print('minutes taken:', int((time() - start) / 60))
 
 
-if __name__=='__main__':
+if __name__ == '__main__':
     data_dir = os.environ['DATA_PATH']
 
     sweep_fields(
-        fields_path=data_dir+'/dr1/coadded/*/*.fz',
+        fields_path=data_dir + '/dr1/coadded/*/*.fz',
         catalog_path='csv/dr1_unlabeled.csv',
-        crops_folder=data_dir+'/crops_calib/',
+        crops_folder=data_dir + '/crops_calib/',
         calibrate=True,
-        asinh=False,
-        )
+        asinh=False
+    )
     exit()
 
     df = pd.read_csv('csv/dr1_unlabeled.csv')
     print('shape', df.shape)
-    crop_objects_in_rgb(df, data_dir+'/dr1/color_images/', data_dir+'/crops_rgb32/', 32)
+    crop_objects_in_rgb(
+        df, data_dir + '/dr1/color_images/', data_dir + '/crops_rgb32/', 32)

@@ -7,7 +7,6 @@ from matplotlib.legend_handler import HandlerPathCollection
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-import pandas as pd
 import sklearn.metrics as metrics
 import sys
 from visualize import update_legend_marker
@@ -19,7 +18,8 @@ n_classes = len(classes)
 colors = [cm.Dark2(x) for x in range(2*n_classes)]
 
 
-def gen_accuracy_mag_plot(filepath, df, y_true, y_pred, mag_min=16, mag_max=25, bins=4):
+def gen_accuracy_mag_plot(
+        filepath, df, y_true, y_pred, mag_min=16, mag_max=25, bins=4):
     df = df[(df.ndet==12)&(df.photoflag==0)&(df.split=='val')].reset_index()
     intervals = np.linspace(mag_min, mag_max, bins*(mag_max-mag_min)+1)
     mags = []
@@ -51,7 +51,6 @@ def gen_accuracy_mag_plot(filepath, df, y_true, y_pred, mag_min=16, mag_max=25, 
     plt.xlabel('MAGNITUDE (R)')
     plt.tight_layout()
     plt.savefig(f'{filepath}.png')
-
 
 
 def gen_roc_curve(filepath, y_true, y_pred):

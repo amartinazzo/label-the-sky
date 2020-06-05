@@ -39,7 +39,7 @@ def gen_master_catalog(catalogs_path, output_file, header_file='csv/fits_header_
     # get original cols from txt file
     with open(header_file, 'r') as f:
         cols = f.read().split(',')
-    
+
     with open(output_file, 'w') as f:
         f.write(usecols_str)
 
@@ -284,7 +284,7 @@ def stratified_split_unlabeled(filepath, mag_range=None, test_split=0.1, val_spl
     df.to_csv('{}_split.csv'.format(filepath[:-4]), index=False)
 
 
-if __name__=='__main__':
+if __name__ == '__main__':
     # query objects from sdss
 
     photo_query = '''
@@ -306,7 +306,7 @@ if __name__=='__main__':
     where abs(dec) < 1.46
     '''
     # master catalog: dec in (-1.4139, 1.4503)
-    
+
     # query_sdss(spec_query, 'csv/sdss_spec_full_STRIPE82.csv')
 
     # gen master catalog
@@ -328,7 +328,7 @@ if __name__=='__main__':
     ]
 
     # filter_master_catalog(data_dir+'/dr1/SPLUS_STRIPE82_master_catalog_dr_march2019.cat', 'csv/dr1.csv', usecols, usecols_renamed)
-    
+
     # match catalogs
     splus_cat = pd.read_csv('csv/dr1.csv')
     sloan_cat = pd.read_csv('csv/sdss_spec_full_STRIPE82.csv')

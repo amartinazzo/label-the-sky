@@ -9,16 +9,15 @@ exp02:
 '''
 
 from _exp01 import set_random_seeds
-from hdbscan import HDBSCAN
 import numpy as np
-from sklearn.cluster import k_means
-from time import time
-from umap import UMAP
+import os
+from sklearn.cluster import KMeans
+import sys
 
 
 def load_features(model_path, split='test'):
     X_feats = np.load(f'{model_path}_X_{split}_features.npy')
-    X_umap = np.load(f'{model_path}_X_{split}_features_umap.npy')    
+    X_umap = np.load(f'{model_path}_X_{split}_features_umap.npy')
     y = np.load(f'{model_path}_y_{split}.npy')
     y_hat = np.load(f'{model_path}_y_{split}_hat.npy')
 
@@ -38,7 +37,7 @@ if __name__ == '__main__':
         exit(1)
 
     model_file = sys.argv[1]
-    split = sys.argv[2] if len(sys.argv)==3 else 'val'
+    split = sys.argv[2] if len(sys.argv) == 3 else 'val'
 
     results_folder = os.getenv('HOME')+'/label_the_sky/results'
     model_path = os.path.join(results_folder, model_file)

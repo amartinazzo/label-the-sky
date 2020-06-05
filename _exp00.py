@@ -12,8 +12,9 @@ compare raw images (32x32xn features) to catalog (12+1 features)
 
 '''
 
-from _exp01 import build_classifier, compute_metrics, get_class_weights, set_random_seeds, train_classifier
-from keras.utils import to_categorical
+from _exp01 import build_classifier, compute_metrics, get_class_weights
+from _exp01 import set_random_seeds, train_classifier
+from tensorflow.keras.utils import to_categorical
 import os
 import numpy as np
 import pandas as pd
@@ -29,10 +30,10 @@ class_map = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
 
 def build_flattened_dataset(csv_file, input_dir, nbands):
     df_orig = pd.read_csv(csv_file)
-    df_orig = df_orig[(df_orig.photoflag==0)&(df_orig.ndet==12)]
+    df_orig = df_orig[(df_orig.photoflag == 0) & (df_orig.ndet == 12)]
 
-    ext = '.png' if nbands==3 else '.npy'
-    input_dir = input_dir+'/crops_rgb32' if nbands==3 else input_dir+'/crops_calib'
+    ext = '.png' if nbands == 3 else '.npy'
+    input_dir = input_dir+'/crops_rgb32' if nbands == 3 else input_dir+'/crops_calib'
 
     X = {}
     y = {}
@@ -44,34 +45,48 @@ def build_flattened_dataset(csv_file, input_dir, nbands):
 
         y[split] = df['class'].apply(lambda c: class_map[c]).values
 
-        if os.path.exists(os.path.join(os.environ['DATA_PATH'], f'X_flattened_{split}_{nbands}bands.npy')):
-            X[split] = np.load(os.path.join(os.environ['DATA_PATH'], f'X_flattened_{split}_{nbands}bands.npy'))
+        if os.path.exists(os.path.join(
+                os.environ['DATA_PATH'],
+                f'X_flattened_{split}_{nbands}bands.npy')):
+            X[split] = np.load(os.path.join(
+                os.environ['DATA_PATH'],
+                f'X_flattened_{split}_{nbands}bands.npy'))
             print(f'loaded: X_flattened_{split}_{nbands}bands.npy')
         else:
             img_list = df.id.values
-            img_list = [os.path.join(input_dir, file.split('.')[0], file+ext) for file in img_list]
+            img_list = [os.path.join(
+                input_dir, file.split('.')[0], file+ext) for file in img_list]
 
             if nbands == 3:
-                read_func =  io.imread
+                read_func = io.imread
             else:
                 read_func = np.load
 
             img_shape = read_func(img_list[0]).shape
 
-            X[split] = np.zeros((len(img_list), img_shape[0]*img_shape[1]*img_shape[2]), dtype=np.float32)
+            X[split] = np.zeros((
+                len(img_list), img_shape[0]*img_shape[1]*img_shape[2]),
+                dtype=np.float32)
 
             print(f'{split} size', len(img_list))
             for ix, img in enumerate(img_list):
                 x = read_func(img)
-                X[split][ix,:] = x.flatten()
+                X[split][ix, :] = x.flatten()
+
             print('final shape', X[split].shape)
-            np.save(os.path.join(os.environ['DATA_PATH'], f'X_flattened_{split}_{nbands}bands.npy'), X[split])
-            print('{} min. saved flattenned array;'.format(int((time()-start)/60)), split)
+            np.save(os.path.join(
+                os.environ['DATA_PATH'],
+                f'X_flattened_{split}_{nbands}bands.npy'), X[split])
+            print('{} min. saved flattenned array;'.format(
+                int((time()-start)/60)), split)
 
     return X, y
 
 
-def build_catalog_dataset(csv_file, features=['u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z']):
+def build_catalog_dataset(
+            csv_file,
+            features=['u', 'f378', 'f395', 'f410', 'f430', 'g', 'f515', 'r',
+                      'f660', 'i', 'f861', 'z']):
     df_orig = pd.read_csv(csv_file)
     print('catalog features', features)
 
@@ -80,7 +95,7 @@ def build_catalog_dataset(csv_file, features=['u','f378','f395','f410','f430','g
 
     for split in ['train', 'val', 'test']:
         print('processing', split)
-        df = df_orig[df_orig.split==split]
+        df = df_orig[df_orig.split == split]
 
         X[split] = df[features].values
         y[split] = df['class'].apply(lambda c: class_map[c]).values
@@ -152,7 +167,7 @@ if __name__ == '__main__':
     y_cat['train'] = to_categorical(y_cat['train'], 3)
     y_cat['val'] = to_categorical(y_cat['val'], 3)
     y_cat['test'] = to_categorical(y_cat['test'], 3)
-    
+
     scaler = MinMaxScaler()
     X_cat['train'] = scaler.fit_transform(X_cat['train'])
     X_cat['val'] = scaler.transform(X_cat['val'])
@@ -168,11 +183,12 @@ if __name__ == '__main__':
     print('Dense NN; catalog')
     compute_metrics(yy_cat, y_cat['test'])
 
-    X['train'] = np.reshape(X['train'], (-1,32,32,12))
-    X['val'] = np.reshape(X['val'], (-1,32,32,12))
+    X['train'] = np.reshape(X['train'], (-1, 32, 32, 12))
+    X['val'] = np.reshape(X['val'], (-1, 32, 32, 12))
     print(X['train'].shape)
 
-    nn = build_classifier(X['train'].shape[1:], n_intermed=n_units, layer_type='conv')
+    nn = build_classifier(
+        X['train'].shape[1:], n_intermed=n_units, layer_type='conv')
     train_classifier(
         nn,
         X['train'], y['train'], X['val'], y['val'],
