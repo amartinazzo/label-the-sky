@@ -17,8 +17,8 @@ declare -a servers=($(hostname))
 
 timestamp=`date "+%y%m%d"`
 
-declare -a backbones=(vgg11 resnext efficientnet)
-declare -a outputs=(magnitudes)
+declare -a backbones=(vgg resnext efficientnet)
+declare -a outputs=(classes magnitudes)
 declare -a nbands_=(3 5 12)
 
 declare -a commands

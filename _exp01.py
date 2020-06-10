@@ -1,4 +1,4 @@
-'''
+"""
 exp01:
 
 01. build dataset
@@ -12,14 +12,14 @@ exp01:
 09. generate 2d projections
 
 input args:
-* backbone      (resnext, efficientnet, vgg, vgg11)
+* backbone      (resnext, efficientnet, vgg)
 * n_bands       (12, 5, 3)
 * target        (classes, magnitudes, magnitudes_spectra)
 (ordered from outer to inner loop)
 
 total runs: 3*3*2 = 18
 
-'''
+"""
 
 
 from datagen import DataGenerator
@@ -49,15 +49,15 @@ import warnings
 def set_random_seeds():
     os.environ['PYTHONHASHSEED'] = '0'
     np.random.seed(42)
-    tf.set_random_seed(420)
-    session_conf = tf.ConfigProto(
-        intra_op_parallelism_threads=1, inter_op_parallelism_threads=1)
-    sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
-    K.set_session(sess)
+    tf.random.set_seed(420)
+    # session_conf = tf.ConfigProto(
+    #     intra_op_parallelism_threads=1, inter_op_parallelism_threads=1)
+    # sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
+    # K.set_session(sess)
 
 
 def get_class_weights(df):
-    x = 1/df['class'].value_counts(normalize=True).values
+    x = 1 / df['class'].value_counts(normalize=True).values
     x = np.round(x / np.max(x), 4)
     return x
 
@@ -72,7 +72,7 @@ def build_dataset(
 
     n_bands = input_dim[-1]
     ids, y, labels = get_sets(df, target=target, n_bands=n_bands)
-    print(f'{split} size', len(ids))
+    print('{} size'.format(split, len(ids)))
 
     shuffle = False if split != 'train' else shuffle
     batch_size = 1 if split == 'test' else bs
@@ -84,7 +84,7 @@ def build_dataset(
         'n_outputs': n_outputs,
         'target': target,
         'shuffle': shuffle,
-        }
+    }
 
     data_gen = DataGenerator(ids, labels=labels, **params)
 
@@ -232,7 +232,7 @@ def train_classifier(
 
 
 def compute_metrics(y_pred, y_true, target='classes', onehot=True):
-    if target=='classes':
+    if target == 'classes':
         if onehot:
             y_pred_arg = np.argmax(y_pred, axis=1)
             y_true_arg = np.argmax(y_true, axis=1)
@@ -240,7 +240,7 @@ def compute_metrics(y_pred, y_true, target='classes', onehot=True):
             y_pred_arg = np.copy(y_pred)
             y_true_arg = np.copy(y_true)
         print(y_true.shape)
-        target_names = ['GALAXY', 'STAR']
+        target_names = ['GALAXY', 'STAR', 'QSO']
         print(classification_report(
             y_true_arg, y_pred_arg, target_names=target_names, digits=4))
         cm = confusion_matrix(y_true_arg, y_pred_arg)
@@ -328,7 +328,8 @@ if __name__ == '__main__':
     set_random_seeds()
 
     if len(sys.argv) < 5:
-        print('usage: python %s <backbone> <target> <nbands> <timestamp>' % sys.argv[0])
+        print('usage: python {} <backbone> <target> <nbands> <timestamp>'.format(
+            sys.argv[0]))
         exit(1)
 
     # read input args
@@ -338,9 +339,9 @@ if __name__ == '__main__':
     timestamp = sys.argv[4]
 
     data_dir = os.environ['DATA_PATH']
-    csv_file_clf = os.getenv('HOME')+'/label_the_sky/csv/dr1_classes_split.csv'
+    csv_file_clf = os.getenv('HOME') + '/label_the_sky/csv/dr1_classes_split.csv'
     csv_file = csv_file_clf if target == 'classes' else os.getenv(
-        'HOME')+'/label_the_sky/csv/dr1_unlabeled_split.csv'
+        'HOME') + '/label_the_sky/csv/dr1_unlabeled_split.csv'
 
     print('data_dir', data_dir)
     print('csv_file', csv_file)
@@ -349,7 +350,7 @@ if __name__ == '__main__':
     print('n_bands', n_bands)
 
     # set parameters
-    n_outputs = n_outputs_switch.get(target+str(n_bands))
+    n_outputs = n_outputs_switch.get(target + str(n_bands))
     extension = extension_switch.get(n_bands)
     images_folder = os.path.join(data_dir, images_folder_switch.get(n_bands))
     lst_activation = last_activation_switch.get(target)
@@ -365,9 +366,9 @@ if __name__ == '__main__':
     input_dim = (32, 32, n_bands)
     model_name = '{}_{}_{}_{}'.format(timestamp, backbone, target, n_bands)
     clf_name = '{}_{}_{}_{}_clf'.format(timestamp, backbone, target, n_bands)
-    model_file = data_dir+f'/trained_models/{model_name}.h5'
-    clf_file = data_dir+f'/trained_models/{clf_name}.h5'
-    results_folder = os.getenv('HOME')+'/label_the_sky/results'
+    model_file = data_dir + f'/trained_models/{model_name}.h5'
+    clf_file = data_dir + f'/trained_models/{clf_name}.h5'
+    results_folder = os.getenv('HOME') + '/label_the_sky/results'
     print('results_folder', results_folder)
 
     start = time()
@@ -376,12 +377,12 @@ if __name__ == '__main__':
     orig_shape = df.shape
 
     print('new shape', df.shape)
-    print('proportion', df.shape[0]/orig_shape[0])
+    print('proportion', df.shape[0] / orig_shape[0])
     print('split proportions')
     print(df.split.value_counts(normalize=True))
     print('class proportions')
     print(df['class'].value_counts(normalize=True))
-    class_weights = get_class_weights(df) if target=='classes' else None
+    class_weights = get_class_weights(df) if target == 'classes' else None
     print('class weights', class_weights)
 
     print('training backbone')
@@ -397,7 +398,7 @@ if __name__ == '__main__':
     history = train(model, gen_train, gen_val, model_file, class_weights)
     with open(f'history/history_{model_name}.json', 'w') as f:
         json.dump(make_serializable(history.history), f)
-    print('--- minutes taken:', int((time()-start)/60))
+    print('--- minutes taken:', int((time() - start) / 60))
 
     print('evaluating model')
     model = build_model(
@@ -411,7 +412,7 @@ if __name__ == '__main__':
         results_folder, f'{model_name}_y_test_hat.npy'), y_test_hat)
     np.save(os.path.join(
         results_folder, f'{model_name}_X_test_features.npy'), X_test_feats)
-    print('--- minutes taken:', int((time()-start)/60))
+    print('--- minutes taken:', int((time() - start) / 60))
 
     if target != 'classes':
         print('training dense classifier')
@@ -448,7 +449,7 @@ if __name__ == '__main__':
             df_clf_train = df_clf[df_clf.random <= p]
             print('percentage of full train', df_clf_train[
                 df_clf_train.split == 'train'].shape[0]/df_clf[
-                df_clf.split=='train'].shape[0])
+                df_clf.split == 'train'].shape[0])
             class_weights = get_class_weights(df_clf_train)
             print('class weights', class_weights)
 
@@ -473,7 +474,7 @@ if __name__ == '__main__':
                 accuracy_score(
                     np.argmax(y_test, axis=1),
                     np.argmax(y_test_feats_hat, axis=1)))
-            print('--- minutes taken:', int((time()-start)/60))
+            print('--- minutes taken:', int((time() - start) / 60))
 
         print('accuracies', acc)
 
@@ -482,4 +483,4 @@ if __name__ == '__main__':
     X_umap = UMAP().fit(X_features).embedding_
     np.save(os.path.join(
         results_folder, f'{model_name}_X_test_features_umap.npy'), X_umap)
-    print('--- minutes taken:', int((time()-start)/60))
+    print('--- minutes taken:', int((time() - start) / 60))

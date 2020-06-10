@@ -103,7 +103,7 @@ def query_sdss(query_str, filename):
         cnt+=1
 
 
-def match_catalogs(new_df, base_df, matched_cat_path=None, max_distance=1.0):
+def match_catalogs(new_df, base_df, final_cols, matched_cat_path=None, max_distance=1.0):
     print('matching')
     base_ra = base_df['ra'].values
     base_dec = base_df['dec'].values
@@ -141,15 +141,11 @@ def match_catalogs(new_df, base_df, matched_cat_path=None, max_distance=1.0):
     final_cat = base_df.merge(new_df, how='left', left_index=True, right_on='base_idx', suffixes=('', '_'))
     final_cat = final_cat[~final_cat.matched.isna()]
 
-    final_cat['redshift'] = final_cat.z_
+    print(final_cat.columns)
 
-    final_cat = final_cat[[
-        'id','ra','dec','class','subclass','x','y','mumax','s2n','photoflag','ndet','fwhm',
-        'u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z',
-        'spectroFlux_u', 'spectroFlux_g', 'spectroFlux_r', 'spectroFlux_i', 'spectroFlux_z', 
-        'd2d','redshift',
-        'u_err','f378_err','f395_err','f410_err','f430_err','g_err',
-        'f515_err','r_err','f660_err','i_err','f861_err','z_err']]
+    final_cat['redshift'] = final_cat.zspec
+
+    final_cat = final_cat[final_cols]
 
     print('matched df shape', new_df.shape)
     print('base df shape', base_df.shape)
@@ -186,15 +182,41 @@ def fill_undetected(df):
     df[mags] = df_mags.values
 
 
-def stratified_split(filepath, mag_range=None, fill_undet=False, test_split=0.1, val_split=0.11, e=None):
+def stratified_split(filepath, mag_min=0, mag_max=35, fill_undet=False, test_split=0.1, val_split=0.11, e=None):
     df = pd.read_csv(filepath)
-    df = df[(~df['class'].isna()) & (df.ndet==12) & (df.photoflag==0)]
+    df = df[(~df['class'].isna()) & (df.ndet==12) & (df.photoflag==0) & (df.zWarning==0)]
     if e is not None:
         df = df[(
             df.u_err <= e) & (df.f378_err <= e) & (df.f395_err <= e) & (df.f410_err <= e) & (df.f430_err <= e) & (df.g_err <= e) & (
             df.f515_err <= e) & (df.r_err <= e) & (df.f660_err <= e) & (df.i_err <= e) & (df.f861_err <= e) & (df.z_err <= e)]
-    if mag_range is not None:
-        df = df[df.r.between(mag_range[0], mag_range[1])]
+
+    # filter undetected
+    df = df[df.u.between(mag_min, mag_max)]
+    df = df[df.g.between(mag_min, mag_max)]
+    df = df[df.r.between(mag_min, mag_max)]
+    df = df[df.i.between(mag_min, mag_max)]
+    df = df[df.z.between(mag_min, mag_max)]
+    df = df[df.f378.between(mag_min, mag_max)]
+    df = df[df.f395.between(mag_min, mag_max)]
+    df = df[df.f410.between(mag_min, mag_max)]
+    df = df[df.f430.between(mag_min, mag_max)]
+    df = df[df.f515.between(mag_min, mag_max)]
+    df = df[df.f660.between(mag_min, mag_max)]
+    df = df[df.f861.between(mag_min, mag_max)]
+
+    df = df[df.u_mock.between(mag_min, mag_max)]
+    df = df[df.g_mock.between(mag_min, mag_max)]
+    df = df[df.r_mock.between(mag_min, mag_max)]
+    df = df[df.i_mock.between(mag_min, mag_max)]
+    df = df[df.z_mock.between(mag_min, mag_max)]
+    df = df[df.f378_mock.between(mag_min, mag_max)]
+    df = df[df.f395_mock.between(mag_min, mag_max)]
+    df = df[df.f410_mock.between(mag_min, mag_max)]
+    df = df[df.f430_mock.between(mag_min, mag_max)]
+    df = df[df.f515_mock.between(mag_min, mag_max)]
+    df = df[df.f660_mock.between(mag_min, mag_max)]
+    df = df[df.f861_mock.between(mag_min, mag_max)]
+
 
     print('shape after filtering', df.shape)
 
@@ -207,7 +229,7 @@ def stratified_split(filepath, mag_range=None, fill_undet=False, test_split=0.1,
     df['class_mag'] = np.round(df.r.values).astype(np.uint8)
     df.loc[df['class']=='QSO', 'class_mag'] = df.class_mag.apply(lambda r: r if r%2==0 else r+1)
     df['class_mag'] = df['class'] + df['class_mag'].astype(str)
-    
+
     # hard code small subsets
     df.loc[df.class_mag=='QSO14', 'class_mag'] = 'QSO16'
     df.loc[df.class_mag=='GALAXY24', 'class_mag'] = 'GALAXY23'
@@ -290,7 +312,7 @@ if __name__ == '__main__':
     photo_query = '''
     select
     objID, ra, dec, type, probPSF, flags, 
-    petroRad_u, petroRad_g, petroRad_r, petroRad_i, petroRad_z, 
+    petroRad_u, petroRad_g, petroRad_r, petroRad_i, petroRad_z,
     petroRadErr_u, petroRadErr_g, petroRadErr_r, petroRadErr_i, petroRadErr_z
     from PhotoObj
     where abs(dec) < 1.25 and objID>{}
@@ -298,7 +320,7 @@ if __name__ == '__main__':
     '''
 
     spec_query = '''
-    select 
+    select
     bestObjID, ra, dec, class, subclass, z, zErr, zWarning,
     spectroFlux_u, spectroFlux_g, spectroFlux_r, spectroFlux_i, spectroFlux_z,
     spectroFluxIvar_u, spectroFluxIvar_g, spectroFluxIvar_r, spectroFluxIvar_i, spectroFluxIvar_z
@@ -310,30 +332,42 @@ if __name__ == '__main__':
     # query_sdss(spec_query, 'csv/sdss_spec_full_STRIPE82.csv')
 
     # gen master catalog
-    data_dir = os.environ['DATA_PATH']
+    # data_dir = os.environ['DATA_PATH']
 
     usecols = [
         'ID', 'RA', 'Dec', 'X', 'Y', 'MUMAX', 's2nDet', 'PhotoFlag', 'nDet_auto', 'FWHM',
         'uJAVA_auto', 'F378_auto', 'F395_auto', 'F410_auto', 'F430_auto', 'g_auto',
         'F515_auto', 'r_auto', 'F660_auto', 'i_auto', 'F861_auto', 'z_auto',
-        'euJAVA_auto','eF378_auto','eF395_auto','eF410_auto','eF430_auto','eg_auto',
-        'eF515_auto','er_auto','eF660_auto','ei_auto','eF861_auto','ez_auto'
+        'euJAVA_auto', 'eF378_auto', 'eF395_auto', 'eF410_auto', 'eF430_auto', 'eg_auto',
+        'eF515_auto', 'er_auto', 'eF660_auto', 'ei_auto', 'eF861_auto', 'ez_auto'
     ]
 
     usecols_renamed = [
-        'id', 'ra', 'dec', 'x', 'y', 'mumax', 's2n', 'photoflag', 'ndet', 'fwhm', 
+        'id', 'ra', 'dec', 'x', 'y', 'mumax', 's2n', 'photoflag', 'ndet', 'fwhm',
         'u', 'f378', 'f395', 'f410', 'f430', 'g', 'f515', 'r', 'f660', 'i', 'f861', 'z',
-        'u_err','f378_err','f395_err','f410_err','f430_err','g_err',
-        'f515_err','r_err','f660_err','i_err','f861_err','z_err'
+        'u_err', 'f378_err', 'f395_err', 'f410_err', 'f430_err', 'g_err',
+        'f515_err', 'r_err', 'f660_err', 'i_err', 'f861_err', 'z_err'
     ]
 
-    # filter_master_catalog(data_dir+'/dr1/SPLUS_STRIPE82_master_catalog_dr_march2019.cat', 'csv/dr1.csv', usecols, usecols_renamed)
+    matched_cat_cols = [
+        'id','ra','dec','class_','class','subclass','x','y','mumax','s2n','photoflag','ndet','fwhm',
+        'u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z',
+        'u_mock','f378_mock','f395_mock','f410_mock','f430_mock','g_mock',
+        'f515_mock','r_mock','f660_mock','i_mock','f861_mock','z_mock',
+        'd2d','redshift','zWarning',
+        'spectroFlux_u', 'spectroFlux_g', 'spectroFlux_r', 'spectroFlux_i', 'spectroFlux_z', 
+        'u_err','f378_err','f395_err','f410_err','f430_err','g_err',
+        'f515_err','r_err','f660_err','i_err','f861_err','z_err']
+
+    # filter_master_catalog(
+    #     data_dir + '/dr1/SPLUS_STRIPE82_master_catalog_dr_march2019.cat',
+    #     'csv/dr1.csv', usecols, usecols_renamed)
 
     # match catalogs
-    splus_cat = pd.read_csv('csv/dr1.csv')
-    sloan_cat = pd.read_csv('csv/sdss_spec_full_STRIPE82.csv')
-    matched_cat ='csv/dr1_classes.csv'
-    c = match_catalogs(sloan_cat, splus_cat, matched_cat)
+    splus_cat = pd.read_csv('csv/dr1_classes.csv')
+    sloan_cat = pd.read_csv('csv/SPLUS_mock.csv')
+    matched_cat = 'csv/dr1_classes_mocks.csv'
+    # c = match_catalogs(sloan_cat, splus_cat, matched_cat_cols, matched_cat)
 
     # gen split catalog
-    stratified_split(matched_cat)
+    stratified_split(matched_cat, e=0.5)

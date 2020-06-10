@@ -1,7 +1,8 @@
 albumentations
+astropy
+astroquery
 efficientnet
 keras
 pandas
-tensorflow-gpu
 scikit-learn
 umap-learn
