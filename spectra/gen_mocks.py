@@ -12,19 +12,18 @@ import sys
 import time
 
 
-if len(sys.argv) != 5:
-    print('usage: python {} <input_csv> <output_csv> <filter_folder> <spectra_folder>'.format(sys.argv[0]))
+if len(sys.argv) != 4:
+    print('usage: python {} <input_csv> <filter_folder> <spectra_folder>'.format(sys.argv[0]))
     exit()
 
 input_file = sys.argv[1]
-output_file = sys.argv[2]
-FILTERS_PATH = sys.argv[3]
-SPECTRA_PATH = sys.argv[4]
+FILTERS_PATH = sys.argv[2]
+SPECTRA_PATH = sys.argv[3]
 
 vel_light = 2.99792458 * 10**18  # angstrom/s
 
 
-filter_names = ['uJAVA', 'F378', 'F395', 'F410', 'F430', 'gSDSS', 'F515', 'rSDSS', 'F660', 'iSDSS', 'F861', 'zSDSS']
+filter_names = ['u', 'f378', 'f395', 'f410', 'f430', 'g', 'f515', 'r', 'f660', 'i', 'f861', 'z']
 N_FILTERS = len(filter_names)
 # central wavelengths (angstroms)
 L = np.array(
