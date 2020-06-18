@@ -81,22 +81,25 @@ def filter_master_catalog(master_cat_file, output_file, usecols_orig, usecols_re
 
 # m = 22.5 - 2.5*log10(FLUX)
 
-def query_sdss(query_str, filename):
+def query_sdss(query_str, filename, obj_key='objID', data_release=14):
     objid = -1
     cnt = 0
     row_count = 500000
 
     print('querying', filename)
-    while row_count==500000:
+    while row_count == 500000:
         start = time.time()
         print('query number', cnt)
-        table = SDSS.query_sql(query_str.format(objid), timeout=600, data_release=15)
+        table = SDSS.query_sql(query_str.format(objid), timeout=600, data_release=data_release)
         print('seconds taken:', int(time.time()-start))
 
         row_count = len(table)
-        objid = table[row_count-1]['bestObjID']
+        objid = table[row_count-1][obj_key]
         print('row_count', row_count)
-        print(table[:10])
+        print('head')
+        print(table[:5])
+        print('tail')
+        print(table[-5:])
 
         ascii.write(table, filename.format(cnt), format='csv', fast_writer=False)
         print('saved to csv')
@@ -143,14 +146,14 @@ def match_catalogs(new_df, base_df, final_cols, matched_cat_path=None, max_dista
 
     print(final_cat.columns)
 
-    final_cat['redshift'] = final_cat.zspec
+    final_cat['redshift'] = final_cat.z_
 
     final_cat = final_cat[final_cols]
 
     print('matched df shape', new_df.shape)
     print('base df shape', base_df.shape)
     print('final df shape', final_cat.shape)
-    
+
     if matched_cat_path is not None:
         final_cat.to_csv(matched_cat_path, index=False)
 
@@ -216,7 +219,6 @@ def stratified_split(filepath, mag_min=0, mag_max=35, fill_undet=False, test_spl
     df = df[df.f515_mock.between(mag_min, mag_max)]
     df = df[df.f660_mock.between(mag_min, mag_max)]
     df = df[df.f861_mock.between(mag_min, mag_max)]
-
 
     print('shape after filtering', df.shape)
 
@@ -309,27 +311,32 @@ def stratified_split_unlabeled(filepath, mag_range=None, test_split=0.1, val_spl
 if __name__ == '__main__':
     # query objects from sdss
 
-    photo_query = '''
-    select
-    objID, ra, dec, type, probPSF, flags, 
-    petroRad_u, petroRad_g, petroRad_r, petroRad_i, petroRad_z,
-    petroRadErr_u, petroRadErr_g, petroRadErr_r, petroRadErr_i, petroRadErr_z
-    from PhotoObj
-    where abs(dec) < 1.25 and objID>{}
-    order by objID
-    '''
+    # df = pd.read_csv("csv/dr1_crossmatched.csv")
+    # ids = df.bestObjID.values
+    # ids = set(ids) - set([0])
+    # ids = list(ids)
+
+    # photo_query = '''
+    # select
+    # objID, ra, dec, type,
+    # modelMag_u, modelMag_g, modelMag_r, modelMag_i, modelMag_z
+    # from PhotoObj
+    # where abs(dec) < 1.46 and objID in {}
+    # '''.format(ids)
+
+    # last objID = 1237646647302291737
 
     spec_query = '''
     select
     bestObjID, ra, dec, class, subclass, z, zErr, zWarning,
-    spectroFlux_u, spectroFlux_g, spectroFlux_r, spectroFlux_i, spectroFlux_z,
-    spectroFluxIvar_u, spectroFluxIvar_g, spectroFluxIvar_r, spectroFluxIvar_i, spectroFluxIvar_z
+    run2d, mjd, plate, fiberID
     from SpecObj
-    where abs(dec) < 1.46
+    where abs(dec) < 1.46 and bestObjID>{}
+    order by bestObjID
     '''
     # master catalog: dec in (-1.4139, 1.4503)
 
-    # query_sdss(spec_query, 'csv/sdss_spec_full_STRIPE82.csv')
+    # query_sdss(photo_query, 'csv/sdss_photo_DR16_bestobjids_{}.csv', obj_key='objID', data_release=16)
 
     # gen master catalog
     # data_dir = os.environ['DATA_PATH']
@@ -350,24 +357,33 @@ if __name__ == '__main__':
     ]
 
     matched_cat_cols = [
-        'id','ra','dec','class_','class','subclass','x','y','mumax','s2n','photoflag','ndet','fwhm',
-        'u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z',
-        'u_mock','f378_mock','f395_mock','f410_mock','f430_mock','g_mock',
-        'f515_mock','r_mock','f660_mock','i_mock','f861_mock','z_mock',
-        'd2d','redshift','zWarning',
-        'spectroFlux_u', 'spectroFlux_g', 'spectroFlux_r', 'spectroFlux_i', 'spectroFlux_z', 
-        'u_err','f378_err','f395_err','f410_err','f430_err','g_err',
-        'f515_err','r_err','f660_err','i_err','f861_err','z_err']
+        'id', 'ra', 'dec', 'class', 'subclass', 'x', 'y',
+        'photoflag', 'ndet', 'fwhm',
+        'u', 'f378', 'f395', 'f410', 'f430', 'g',
+        'f515', 'r', 'f660', 'i', 'f861', 'z',
+        'u_err', 'f378_err', 'f395_err', 'f410_err', 'f430_err', 'g_err',
+        'f515_err', 'r_err', 'f660_err', 'i_err', 'f861_err', 'z_err',
+        'd2d', 'redshift', 'zWarning',
+        'bestObjID', 'run2d', 'plate', 'mjd', 'fiberID'
+    ]
 
     # filter_master_catalog(
     #     data_dir + '/dr1/SPLUS_STRIPE82_master_catalog_dr_march2019.cat',
     #     'csv/dr1.csv', usecols, usecols_renamed)
 
     # match catalogs
-    splus_cat = pd.read_csv('csv/dr1_classes.csv')
-    sloan_cat = pd.read_csv('csv/SPLUS_mock.csv')
-    matched_cat = 'csv/dr1_classes_mocks.csv'
-    # c = match_catalogs(sloan_cat, splus_cat, matched_cat_cols, matched_cat)
+    splus_cat = pd.read_csv('csv/dr1.csv')
+    sloan_cat = pd.read_csv('csv/sdss_spec_DR16.csv')
+    matched_cat = 'csv/dr1_crossmatched.csv'
+    c = match_catalogs(sloan_cat, splus_cat, matched_cat_cols, matched_cat)
+
+    df = pd.read_csv(matched_cat)
+    df = df[(df.photoflag==0)&(df.ndet==12)&(df.zWarning==0)&(df.bestObjID!=0)]
+
+    df['bestObjID'] = df.bestObjID.astype(np.int64)
+
+    df.to_csv(matched_cat, index=False)
+    print(df.bestObjID.value_counts())
 
     # gen split catalog
-    stratified_split(matched_cat, e=0.5)
+    # stratified_split(matched_cat, e=0.5)
