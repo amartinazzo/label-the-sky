@@ -17,9 +17,9 @@ declare -a servers=($(hostname))
 
 timestamp=`date "+%y%m%d"`
 
-declare -a backbones=(vgg resnext efficientnet)
-declare -a outputs=(classes magnitudes)
-declare -a nbands_=(3 5 12)
+declare -a backbones=(vgg) #resnext efficientnet)
+declare -a outputs=(magnitudes magnitudes_mock classes)
+declare -a nbands_=(3 12)
 
 declare -a commands
 declare -a pids
@@ -46,7 +46,7 @@ while true
 do
     server=${servers[$s]}
 
-    for gpu in 0 1
+    for gpu in 0 1 2 3
     do
         cmd=${commands[$i]}
         backbone=$(echo $cmd | cut -d" " -f4)
@@ -56,9 +56,9 @@ do
         if [ "$cmd" != "" ]
         then
             logfile="logs/${timestamp}_${backbone}_${target}_${nbandss}.log"
-            echo "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"
-            echo "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &" >> $logfile
-            eval "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"
+            echo "TF_FORCE_GPU_ALLOW_GROWTH=true CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"
+            echo "TF_FORCE_GPU_ALLOW_GROWTH=true CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &" >> $logfile
+            eval "TF_FORCE_GPU_ALLOW_GROWTH=true CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"
             pids+=($!)
             i=$((i + 1))
         fi

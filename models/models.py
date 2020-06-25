@@ -1,8 +1,8 @@
-from keras.layers import Conv1D, Conv2D, Dense, Dropout, Flatten, Input
-from keras.layers.merge import, add
-from keras.models import Model, Sequential
-from keras.regularizers import l2
-import keras.backend as K
+from tensorflow.keras.layers import Conv1D, Conv2D, Dense, Dropout, Flatten, Input
+from tensorflow.keras.layers.merge import, add
+from tensorflow.keras.models import Model, Sequential
+from tensorflow.keras.regularizers import l2
+import tensorflow.keras.backend as K
 import numpy as np
 
 

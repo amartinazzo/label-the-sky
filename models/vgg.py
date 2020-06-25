@@ -4,8 +4,8 @@ https://github.com/anokland/local-loss
 '''
 
 
-from keras.layers import Activation, BatchNormalization, Input, Dense, Dropout, Conv2D, Flatten, MaxPooling2D, ZeroPadding2D
-from keras.models import Model
+from tensorflow.keras.layers import Activation, BatchNormalization, Input, Dense, Dropout, Conv2D, Flatten, MaxPooling2D, ZeroPadding2D
+from tensorflow.keras.models import Model
 
 
 def conv_block(inpt, n_filters, kernel_size=3):

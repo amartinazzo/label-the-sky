@@ -4,19 +4,11 @@ https://github.com/verbpronoun/keras-dl-benchmark/blob/master/resnext_builder.py
 '''
 
 
-from efficientnet.keras import EfficientNetB0
-from keras.layers.core import Activation, Dense, Dropout, Lambda, Flatten
-from keras.layers.convolutional import Conv1D, Conv2D
-from keras.layers.pooling import GlobalAveragePooling2D, GlobalMaxPooling2D, MaxPooling2D, MaxPooling1D
-from keras.layers import Input, Dense, Activation, Flatten
-from keras.layers import Convolution2D, AveragePooling2D, BatchNormalization, MaxPooling2D, ZeroPadding2D
-from keras.layers.merge import concatenate, add
-from keras.layers.normalization import BatchNormalization
-from keras.models import Model, Sequential
-from keras.regularizers import l2
-from keras.utils import np_utils
-import keras.backend as K
-import numpy as np
+from tensorflow.keras.layers import Activation, Dense, Dropout, Flatten, Input
+from tensorflow.keras.layers import AveragePooling2D, BatchNormalization, Convolution2D
+from tensorflow.keras.layers import add, concatenate
+from tensorflow.keras.models import Model
+import tensorflow.keras.backend as K
 
 
 if (K.image_data_format() == 'channels_first'):
@@ -73,17 +65,17 @@ def make_layer(block, input, numFilters, numBlocks, stride, cardinality, bottlen
 
 
 def ResNeXt_builder(
-    block, num_blocks, input_shape, num_classes, cardinality, bottleneck_width, include_top, include_features, last_activation):
+        block, num_blocks, input_shape, num_classes, cardinality, bottleneck_width, include_top, include_features, last_activation):
     inpt = Input(shape=input_shape)
     x = my_conv(inpt, 64, (1, 1))
     x = BatchNormalization(axis=channel_axis)(x)
     x = Activation('relu')(x)
-    
+
     x = make_layer(Block, x, 64, num_blocks[0], 1, cardinality, bottleneck_width)
     x = make_layer(Block, x, 128, num_blocks[1], 2, cardinality, bottleneck_width)
     x = make_layer(Block, x, 256, num_blocks[2], 2, cardinality, bottleneck_width)
     # x = make_layer(Block, x, 512, num_blocks[3], 2, cardinality, bottleneck_width)
-    
+
     x = AveragePooling2D((8, 8), strides=8)(x)
     x = Flatten()(x)
 

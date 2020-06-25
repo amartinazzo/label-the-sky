@@ -37,7 +37,13 @@ def get_sets(df, target='classes', n_bands=12, filters=None):
             y = df[['u','g','r','i','z']].values
         else:
             y = df[['u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z']].values
-        y = y/30
+        y = y/35
+    elif target=='magnitudes_mock':
+        if n_bands==5:
+            y = df[['u_mock','g_mock','r_mock','i_mock','z_mock']].values
+        else:
+            y = df[['u_mock','f378_mock','f395_mock','f410_mock','f430_mock','g_mock','f515_mock','r_mock','f660_mock','i_mock','f861_mock','z_mock']].values
+        y = y/35
     elif target=='redshifts':
         y = df[['redshift_base', 'redshift_exp']].values
     else:

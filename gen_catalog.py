@@ -185,8 +185,11 @@ def fill_undetected(df):
     df[mags] = df_mags.values
 
 
-def stratified_split(filepath, mag_min=0, mag_max=35, fill_undet=False, test_split=0.1, val_split=0.11, e=None):
-    df = pd.read_csv(filepath)
+def stratified_split(
+    df, mag_min=0, mag_max=35, fill_undet=False,
+    test_split=0.1, val_split=0.11, e=None, verbose=False):
+    if type(df) is str:
+        df = pd.read_csv(df)
     df = df[(~df['class'].isna()) & (df.ndet==12) & (df.photoflag==0) & (df.zWarning==0)]
     if e is not None:
         df = df[(
@@ -235,6 +238,7 @@ def stratified_split(filepath, mag_min=0, mag_max=35, fill_undet=False, test_spl
     # hard code small subsets
     df.loc[df.class_mag=='QSO14', 'class_mag'] = 'QSO16'
     df.loc[df.class_mag=='GALAXY24', 'class_mag'] = 'GALAXY23'
+    df.loc[df.class_mag=='GALAXY20', 'class_mag'] = 'GALAXY19'
     df.loc[df.class_mag=='STAR23', 'class_mag'] = 'STAR22'
 
     df['class_mag'] = df['class_mag'].astype('category')
@@ -260,19 +264,27 @@ def stratified_split(filepath, mag_min=0, mag_max=35, fill_undet=False, test_spl
     df.loc[df_train_idx, 'split'] = 'train'
     df.loc[df_test_idx, 'split'] = 'val'
 
-    print(df.split.value_counts(normalize=True))
+    df['rnd'] = np.random.uniform(size=df.shape[0])
+    df['labeled'] = df.rnd.apply(lambda r: True if r>=0.5 else False)
+    df['split_labeled'] = df[['split', 'labeled']].apply(
+        lambda x: x[0]+str(x[1]),
+        axis=1)
+    print(df.split_labeled.value_counts(normalize=True))
+    df.drop(columns=['rnd', 'split_labeled'], inplace=True)
     print()
 
-    print('SPLITS PER CAT')
-    print()
-    for i in np.unique(df.class_mag_int.values):
-        dff = df[df.class_mag_int==i]
-        print(dff['class_mag'].head(1))
-        print(dff.split.value_counts(normalize=True))
+    if verbose:
+        print('SPLITS PER CAT')
         print()
+        for i in np.unique(df.class_mag_int.values):
+            dff = df[df.class_mag_int==i]
+            print(dff['class_mag'].head(1))
+            print(dff.split.value_counts(normalize=True))
+            print()
 
     df.drop(columns=['class_mag', 'class_mag_int'], inplace=True)
-    df.to_csv('{}_split.csv'.format(filepath[:-4]), index=False)
+    # df.to_csv('{}_split.csv'.format(filepath[:-4]), index=False)
+    return df
 
 
 def stratified_split_unlabeled(filepath, mag_range=None, test_split=0.1, val_split=0.11):

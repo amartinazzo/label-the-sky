@@ -1,3 +1,4 @@
+from gen_catalog import stratified_split
 import numpy as np
 import pandas as pd
 import random
@@ -23,13 +24,17 @@ df.dropna(inplace=True)
 df = df[~((df==np.inf).values.any(axis=1))]
 print('shape after removing NaN', df.shape)
 
-for b in ['u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z']:
-    df[f'{b}_diff'] = df[b] - df[f'{b}_mock']
-
 # check that ill objects were all removed
 assert (df.photoflag==0).sum() == df.shape[0]
 assert (df.ndet==12).sum() == df.shape[0]
 assert (df.zWarning==0).sum() == df.shape[0]
+
+df = stratified_split(df, e=0.1)
+df.drop(columns=['filename'], inplace=True)
+df.to_csv("csv/dr1_split.csv", index=False)
+
+for b in ['u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z']:
+    df[f'{b}_diff'] = df[b] - df[f'{b}_mock']
 
 stats = df[[
     'u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z',
