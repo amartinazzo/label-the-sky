@@ -100,9 +100,6 @@ def convolve(filename, mag_u_sdss, correction_u, correction_f378):
         idx = np.where((W >= np.min(wavel[i])) & (W <= np.max(wavel[i])))
         idx = idx[0]
 
-        if len(idx) > 0 & len(W[idx]) != len(W[np.min(idx):np.max(idx)]):
-            print(filename)
-
         if len(idx) == 0:
             f_convol[i] = 0.
         else:
@@ -125,7 +122,7 @@ def convolve(filename, mag_u_sdss, correction_u, correction_f378):
     mag_AB = -2.5 * np.log10(f_convol_nu) - 48.6
     mag_AB = np.round(mag_AB, 5)
 
-    mag_AB[(np.isnan(mag_AB)) | (np.isinf(mag_AB)) | (mag_AB < 0.)] = 99.
+    # mag_AB[(np.isnan(mag_AB)) | (np.isinf(mag_AB)) | (mag_AB < 0.)] = 99.
 
     return mag_AB
 
@@ -133,7 +130,6 @@ def convolve(filename, mag_u_sdss, correction_u, correction_f378):
 # MAIN
 
 df = pd.read_csv(input_file)
-df = df.loc[12640:]
 
 df['filename'] = df[['plate', 'mjd', 'fiberID']].apply(
     lambda x: "spec-{}-{}-{}".format(str(x[0]).zfill(4), str(x[1]), str(x[2]).zfill(4)),
