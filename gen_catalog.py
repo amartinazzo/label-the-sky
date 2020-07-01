@@ -265,12 +265,12 @@ def stratified_split(
     df.loc[df_test_idx, 'split'] = 'val'
 
     df['rnd'] = np.random.uniform(size=df.shape[0])
-    df['labeled'] = df.rnd.apply(lambda r: True if r>=0.5 else False)
-    df['split_labeled'] = df[['split', 'labeled']].apply(
+    df['pretraining'] = df.rnd.apply(lambda r: True if r>=0.9 else False)
+    df['split_pretraining'] = df[['split', 'labeled']].apply(
         lambda x: x[0]+str(x[1]),
         axis=1)
-    print(df.split_labeled.value_counts(normalize=True))
-    df.drop(columns=['rnd', 'split_labeled'], inplace=True)
+    print(df.split_pretraining.value_counts(normalize=True))
+    df.drop(columns=['rnd', 'split_pretraining'], inplace=True)
     print()
 
     if verbose:

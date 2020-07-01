@@ -378,11 +378,7 @@ if __name__ == '__main__':
     disable_eager_execution()
 
     df = pd.read_csv(csv_file)
-    if target=='classes':
-        df = df[df.labeled]
-    else:
-        df = df[~df.labeled]
-    orig_shape = df.shape
+    df = df[df.pretraining]
 
     print('new shape', df.shape)
     print('proportion', df.shape[0] / orig_shape[0])
@@ -422,70 +418,69 @@ if __name__ == '__main__':
         npy_folder, f'{model_name}_X_test_features.npy'), X_test_feats)
     print('--- minutes taken:', int((time() - start) / 60))
 
-    if target != 'classes':
-        print('training dense classifier')
+    print('training dense classifier')
 
-        model = build_model(
-            input_dim, n_outputs, lst_activation, loss, backbone,
-            include_top=True, include_features=True, weights_file=model_file)
+    model = build_model(
+        input_dim, n_outputs, lst_activation, loss, backbone,
+        include_top=True, include_features=True, weights_file=model_file)
 
-        df_clf = pd.read_csv(csv_file)
-        df_clf = df_clf[df_clf.labeled]
-        # df_clf = df_clf.sample(10000, random_state=0)  # low data regime
-        # df_clf['random'] = np.random.uniform(size=df_clf.shape[0])
+    df_clf = pd.read_csv(csv_file)
+    df_clf = df_clf[~df_clf.pretraining]
+    # df_clf = df_clf.sample(10000, random_state=0)  # low data regime
+    # df_clf['random'] = np.random.uniform(size=df_clf.shape[0])
 
-        # compute validation and testing feature sets (fixed)
+    # compute validation and testing feature sets (fixed)
 
-        _, _, gen_val = build_dataset(
-            df_clf, images_folder, input_dim, n_outputs, target,
-            'val', bs=1, shuffle=False)
-        _, _, gen_test = build_dataset(
-            df_clf, images_folder, input_dim, n_outputs, target, 'test')
+    _, _, gen_val = build_dataset(
+        df_clf, images_folder, input_dim, n_outputs, target,
+        'val', bs=1, shuffle=False)
+    _, _, gen_test = build_dataset(
+        df_clf, images_folder, input_dim, n_outputs, target, 'test')
 
-        y_val_hat, X_val_feats = model.predict_generator(gen_val)
-        y_test_hat, X_test_feats = model.predict_generator(gen_test)
+    y_val_hat, X_val_feats = model.predict_generator(gen_val)
+    y_test_hat, X_test_feats = model.predict_generator(gen_test)
 
-        _, y_val, _ = build_dataset(
-            df_clf, images_folder, input_dim, 2, 'classes', 'val')
-        _, y_test, _ = build_dataset(
-            df_clf, images_folder, input_dim, 2, 'classes', 'test')
+    _, y_val, _ = build_dataset(
+        df_clf, images_folder, input_dim, 2, 'classes', 'val')
+    _, y_test, _ = build_dataset(
+        df_clf, images_folder, input_dim, 2, 'classes', 'test')
 
-        # vary training set size
+    # vary training set size
 
-        acc = []
-        # for p in np.linspace(0.05, 1, 20):
-        df_clf_train = df_clf #[df_clf.random <= p]
-        # print('percentage of full train', df_clf_train[
-        #     df_clf_train.split == 'train'].shape[0]/df_clf[
-        #     df_clf.split == 'train'].shape[0])
-        class_weights = get_class_weights(df_clf_train)
-        print('class weights', class_weights)
+    acc = []
+    # for p in np.linspace(0.05, 1, 20):
+    df_clf_train = df_clf #[df_clf.random <= p]
+    # print('percentage of full train', df_clf_train[
+    #     df_clf_train.split == 'train'].shape[0]/df_clf[
+    #     df_clf.split == 'train'].shape[0])
+    class_weights = get_class_weights(df_clf_train)
+    print('class weights', class_weights)
 
-        _, _, gen_train = build_dataset(
-            df_clf_train, images_folder, input_dim, n_outputs, target,
-            'train', bs=1, shuffle=False)
-        y_train_hat, X_train_feats = model.predict_generator(gen_train)
+    _, _, gen_train = build_dataset(
+        df_clf_train, images_folder, input_dim, n_outputs, target,
+        'train', bs=1, shuffle=False)
+    y_train_hat, X_train_feats = model.predict_generator(gen_train)
 
-        _, y_train, _ = build_dataset(
-            df_clf_train, images_folder, input_dim, 2, 'classes', 'train')
+    _, y_train, _ = build_dataset(
+        df_clf_train, images_folder, input_dim, 2, 'classes', 'train')
 
-        clf = build_classifier(X_train_feats.shape[1])
-        clf_history = train_classifier(
-            clf, X_train_feats, y_train, X_val_feats, y_val,
-            clf_file, class_weights)
+    clf = build_classifier(X_train_feats.shape[1])
+    clf_history = train_classifier(
+        clf, X_train_feats, y_train, X_val_feats, y_val,
+        clf_file, class_weights)
 
-        # with open(f'history/history_{clf_name}_p{p}.json', 'w') as f:
-        with open(f'history/history_{clf_name}.json', 'w') as f:
-            json.dump(make_serializable(clf_history.history), f)
-        y_test_feats_hat = clf.predict(X_test_feats)
-        compute_metrics(y_test, y_test_feats_hat, 'classes')
-        acc.append(
-            accuracy_score(
-                np.argmax(y_test, axis=1),
-                np.argmax(y_test_feats_hat, axis=1)))
-        print('--- minutes taken:', int((time() - start) / 60))
+    # with open(f'history/history_{clf_name}_p{p}.json', 'w') as f:
+    with open(f'history/history_{clf_name}.json', 'w') as f:
+        json.dump(make_serializable(clf_history.history), f)
+    y_test_feats_hat = clf.predict(X_test_feats)
+    compute_metrics(y_test, y_test_feats_hat, 'classes')
+    acc.append(
+        accuracy_score(
+            np.argmax(y_test, axis=1),
+            np.argmax(y_test_feats_hat, axis=1)))
+    print('--- minutes taken:', int((time() - start) / 60))
 
-        print('accuracies', acc)
+    print('accuracies', acc)
 
     print('extracting UMAP projections')
     X_features = np.copy(X_test_feats)
