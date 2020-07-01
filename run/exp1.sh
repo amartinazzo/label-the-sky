@@ -18,7 +18,7 @@ declare -a servers=($(hostname))
 timestamp=`date "+%y%m%d"`
 
 declare -a backbones=(vgg) #resnext efficientnet)
-declare -a outputs=(magnitudes magnitudes_mock classes)
+declare -a outputs=(magnitudes magnitudesmock) #classes)
 declare -a nbands_=(3 12)
 
 declare -a commands

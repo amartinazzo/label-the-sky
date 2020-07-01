@@ -26,12 +26,13 @@ def dimension_reducer(input_dim=512, output_dim=64, n_classes=12, activation='so
     outputs = Dense(n_classes, activation=activation)(x)
     model = Model(inputs, [x, outputs])
 
-    return model    
+    return model
 
 
 def top_layer_net(input_shape=(512,), nb_classes=3):
     inputs = Input(shape=input_shape)
-    outputs = Dense(nb_classes, use_bias=False, kernel_regularizer=l2(5e-4),
+    outputs = Dense(
+        nb_classes, use_bias=False, kernel_regularizer=l2(5e-4),
         kernel_initializer='he_normal', activation='softmax')(inputs)
     model = Model(inputs, outputs)
     return model

@@ -38,7 +38,7 @@ def get_sets(df, target='classes', n_bands=12, filters=None):
         else:
             y = df[['u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z']].values
         y = y/35
-    elif target=='magnitudes_mock':
+    elif target=='magnitudesmock':
         if n_bands==5:
             y = df[['u_mock','g_mock','r_mock','i_mock','z_mock']].values
         else:

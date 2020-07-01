@@ -3,6 +3,7 @@ adapted from code by Carolina Queiroz
 """
 
 from astropy.io import fits
+import csv
 from glob import glob
 import pandas as pd
 from multiprocessing import cpu_count, Pool, Manager
@@ -12,18 +13,22 @@ import sys
 import time
 
 
-if len(sys.argv) != 4:
-    print('usage: python {} <input_csv> <filter_folder> <spectra_folder>'.format(sys.argv[0]))
+# GLOBAL VARS
+
+
+if len(sys.argv) != 5:
+    print('usage: python {} <input_csv> <output_csv> <filter_folder> <spectra_folder>'.format(sys.argv[0]))
     exit()
 
 input_file = sys.argv[1]
-FILTERS_PATH = sys.argv[2]
-SPECTRA_PATH = sys.argv[3]
+output_file = sys.argv[2]
+FILTERS_PATH = sys.argv[3]
+SPECTRA_PATH = sys.argv[4]
 
 vel_light = 2.99792458 * 10**18  # angstrom/s
 
 
-filter_names = ['u', 'f378', 'f395', 'f410', 'f430', 'g', 'f515', 'r', 'f660', 'i', 'f861', 'z']
+filter_names = ['uJAVA', 'F378', 'F395', 'F410', 'F430', 'gSDSS', 'F515', 'rSDSS', 'F660', 'iSDSS', 'F861', 'zSDSS']
 N_FILTERS = len(filter_names)
 # central wavelengths (angstroms)
 L = np.array(
@@ -37,65 +42,35 @@ for f in filter_names:
     wavel.append(10. * file[0])  # wavelengths are in nanometers in the S-PLUS files
     wavef.append(file[1])
 
-
 ###
-
-df = pd.read_csv(input_file)
-
-df['filename'] = df[['plate', 'mjd', 'fiberID']].apply(
-    lambda x: "spec-{}-{}-{}".format(str(x[0]).zfill(4), str(x[1]), str(x[2]).zfill(4)),
-    axis=1
-)
-
-# assertions
-
-# all filenames are unique
-assert df.shape[0] == len(df.filename.value_counts())
-
-# all files in the dataframe exist
-fits_files = glob(SPECTRA_PATH + '*.fits')
-fits_files = [f.split('/')[-1][:-5] for f in fits_files]
-assert df.filename.isin(fits_files).sum() == df.shape[0]
-
-"""
-Corrections to the filters not fully covered by SDSS spectra
-For uJAVA, these were obtained by measuring the median difference
-between the S-PLUS mag and the SDSS mag for bright sources (PhotoFlag=0, zWarning=0)
-For F378, this was obtained by the median difference between the
-observations in F378 and uJAVA
-"""
-
-# TODO compute values instead of hardcoding them
-corr_u = {
-    'GALAXY': 1.36,
-    'STAR': 0.38,
-    'QSO': 0.34
-}
-
-corr_f378 = {
-    'GALAXY': -0.3,
-    'STAR': -0.5,
-    'QSO': -0.32
-}
-
-df['corr_u'] = df['class'].apply(lambda c: corr_u[c])
-df['corr_f378'] = df['class'].apply(lambda c: corr_f378[c])
-
-filenames = df.filename.values
-usdss = df.modelMag_u.values
-corr_u = df.corr_u.values
-corr_f378 = df.corr_f378.values
-
 
 # FUNCS
 
-# Convert AB magnitude to fluxes in units of erg/s/cm^2/angstrom
+
+def corr_u_func(df, c):
+    """
+    uJAVA filter is not fully covered by SDSS spectra
+    it is corrected by using the median difference between uJAVA and photometric uSDSS
+    for bright sources (photoflag=0, zWarning=0)
+    """
+    return (df[df['class']==c].u-df[df['class']==c].modelMag_u).median().round(4)
+
+
+def corr_f378_func(df, c):
+    """
+    F378 filter is not fully covered by SDSS spectra
+    it is corrected by using the median difference between F378 and uJAVA
+    """
+    return (df[df['class']==c].f378-df[df['class']==c].u).median().round(4)
+
+
 def f_lambda(wavelength, mag_ab):
+    """ convert AB magnitude to fluxes in units of erg/s/cm^2/angstrom """
     value = (vel_light / wavelength**2) * 10**(-0.4 * (mag_ab + 48.6))
     return (value)
 
 
-def convolve(filename, mag_u_sdss, correction_u, correction_f378, mocks):
+def convolve(filename, mag_u_sdss, correction_u, correction_f378):
     file = SPECTRA_PATH + filename + ".fits"
 
     data = fits.getdata(file)
@@ -122,18 +97,20 @@ def convolve(filename, mag_u_sdss, correction_u, correction_f378, mocks):
     f_convol = np.zeros(N_FILTERS)  # erg/s/cm^2/angstrom
 
     for i in range(N_FILTERS):
-        Wlambda = []
-        pos = np.where((W >= np.min(wavel[i])) & (W <= np.max(wavel[i])))
+        idx = np.where((W >= np.min(wavel[i])) & (W <= np.max(wavel[i])))
+        idx = idx[0]
 
-        if len(pos[0]) == 0.0:
+        if len(idx) > 0 & len(W[idx]) != len(W[np.min(idx):np.max(idx)]):
+            print(filename)
+
+        if len(idx) == 0:
             f_convol[i] = 0.
         else:
-            Wlambda.append([np.min(pos), np.max(pos)])
-            Lambda = np.linspace(W[Wlambda[0][0]], W[Wlambda[0][1]], len(pos[0]))
             swavel_interp = interpolate.InterpolatedUnivariateSpline(wavel[i], wavef[i], k=3)
+            lamb_interpol = swavel_interp(W[idx])
 
             f_convol[i] = np.sum(
-                F[Wlambda[0][0]:Wlambda[0][1]+1]*10**(-17)*swavel_interp(Lambda))/np.sum(swavel_interp(Lambda))
+                F[idx] * 10**(-17) * lamb_interpol) / np.sum(lamb_interpol)
 
     # Correct the fluxes in uJAVA and F378
     mag_u_splus = mag_u_sdss + correction_u
@@ -148,13 +125,52 @@ def convolve(filename, mag_u_sdss, correction_u, correction_f378, mocks):
     mag_AB = -2.5 * np.log10(f_convol_nu) - 48.6
     mag_AB = np.round(mag_AB, 5)
 
-    print(filename, end=',')
-    for i, m in enumerate(mag_AB):
-        end = '\n' if i==len(mag_AB)-1 else ','
-        print(m, end=end)
+    mag_AB[(np.isnan(mag_AB)) | (np.isinf(mag_AB)) | (mag_AB < 0.)] = 99.
 
-    # mocks[filename] = mag_AB
-    # print("processed", filename)
+    return mag_AB
+
+
+# MAIN
+
+df = pd.read_csv(input_file)
+df = df.loc[12640:]
+
+df['filename'] = df[['plate', 'mjd', 'fiberID']].apply(
+    lambda x: "spec-{}-{}-{}".format(str(x[0]).zfill(4), str(x[1]), str(x[2]).zfill(4)),
+    axis=1
+)
+
+# assertions
+
+# all filenames are unique
+assert df.shape[0] == len(df.filename.value_counts())
+
+# all files in the dataframe exist
+fits_files = glob(SPECTRA_PATH + '*.fits')
+fits_files = [f.split('/')[-1][:-5] for f in fits_files]
+assert df.filename.isin(fits_files).sum() == df.shape[0]
+
+# compute corrections
+
+corr_u = {
+    'GALAXY': corr_u_func(df, 'GALAXY'),
+    'STAR': corr_u_func(df, 'STAR'),
+    'QSO': corr_u_func(df, 'QSO')
+}
+
+corr_f378 = {
+    'GALAXY': corr_f378_func(df, 'GALAXY'),
+    'STAR': corr_f378_func(df, 'STAR'),
+    'QSO': corr_f378_func(df, 'QSO')
+}
+
+df['corr_u'] = df['class'].apply(lambda c: corr_u[c])
+df['corr_f378'] = df['class'].apply(lambda c: corr_f378[c])
+
+filenames = df.filename.values
+usdss = df.modelMag_u.values
+corr_u = df.corr_u.values
+corr_f378 = df.corr_f378.values
 
 
 # compute mocks
@@ -164,15 +180,14 @@ start = time.time()
 # manager = Manager()
 # pool = Pool(processes=cpu_count())
 
-mocks = {}
-
-print('filename', end=',')
-for i, f in enumerate(filter_names):
-    end = '\n' if i==len(filter_names)-1 else ','
-    print(f, end=end)
+f = open(output_file, "w", encoding="utf-8")
+fwriter = csv.writer(f)
+fwriter.writerow(['filename'] + filter_names)
 
 for ix, f in enumerate(filenames):
-    convolve(f, usdss[ix], corr_u[ix], corr_f378[ix], mocks)
+    mags = convolve(f, usdss[ix], corr_u[ix], corr_f378[ix])
+    fwriter.writerow([f] + list(mags))
+
 
 #     pool.apply_async(
 #         convolve,
@@ -182,10 +197,3 @@ for ix, f in enumerate(filenames):
 # pool.join()
 
 print("\n\nseconds taken", time.time() - start)
-
-
-# save to csv
-
-# dff = pd.DataFrame.from_dict(mocks, columns=filter_names, orient='index')
-# dff = dff.round(5)
-# dff.to_csv(output_file)

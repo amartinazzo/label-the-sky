@@ -18,11 +18,11 @@ df_mocks = pd.read_csv("csv/dr1_mocks.csv")
 # df_mocks["filename"] = shuffled
 
 df = df.merge(df_mocks, on="filename", how="left", suffixes=('', '_mock'))
-print('shape before removing NaN', df.shape)
+print('shape before removing 99.', df.shape)
 
 df.dropna(inplace=True)
-df = df[~((df==np.inf).values.any(axis=1))]
-print('shape after removing NaN', df.shape)
+df = df[~((df==99.).values.any(axis=1))]
+print('shape after removing 99.', df.shape)
 
 # check that ill objects were all removed
 assert (df.photoflag==0).sum() == df.shape[0]

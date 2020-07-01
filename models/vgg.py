@@ -50,7 +50,7 @@ def VGG11b(
     # x = Dense(1024, activation='relu')(x)
 
     if include_top:
-        top = Dropout(0.2)(x)
+        top = Dropout(0.5)(x)
         top = Dense(num_classes, activation=last_activation)(top)
         if include_features:
             return Model(inpt, [top, x])
@@ -94,15 +94,16 @@ def VGG16(input_shape, num_classes, include_top=True, include_features=False, la
     x = Conv2D(512, (3, 3), activation='relu', padding='same', name='block5_conv3')(x)
     x = MaxPooling2D((2, 2), strides=(2, 2), name='block5_pool')(x)
     x = Flatten()(x)
+    x = Dense(1024, activation='relu')(x)
 
     if include_top:
-        top = Dropout(0.2)(x) # do include dropout always!
+        top = Dropout(0.5)(x)  # do include dropout always!
         top = Dense(num_classes, activation=last_activation)(top)
         if include_features:
             return Model(inpt, [top, x])
         else:
             return Model(inpt, top)
-    
+
     return Model(inpt, x)
 
 

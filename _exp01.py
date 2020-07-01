@@ -14,7 +14,7 @@ exp01:
 input args:
 * backbone      (resnext, efficientnet, vgg)
 * n_bands       (12, 5, 3)
-* target        (classes, magnitudes, magnitudes_spectra)
+* target        (classes, magnitudes, magnitudesmock)
 (ordered from outer to inner loop)
 
 total runs: 3*3*2 = 18
@@ -92,10 +92,10 @@ def build_dataset(
     return ids, y, data_gen
 
 
-def build_model(
+def build_backbone(
         input_dim, n_outputs, last_activation, loss, backbone='resnext',
         include_top=True, include_features=False, weights_file=None,
-        metrics=['accuracy', 'loss']):
+        metrics=['accuracy']):
     if backbone == 'resnext':
         model = ResNeXt29(
             input_shape=input_dim, num_classes=n_outputs,
@@ -121,28 +121,18 @@ def build_model(
         exit()
 
     if weights_file is not None and os.path.exists(weights_file):
-        model.load_weights(weights_file, skip_mismatch=True)
+        model.load_weights(weights_file, skip_mismatch=True, by_name=True)
         print('loaded weights')
 
-    # lr=0.01 seems good for VGG+magnitude
     optimizer = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
 
     model.summary()
 
-    # trainable_count = int(np.sum(
-    #     [K.count_params(p) for p in set(model.trainable_weights)]))
-    # non_trainable_count = int(np.sum(
-    #     [K.count_params(p) for p in set(model.non_trainable_weights)]))
-    # print('optimizer', optimizer)
-    # print('total params: {:,}'.format(trainable_count + non_trainable_count))
-    # print('trainable params: {:,}'.format(trainable_count))
-    # print('non-trainable params: {:,}'.format(non_trainable_count))
-
     return model
 
 
-def train(
+def train_backbone(
         model, gen_train, gen_val, model_file, class_weights=None,
         epochs=500, verbose=True):
     time_callback = TimeHistory()
@@ -177,6 +167,10 @@ def train(
     return history
 
 
+def finetune_backbone():
+    pass
+
+
 def build_classifier(
         input_dim, n_intermed=12, n_classes=3, layer_type='dense'):
     if type(input_dim) == int:
@@ -192,7 +186,7 @@ def build_classifier(
     outputs = Dense(n_classes, activation='softmax')(x)
     model = Model(inputs, outputs)
 
-    optimizer = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
+    optimizer = SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True)
     model.compile(
         loss='categorical_crossentropy', optimizer=optimizer,
         metrics=['accuracy'])
@@ -203,7 +197,7 @@ def build_classifier(
 
 def train_classifier(
         model, X_train, y_train, X_val, y_val, clf_file, class_weights=None,
-        batch_size=32, epochs=300, verbose=True):
+        batch_size=32, epochs=300, verbose=True, runs=3):
     time_callback = TimeHistory()
     callbacks = [
         ModelCheckpoint(
@@ -255,11 +249,11 @@ def compute_metrics(y_pred, y_true, target='classes', onehot=True):
         err_abs = np.absolute(y_true-y_pred)
         df = pd.DataFrame(err_abs)
         print(df.describe().to_string())
-        df = pd.DataFrame(err_abs*30)
+        df = pd.DataFrame(err_abs*35)
         print(df.describe().to_string())
-        err_abs = 30*err_abs
+        err_abs = 35*err_abs
         print('MAE:', np.mean(err_abs))
-        print('MAPE:', np.mean(err_abs/(30*y_true))*100)
+        print('MAPE:', np.mean(err_abs/(35*y_true))*100)
 
 
 def relu_saturated(x):
@@ -284,6 +278,9 @@ n_outputs_switch = {
     'magnitudes12': 12,
     'magnitudes5': 5,
     'magnitudes3': 12,
+    'magnitudesmock12': 12,
+    'magnitudesmock5': 5,
+    'magnitudesmock3': 12,
     'redshifts12': 2,
     'redshifts5': 2,
     'redshifts3': 2,
@@ -304,18 +301,21 @@ images_folder_switch = {
 last_activation_switch = {
     'classes': 'softmax',
     'magnitudes': relu_saturated,  # 'relu',
+    'magnitudesmock': relu_saturated,  # 'relu',
     'redshifts': 'sigmoid',
 }
 
 loss_switch = {
     'classes': 'categorical_crossentropy',
     'magnitudes': 'mae',
+    'magnitudesmock': 'mae',
     'redshifts': 'mae',
 }
 
 metrics_switch = {
     'classes': ['accuracy'],
     'magnitudes': None,
+    'magnitudesmock': None,
     'redshifts': None,
 }
 
@@ -454,10 +454,10 @@ if __name__ == '__main__':
 
         acc = []
         # for p in np.linspace(0.05, 1, 20):
-        df_clf_train = df_clf[df_clf.random <= p]
-        print('percentage of full train', df_clf_train[
-            df_clf_train.split == 'train'].shape[0]/df_clf[
-            df_clf.split == 'train'].shape[0])
+        df_clf_train = df_clf #[df_clf.random <= p]
+        # print('percentage of full train', df_clf_train[
+        #     df_clf_train.split == 'train'].shape[0]/df_clf[
+        #     df_clf.split == 'train'].shape[0])
         class_weights = get_class_weights(df_clf_train)
         print('class weights', class_weights)
 
@@ -474,7 +474,8 @@ if __name__ == '__main__':
             clf, X_train_feats, y_train, X_val_feats, y_val,
             clf_file, class_weights)
 
-        with open(f'history/history_{clf_name}_p{p}.json', 'w') as f:
+        # with open(f'history/history_{clf_name}_p{p}.json', 'w') as f:
+        with open(f'history/history_{clf_name}.json', 'w') as f:
             json.dump(make_serializable(clf_history.history), f)
         y_test_feats_hat = clf.predict(X_test_feats)
         compute_metrics(y_test, y_test_feats_hat, 'classes')
