@@ -20,7 +20,6 @@ df_mocks = pd.read_csv("csv/dr1_mocks.csv")
 df = df.merge(df_mocks, on="filename", how="left", suffixes=('', '_mock'))
 print('shape before removing np.inf', df.shape)
 
-df.dropna(inplace=True)
 df = df[~((df==np.inf).values.any(axis=1))]
 print('shape after removing np.inf', df.shape)
 
@@ -29,8 +28,9 @@ assert (df.photoflag==0).sum() == df.shape[0]
 assert (df.ndet==12).sum() == df.shape[0]
 assert (df.zWarning==0).sum() == df.shape[0]
 
-df = stratified_split(df, e=0.1)
+df = stratified_split(df)
 df.drop(columns=['filename'], inplace=True)
+print('saving df', df.shape)
 df.to_csv("csv/dr1_split.csv", index=False)
 
 for b in ['u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z']:
@@ -38,6 +38,7 @@ for b in ['u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z']:
 
 stats = df[[
     'u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z',
+    'u_err','f378_err','f395_err','f410_err','f430_err','g_err','f515_err','r_err','f660_err','i_err','f861_err','z_err',
     'u_mock','f378_mock','f395_mock','f410_mock','f430_mock','g_mock','f515_mock','r_mock','f660_mock','i_mock','f861_mock','z_mock',
     'u_diff','f378_diff','f395_diff','f410_diff','f430_diff','g_diff','f515_diff','r_diff','f660_diff','i_diff','f861_diff','z_diff',
 ]].describe().T[['mean', 'std', 'min', '25%', '50%', '75%', 'max']].round(4)

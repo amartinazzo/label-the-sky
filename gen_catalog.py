@@ -186,8 +186,7 @@ def fill_undetected(df):
 
 
 def stratified_split(
-    df, mag_min=0, mag_max=35, fill_undet=False,
-    test_split=0.1, val_split=0.11, e=None, verbose=False):
+    df, mag_min=0, mag_max=35, fill_undet=False, e=None, verbose=False):
     if type(df) is str:
         df = pd.read_csv(df)
     df = df[(~df['class'].isna()) & (df.ndet==12) & (df.photoflag==0) & (df.zWarning==0)]
@@ -236,42 +235,62 @@ def stratified_split(
     df['class_mag'] = df['class'] + df['class_mag'].astype(str)
 
     # hard code small subsets
-    df.loc[df.class_mag=='QSO14', 'class_mag'] = 'QSO16'
+    df.loc[(df.class_mag=='QSO14')|(df.class_mag=='QSO16'), 'class_mag'] = 'QSO18'
+    df.loc[df.class_mag=='GALAXY14', 'class_mag'] = 'GALAXY16'
+    df.loc[df.class_mag=='STAR14', 'class_mag'] = 'STAR16'
     df.loc[df.class_mag=='GALAXY24', 'class_mag'] = 'GALAXY23'
     df.loc[df.class_mag=='GALAXY20', 'class_mag'] = 'GALAXY19'
     df.loc[df.class_mag=='STAR23', 'class_mag'] = 'STAR22'
 
     df['class_mag'] = df['class_mag'].astype('category')
-    print(df.class_mag.value_counts(normalize=False))
     df['class_mag_int'] = df.class_mag.cat.codes
     df['split'] = ''
 
-    # train-test split
-    X = df.index.values
-    y = df.class_mag_int.values
-    sss = StratifiedShuffleSplit(n_splits=1, test_size=test_split, random_state=0)
+    # split pretraining set
+    df['rnd'] = np.random.uniform(size=df.shape[0])
+    df['pretraining'] = df.rnd.apply(lambda r: True if r<=0.88 else False)
+
+    print(df[df.pretraining].class_mag.value_counts(normalize=True))
+    print(df[~df.pretraining].class_mag.value_counts(normalize=True))
+
+    X = df[df.pretraining].index.values
+    y = df[df.pretraining].class_mag_int.values
+    sss = StratifiedShuffleSplit(n_splits=1, test_size=0.02, random_state=0)
     train_idx, test_idx = next(sss.split(X,y))
     df_train_idx, df_test_idx = X[train_idx], X[test_idx]
     df.loc[df_train_idx, 'split'] = 'train'
     df.loc[df_test_idx, 'split'] = 'test'
 
-    # train-val split
-    X = df[df.split=='train'].index.values
-    y = df[df.split=='train'].class_mag_int.values
-    sss = StratifiedShuffleSplit(n_splits=1, test_size=val_split, random_state=0)
+    X = df[(df.pretraining) & (df.split=='train')].index.values
+    y = df[(df.pretraining) & (df.split=='train')].class_mag_int.values
+    sss = StratifiedShuffleSplit(n_splits=1, test_size=0.02, random_state=0)
     train_idx, test_idx = next(sss.split(X,y))
     df_train_idx, df_test_idx = X[train_idx], X[test_idx]
     df.loc[df_train_idx, 'split'] = 'train'
     df.loc[df_test_idx, 'split'] = 'val'
 
-    df['rnd'] = np.random.uniform(size=df.shape[0])
-    df['pretraining'] = df.rnd.apply(lambda r: True if r>=0.9 else False)
-    df['split_pretraining'] = df[['split', 'labeled']].apply(
-        lambda x: x[0]+str(x[1]),
+    # split classification set
+    X = df[~df.pretraining].index.values
+    y = df[~df.pretraining].class_mag_int.values
+    sss = StratifiedShuffleSplit(n_splits=1, test_size=0.05, random_state=0)
+    train_idx, test_idx = next(sss.split(X,y))
+    df_train_idx, df_test_idx = X[train_idx], X[test_idx]
+    df.loc[df_train_idx, 'split'] = 'train'
+    df.loc[df_test_idx, 'split'] = 'test'
+
+    X = df[(~df.pretraining) & (df.split=='train')].index.values
+    y = df[(~df.pretraining) & (df.split=='train')].class_mag_int.values
+    sss = StratifiedShuffleSplit(n_splits=1, test_size=0.05, random_state=0)
+    train_idx, test_idx = next(sss.split(X,y))
+    df_train_idx, df_test_idx = X[train_idx], X[test_idx]
+    df.loc[df_train_idx, 'split'] = 'train'
+    df.loc[df_test_idx, 'split'] = 'val'
+
+    # show counts per split
+    df['split_pretraining'] = df[['split', 'pretraining']].apply(
+        lambda x: 'pretraining '+x[0] if x[1] else 'classification '+x[0],
         axis=1)
-    print(df.split_pretraining.value_counts(normalize=True))
-    df.drop(columns=['rnd', 'split_pretraining'], inplace=True)
-    print()
+    print(df.split_pretraining.value_counts().sort_index())
 
     if verbose:
         print('SPLITS PER CAT')
@@ -279,10 +298,10 @@ def stratified_split(
         for i in np.unique(df.class_mag_int.values):
             dff = df[df.class_mag_int==i]
             print(dff['class_mag'].head(1))
-            print(dff.split.value_counts(normalize=True))
+            print(dff.split_pretraining.value_counts(normalize=True))
             print()
 
-    df.drop(columns=['class_mag', 'class_mag_int'], inplace=True)
+    df.drop(columns=['rnd', 'split_pretraining', 'class_mag', 'class_mag_int'], inplace=True)
     # df.to_csv('{}_split.csv'.format(filepath[:-4]), index=False)
     return df
 
