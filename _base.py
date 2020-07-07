@@ -1,10 +1,13 @@
-from _datagen import get_dataset, DataGenerator
+import efficientnet
 from efficientnet.tfkeras import EfficientNetB0
+import json
 from keras_applications import vgg16, resnext
 from models.callbacks import TimeHistory
 import numpy as np
 import os
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.utils.class_weight import compute_class_weight
+import tensorflow as tf
 import tensorflow.keras as keras
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from tensorflow.keras.layers import Input, Dense, Flatten, GlobalAveragePooling2D, Dropout
@@ -13,8 +16,9 @@ from tensorflow.keras.optimizers import SGD
 
 
 BACKBONES = ['efficientnet', 'resnext', 'vgg']
+BROAD_BANDS = [0, 5, 7, 9, 11]
 CLASS_NAMES = ['GALAXY', 'STAR', 'QSO']
-MAG_MAX = 35
+MAG_MAX = 35.
 N_CHANNELS = [3, 5, 12]
 N_CLASSES = 3
 OUTPUT_TYPES = ['class', 'magnitudes', 'mockedmagnitudes']
@@ -26,13 +30,19 @@ BACKBONE_FN = {
     'vgg': vgg16.VGG16
 }
 
+PREPROCESSING_FN = {
+    'efficientnet': efficientnet.model.preprocess_input,
+    'resnext': resnext.preprocess_input,
+    'vgg': vgg16.preprocess_input
+}
 
-def compute_metrics(y_pred, y_true, target='classes', onehot=True):
+
+def compute_metrics(y_pred, y_true, target='class', onehot=True):
     if target not in OUTPUT_TYPES:
         raise ValueError('target should be one of %s, but %s was given' % (
             OUTPUT_TYPES, target))
 
-    if target == 'classes':
+    if target == 'class':
         if onehot:
             y_pred_arg = np.argmax(y_pred, axis=1)
             y_true_arg = np.argmax(y_true, axis=1)
@@ -86,7 +96,7 @@ def set_random_seeds():
 
 
 class Trainer:
-    def __init__(self, backbone, n_channels, output_type, base_dir, weights):
+    def __init__(self, backbone, n_channels, output_type, base_dir, weights, model_name):
         if backbone not in BACKBONES:
             raise ValueError('backbone should be one of %s, but %s was given' % (
                 BACKBONES, backbone))
@@ -99,21 +109,20 @@ class Trainer:
             raise ValueError('output_type should be one of %s, but %s was given' % (
                 OUTPUT_TYPES, output_type))
 
-        if weights is not None & weights != 'imagenet' & not os.path.exists(weights):
+        if weights is not None and weights != 'imagenet' and not os.path.exists(weights):
             raise ValueError('weights must be: None, imagenet, or a valid path to a h5 file')
 
         self.backbone = backbone
         self.n_channels = n_channels
         self.output_type = output_type
-        self.save_dir = save_dir
         self.weights = weights
+        self.model_name = model_name
 
         self.input_shape = (32, 32, n_channels)
 
+        self.base_dir = base_dir
+        self.data_dir = os.path.join(base_dir, 'data')
         self.save_dir = os.path.join(base_dir, 'trained_models')
-
-        self.data_dir = 'crops_rgb32' if n_channels==3 else 'crops_calib'
-        self.data_dir = os.path.join(base_dir, self.data_dir)
 
         if self.output_type == 'class':
             self.activation = 'softmax'
@@ -126,32 +135,40 @@ class Trainer:
             self.metrics = None
             self.n_outputs = 12 if self.n_channels != 5 else 5
 
-        self.timestamp = 0  #TODO
-        self.model_name = 0  #TODO
+    def load_data(self, split, subset):
+        if subset not in ['pretraining', 'clf']:
+            raise ValueError('subset must be: pretraining, clf')
 
-    def build_dataset(self, df, split='train', shuffle=True, bs=32):
-        if split not in SPLITS:
-            raise ValueError('split should be one of %s, but %s was given' % (
-                SPLITS, split))
+        X = np.load(os.path.join(
+            data_dir,
+            f'{subset}_{self.n_channels}_X_{split}.npy'))
 
-        df = df[df.split == split]
-        ids, y, labels = get_dataset(df, target=self.output_type, n_bands=self.n_channels)
+        y = np.load(os.path.join(
+            data_dir,
+            f'{subset}_{self.n_channels}_y_{self.output_type}_{split}.npy'))
 
-        shuffle = False if split != 'train' else shuffle
-        batch_size = 1 if split == 'test' else bs
+        return X, y
 
-        params = {
-            'batch_size': batch_size,
-            'data_folder': self.data_dir,
-            'input_dim': self.input_shape,
-            'n_outputs': self.n_outputs,
-            'target': self.output_type,
-            'shuffle': shuffle,
-        }
+    def preprocess_input(self, X):
+        if self.n_channels==3 and X.dtype=='uint8':
+            preprocessing_fn = PREPROCESSING_FN.get(self.backbone)
+            Xp = preprocessing_fn(X)
+        elif self.n_channels==5 and X.shape[-1]>5:
+            Xp = X[:, :, :, BROAD_BANDS]
+        else:
+            Xp = X
 
-        data_gen = DataGenerator(ids, labels=labels, **params)
+        if Xp.dtype != 'float32':
+            raise ValueError('Xp data type should be float32')
 
-        return data_gen, y
+        return Xp
+
+    def preprocess_output(self, y):
+        if y.dtype!='uint8' and self.output_type!='class':
+            yp = yp / MAG_MAX
+        else:
+            yp = y
+        return yp
 
     def build_model(self):
         architecture_fn = BACKBONE_FN.get(self.backbone)
@@ -200,12 +217,22 @@ class Trainer:
                 monitor='val_loss', mode='min', patience=10, restore_best_weights=True, verbose=1),
         ]
 
-    def pretrain(self, gen_train, gen_val, epochs=500):
-        if self.output_type == 'class':
-            raise ValueError('pretraining not available for classes')
+    def set_class_weights(self, y):
+        if self.output_type!='class':
+            self.class_weights = None
+        else:
+            self.class_weights = compute_class_weight('balanced', np.unique(y), y)
 
+    def train(self, gen_train, gen_val, epochs=500):
         opt = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
         self.model.compile(loss=self.loss, optimizer=opt)
+
+        Xp_train = self.preprocess_input(X_train)
+        yp_train = self.preprocess_output(y_train)
+        Xp_val = self.preprocess_input(X_val)
+        yp_val = self.preprocess_output(y_val)
+
+        self.set_class_weights(yp_train)
 
         time_cb = TimeHistory()
 
@@ -214,6 +241,7 @@ class Trainer:
             validation_data=gen_val,
             epochs=epochs,
             callbacks=self.callbacks + [time_cb],
+            class_weights=self.class_weights,
             verbose=2
         )
 
@@ -222,12 +250,19 @@ class Trainer:
 
         self.history = hist
 
-    def finetune(self, gen_train, gen_val):
+    def finetune(self, X_train, y_train, X_val, y_val, epochs=200):
         if self.weights is None:
             raise ValueError('finetune not available for weights=None')
 
         opt = SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True)
         self.model.compile(loss=self.loss, optimizer=opt)
+
+        Xp_train = self.preprocess_input(X_train)
+        Xp_val = self.preprocess_input(X_val)
+        yp_train = self.preprocess_output(y_train)
+        yp_val = self.preprocess_output(y_val)
+
+        self.set_class_weights(yp_train)
 
         time_cb = TimeHistory()
         histories = []
@@ -240,11 +275,11 @@ class Trainer:
                 layer.trainable = False
 
             history0 = self.model.fit(
-                generator=gen_train,
-                validation_data=gen_val,
+                Xp_train, yp_train,
+                validation_data=(Xp_val, yp_val),
                 epochs=10,
                 callbacks=self.callbacks,
-                class_weight=class_weights,
+                class_weights=self.class_weights,
                 verbose=2
             )
 
@@ -252,11 +287,11 @@ class Trainer:
                 layer.trainable = True
 
             history = clf.fit(
-                generator=gen_train,
-                validation_data=gen_val,
+                Xp_train, yp_train,
+                validation_data=(Xp_val, yp_val),
                 epochs=epochs,
                 callbacks=self.callbacks + [time_cb],
-                class_weight=class_weights,
+                class_weight=self.class_weights,
                 verbose=2
             )
 
@@ -266,15 +301,22 @@ class Trainer:
 
             self.history = histories
 
-    def train_clf(self, gen_train, y_train, gen_val, y_val, class_weights=None, epochs=200, runs=3):
+    def train_top(self, X_train, y_train, X_val, y_val, class_weights=None, epochs=200, runs=3):
         opt = SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True)
         self.model.compile(loss=self.loss, optimizer=opt)
 
         time_cb = TimeHistory()
         histories = []
 
-        Xf_train = self.extract_features(gen_train)
-        Xf_val = self.extract_features(gen_val)
+        Xp_train = self.preprocess_input(X_train)
+        yp_train = self.preprocess_output(y_train)
+        Xp_val = self.preprocess_input(X_val)
+        yp_val = self.preprocess_output(y_val)
+
+        Xf_train = self.extract_features(Xp_train)
+        Xf_val = self.extract_features(Xp_val)
+
+        self.set_class_weights(yp_train)
 
         inpt = Input(shape=Xf_train.shape[:-1])
         x = Dense(12, activation='relu')(inpt)
@@ -288,12 +330,11 @@ class Trainer:
         for run in range(runs):
             self.clf.set_weights(weights0)
             history = self.clf.fit(
-                Xf_train,
-                y_train,
-                validation_data=(Xf_val, y_val),
+                Xf_train, yp_train,
+                validation_data=(Xf_val, yp_val),
                 epochs=epochs,
                 callbacks=self.callbacks + [time_cb],
-                class_weight=class_weights,
+                class_weight=self.class_weights,
                 verbose=2
             )
             ht = history.history
@@ -302,7 +343,7 @@ class Trainer:
 
         self.history = histories
 
-    def train_clf_lowdata(self, gen_train, gen_val, class_weights=None, epochs=200, runs=10):
+    def train_lowdata(self, gen_train, gen_val, class_weights=None, epochs=200, runs=10):
         # TODO
         raise NotImplementedError()
 
@@ -310,21 +351,26 @@ class Trainer:
         print(self.history)
 
     def dump_history(self):
-        if not os.path.exists(os.path.join(base_dir, 'history')):
-            os.makedirs(os.path.join(base_dir, 'history'))
-        with open(os.path.join(base_dir, 'history', self.model_name+'.json'), 'w') as f:
+        if not os.path.exists(os.path.join(self.base_dir, 'history')):
+            os.makedirs(os.path.join(self.base_dir, 'history'))
+        with open(os.path.join(self.base_dir, 'history', self.model_name+'.json'), 'w') as f:
             json.dump(serialize(self.history), f)
-        print('dumped history to', os.path.join(base_dir, 'history', self.model_name+'.json'))
+        print('dumped history to', os.path.join(self.base_dir, 'history', self.model_name+'.json'))
 
-    def evaluate(self, gen, y):
-        y_hat = self.model.predict_generator(gen)
-        compute_metrics(y_hat, y, target=self.output_type)
+    def evaluate(self, X, y):
+        Xp = self.preprocess_input(X)
+        yp = self.preprocess_output(y)
+        y_hat = self.model.predict(Xp)
+        compute_metrics(y_hat, yp, target=self.output_type)
 
-    def predict(self, gen):
-        return self.model.predict_generator(gen)
+    def predict(self, X):
+        Xp = self.preprocess_input(X)
+        return self.model.predict(Xp)
 
-    def predict_with_embeddings(self, gen):
-        return self.embedder_yx.predict_generator(gen)
+    def predict_with_embeddings(self, X):
+        Xp = self.preprocess_input(X)
+        return self.embedder_yx.predict(Xp)
 
-    def extract_features(self, gen):
-        return self.embedder_x.predict_generator(gen)
+    def extract_features(self, X):
+        Xp = self.preprocess_input(X)
+        return self.embedder_x.predict(Xp)

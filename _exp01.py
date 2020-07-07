@@ -47,35 +47,6 @@ from utils import get_sets
 import warnings
 
 
-def build_dataset(
-        df, data_folder, input_dim, n_outputs, target, split=None,
-        shuffle=True, bs=32):
-    if split is not None:
-        df = df[df.split == split]
-    else:
-        split = 'full'
-
-    n_bands = input_dim[-1]
-    ids, y, labels = get_sets(df, target=target, n_bands=n_bands)
-    print('{} size'.format(split, len(ids)))
-
-    shuffle = False if split != 'train' else shuffle
-    batch_size = 1 if split == 'test' else bs
-
-    params = {
-        'batch_size': batch_size,
-        'data_folder': data_folder,
-        'input_dim': input_dim,
-        'n_outputs': n_outputs,
-        'target': target,
-        'shuffle': shuffle,
-    }
-
-    data_gen = DataGenerator(ids, labels=labels, **params)
-
-    return ids, y, data_gen
-
-
 def make_serializable(hist):
     d = {}
     for k in hist.keys():
