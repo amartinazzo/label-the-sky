@@ -18,8 +18,10 @@ declare -a servers=($(hostname))
 timestamp=`date "+%y%m%d"`
 
 declare -a backbones=(vgg) #resnext efficientnet)
-declare -a outputs=(magnitudes magnitudesmock) #classes)
-declare -a nbands_=(12)
+declare -a outputs=(magnitudes magnitudesmock)
+declare -a nbands_=(3 5 12)
+
+# 3 * 2 = 6
 
 declare -a commands
 declare -a pids
@@ -30,7 +32,7 @@ do
     do
         for output in ${outputs[*]}
         do
-            commands+=("python -u _exp01.py $backbone $output $nbands $timestamp")
+            commands+=("python -u 01_pretrain.py $backbone $nbands $output $timestamp")
         done
     done
 done
@@ -56,9 +58,9 @@ do
         if [ "$cmd" != "" ]
         then
             logfile="logs/${timestamp}_${backbone}_${target}_${nbandss}.log"
-            echo "TF_FORCE_GPU_ALLOW_GROWTH=true CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"
-            echo "TF_FORCE_GPU_ALLOW_GROWTH=true CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &" >> $logfile
-            eval "TF_FORCE_GPU_ALLOW_GROWTH=true CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"
+            echo "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"
+            echo "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &" >> $logfile
+            eval "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"
             pids+=($!)
             i=$((i + 1))
         fi

@@ -70,12 +70,6 @@ def compute_metrics(y_pred, y_true, target='class', onehot=True):
         print('MAPE:', np.mean(err_abs/(MAG_MAX*y_true))*100)
 
 
-def get_class_weights(df):
-    x = 1 / df['class'].value_counts(normalize=True).values
-    x = np.round(x / np.max(x), 4)
-    return x
-
-
 def relu_saturated(x):
     return keras.backend.relu(x, max_value=1.)
 
@@ -276,6 +270,7 @@ class Trainer:
         history = self.model.fit(
             Xp_train, yp_train,
             validation_data=(Xp_val, yp_val),
+            batch_size=32,
             epochs=epochs,
             callbacks=self.callbacks + [time_cb],
             class_weight=self.class_weights,
@@ -314,6 +309,7 @@ class Trainer:
             history0 = self.model.fit(
                 Xp_train, yp_train,
                 validation_data=(Xp_val, yp_val),
+                batch_size=32,
                 epochs=10,
                 callbacks=self.callbacks,
                 class_weight=self.class_weights,
@@ -326,6 +322,7 @@ class Trainer:
             history = clf.fit(
                 Xp_train, yp_train,
                 validation_data=(Xp_val, yp_val),
+                batch_size=32,
                 epochs=epochs,
                 callbacks=self.callbacks + [time_cb],
                 class_weight=self.class_weights,
@@ -369,6 +366,7 @@ class Trainer:
             history = self.clf.fit(
                 Xf_train, yp_train,
                 validation_data=(Xf_val, yp_val),
+                batch_size=32,
                 epochs=epochs,
                 callbacks=self.callbacks + [time_cb],
                 class_weight=self.class_weights,

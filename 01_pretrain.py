@@ -23,7 +23,7 @@ trainer = b.Trainer(
     output_type=target,
     base_dir=base_dir,
     weights=None,
-    model_name=f'{backbone}_{target}_{n_channels}_{timestamp}'
+    model_name=f'{timestamp}_{backbone}_{target}_{n_channels}'
 )
 
 trainer.describe()
@@ -37,7 +37,7 @@ X_test, y_test = trainer.load_data(subset=subset, split='test')
 start = time()
 
 print('pretraining model')
-trainer.train(X_train, y_train, X_val, y_val, epochs=1)
+trainer.train(X_train, y_train, X_val, y_val)
 trainer.dump_history()
 print('--- minutes taken:', int((time() - start) / 60))
 

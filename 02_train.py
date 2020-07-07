@@ -27,7 +27,7 @@ trainer = b.Trainer(
     output_type='class',
     base_dir=base_dir,
     weights=weights,
-    model_name=f'clf_{backbone}_{weights}_ft{int(finetune)}_{n_channels}_{timestamp}'
+    model_name=f'{timestamp}_clf_{backbone}_{weights}_ft{int(finetune)}_{n_channels}'
 )
 
 print('loading data')
@@ -40,11 +40,11 @@ start = time()
 
 print('training model')
 if weights is None:
-    trainer.train(X_train, y_train, X_val, y_val, epochs=1)
+    trainer.train(X_train, y_train, X_val, y_val)
 elif finetune:
-    trainer.finetune(X_train, y_train, X_val, y_val, epochs=1)
+    trainer.finetune(X_train, y_train, X_val, y_val)
 else:
-    trainer.train_top(X_train, y_train, X_val, y_val, epochs=1)
+    trainer.train_top(X_train, y_train, X_val, y_val)
 trainer.dump_history()
 print('--- minutes taken:', int((time() - start) / 60))
 
