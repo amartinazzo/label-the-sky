@@ -18,8 +18,8 @@ declare -a servers=($(hostname))
 timestamp=`date "+%y%m%d"`
 
 declare -a backbones=(vgg) #resnext efficientnet)
-declare -a outputs=(magnitudes magnitudesmock)
-declare -a nbands_=(3 5 12)
+declare -a outputs=(magnitudes mockedmagnitudes)
+declare -a nbands_=(3 12)
 
 # 3 * 2 = 6
 
@@ -48,7 +48,7 @@ while true
 do
     server=${servers[$s]}
 
-    for gpu in 2 3
+    for gpu in 0 1 2 3
     do
         cmd=${commands[$i]}
         backbone=$(echo $cmd | cut -d" " -f4)

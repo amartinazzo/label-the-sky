@@ -140,13 +140,15 @@ class Trainer:
         if subset not in ['pretraining', 'clf']:
             raise ValueError('subset must be: pretraining, clf')
 
+        channels = 12 if self.n_channels==5 else self.n_channels
+
         X = np.load(os.path.join(
             self.data_dir,
-            f'{subset}_{self.n_channels}_X_{split}.npy'))
+            f'{subset}_{channels}_X_{split}.npy'))
 
         y = np.load(os.path.join(
             self.data_dir,
-            f'{subset}_{self.n_channels}_y_{self.output_type}_{split}.npy'))
+            f'{subset}_{channels}_y_{self.output_type}_{split}.npy'))
 
         return X, y
 
