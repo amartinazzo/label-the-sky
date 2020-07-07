@@ -1,18 +1,20 @@
 import efficientnet
-from efficientnet.tfkeras import EfficientNetB0
+from efficientnet.tfkeras import EfficientNetB2
 import json
 from keras_applications import vgg16, resnext
 from models.callbacks import TimeHistory
 import numpy as np
 import os
+import pandas as pd
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.utils.class_weight import compute_class_weight
 import tensorflow as tf
 import tensorflow.keras as keras
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
-from tensorflow.keras.layers import Input, Dense, Flatten, GlobalAveragePooling2D, Dropout
+from tensorflow.keras.layers import Input, Dense, GlobalAveragePooling2D, Dropout
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import SGD
+from tensorflow.compat.v1 import disable_eager_execution
 
 
 BACKBONES = ['efficientnet', 'resnext', 'vgg']
@@ -25,7 +27,7 @@ OUTPUT_TYPES = ['class', 'magnitudes', 'mockedmagnitudes']
 SPLITS = ['train', 'val', 'test']
 
 BACKBONE_FN = {
-    'efficientnet': EfficientNetB0,
+    'efficientnet': EfficientNetB2,
     'resnext': resnext.ResNeXt50,
     'vgg': vgg16.VGG16
 }
@@ -135,16 +137,21 @@ class Trainer:
             self.metrics = None
             self.n_outputs = 12 if self.n_channels != 5 else 5
 
+        disable_eager_execution()
+        os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
+
+        self.build_model()
+
     def load_data(self, split, subset):
         if subset not in ['pretraining', 'clf']:
             raise ValueError('subset must be: pretraining, clf')
 
         X = np.load(os.path.join(
-            data_dir,
+            self.data_dir,
             f'{subset}_{self.n_channels}_X_{split}.npy'))
 
         y = np.load(os.path.join(
-            data_dir,
+            self.data_dir,
             f'{subset}_{self.n_channels}_y_{self.output_type}_{split}.npy'))
 
         return X, y
@@ -152,7 +159,13 @@ class Trainer:
     def preprocess_input(self, X):
         if self.n_channels==3 and X.dtype=='uint8':
             preprocessing_fn = PREPROCESSING_FN.get(self.backbone)
-            Xp = preprocessing_fn(X)
+            Xp = preprocessing_fn(
+                X,
+                backend=keras.backend,
+                layers=keras.layers,
+                models=keras.models,
+                utils=keras.utils
+            )
         elif self.n_channels==5 and X.shape[-1]>5:
             Xp = X[:, :, :, BROAD_BANDS]
         else:
@@ -165,7 +178,7 @@ class Trainer:
 
     def preprocess_output(self, y):
         if y.dtype!='uint8' and self.output_type!='class':
-            yp = yp / MAG_MAX
+            yp = y / MAG_MAX
         else:
             yp = y
         return yp
@@ -184,27 +197,48 @@ class Trainer:
             utils=keras.utils
         )
 
-        x = self.model.output
+        x = model.output
         x = GlobalAveragePooling2D()(x)
-        x = Flatten()(x)
+        x = Dense(1024, activation='relu')(x)
 
-        y = Dense(1024, activation='relu')(x)
-        y = Dropout(0.5)(y)
+        # top layer
+        y = Dropout(0.5)(x)
         y = Dense(self.n_outputs, activation=self.activation)(y)
 
         self.top_layer_idx = -3
+        self.model = Model(inputs=model.input, outputs=y)
+
         self.embedder_x = Model(inputs=self.model.input, outputs=x)
         self.embedder_yx = Model(inputs=self.model.input, outputs=[y, x])
-        self.model = Model(inputs=self.model.input, outputs=y)
 
         for l in self.model.layers:
             l.trainable = True
 
-        if os.path.exists(self.weights):
+        if self.weights is not None and os.path.exists(self.weights):
             self.model.load_weights(self.weights, by_name=True, skip_mismatch=True)
             print('loaded weights')
 
         self.set_callbacks()
+
+    def describe(self, verbose=False):
+        if verbose:
+            self.model.summary()
+
+        trainable = np.sum([
+            keras.backend.count_params(w) for w in self.model.trainable_weights])
+        non_trainable = np.sum([
+            keras.backend.count_params(w) for w in self.model.non_trainable_weights])
+
+        print('******************************')
+        print('total params\t', f'{int(trainable + non_trainable):,}')
+        print('trainable\t', f'{int(trainable):,}')
+        print('non-trainable\t', f'{int(non_trainable):,}')
+        print()
+        print('backbone\t', self.backbone)
+        print('n_channels\t', self.n_channels)
+        print('output\t\t', self.output_type)
+        print('weights\t\t', self.weights)
+        print('******************************')
 
     def set_callbacks(self):
         self.callbacks = [
@@ -223,7 +257,7 @@ class Trainer:
         else:
             self.class_weights = compute_class_weight('balanced', np.unique(y), y)
 
-    def train(self, gen_train, gen_val, epochs=500):
+    def train(self, X_train, y_train, X_val, y_val, epochs=500):
         opt = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
         self.model.compile(loss=self.loss, optimizer=opt)
 
@@ -232,16 +266,19 @@ class Trainer:
         Xp_val = self.preprocess_input(X_val)
         yp_val = self.preprocess_output(y_val)
 
+        print('Xp_train', Xp_train.min(), Xp_train.max())
+        print('yp_train', yp_train.min(), yp_train.max())
+
         self.set_class_weights(yp_train)
 
         time_cb = TimeHistory()
 
-        history = self.model.fit_generator(
-            generator=gen_train,
-            validation_data=gen_val,
+        history = self.model.fit(
+            Xp_train, yp_train,
+            validation_data=(Xp_val, yp_val),
             epochs=epochs,
             callbacks=self.callbacks + [time_cb],
-            class_weights=self.class_weights,
+            class_weight=self.class_weights,
             verbose=2
         )
 
@@ -279,7 +316,7 @@ class Trainer:
                 validation_data=(Xp_val, yp_val),
                 epochs=10,
                 callbacks=self.callbacks,
-                class_weights=self.class_weights,
+                class_weight=self.class_weights,
                 verbose=2
             )
 
@@ -301,7 +338,7 @@ class Trainer:
 
             self.history = histories
 
-    def train_top(self, X_train, y_train, X_val, y_val, class_weights=None, epochs=200, runs=3):
+    def train_top(self, X_train, y_train, X_val, y_val, epochs=200, runs=3):
         opt = SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True)
         self.model.compile(loss=self.loss, optimizer=opt)
 
@@ -343,7 +380,7 @@ class Trainer:
 
         self.history = histories
 
-    def train_lowdata(self, gen_train, gen_val, class_weights=None, epochs=200, runs=10):
+    def train_lowdata(self, gen_train, gen_val, epochs=200, runs=10):
         # TODO
         raise NotImplementedError()
 

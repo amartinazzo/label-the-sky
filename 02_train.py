@@ -39,7 +39,6 @@ X_test, y_test = trainer.load_data(subset=subset, split='test')
 start = time()
 
 print('training model')
-trainer.build_model()
 if weights is None:
     trainer.train(X_train, y_train, X_val, y_val, epochs=1)
 elif finetune:
