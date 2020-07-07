@@ -27,6 +27,32 @@ orig_cols = [
     'zb', 'zb_Min', 'zb_Max', 'Tb', 'Odds', 'Chi2', 'M_B', 'Stell_Mass', 'CLASS', 'PROB_GAL', 'PROB_STAR'
 ]
 
+usecols = [
+    'ID', 'RA', 'Dec', 'X', 'Y', 'MUMAX', 's2nDet', 'PhotoFlag', 'nDet_auto', 'FWHM',
+    'uJAVA_auto', 'F378_auto', 'F395_auto', 'F410_auto', 'F430_auto', 'g_auto',
+    'F515_auto', 'r_auto', 'F660_auto', 'i_auto', 'F861_auto', 'z_auto',
+    'euJAVA_auto', 'eF378_auto', 'eF395_auto', 'eF410_auto', 'eF430_auto', 'eg_auto',
+    'eF515_auto', 'er_auto', 'eF660_auto', 'ei_auto', 'eF861_auto', 'ez_auto'
+]
+
+usecols_renamed = [
+    'id', 'ra', 'dec', 'x', 'y', 'mumax', 's2n', 'photoflag', 'ndet', 'fwhm',
+    'u', 'f378', 'f395', 'f410', 'f430', 'g', 'f515', 'r', 'f660', 'i', 'f861', 'z',
+    'u_err', 'f378_err', 'f395_err', 'f410_err', 'f430_err', 'g_err',
+    'f515_err', 'r_err', 'f660_err', 'i_err', 'f861_err', 'z_err'
+]
+
+matched_cat_cols = [
+    'id', 'ra', 'dec', 'class', 'subclass', 'x', 'y',
+    'photoflag', 'ndet', 'fwhm',
+    'u', 'f378', 'f395', 'f410', 'f430', 'g',
+    'f515', 'r', 'f660', 'i', 'f861', 'z',
+    'u_err', 'f378_err', 'f395_err', 'f410_err', 'f430_err', 'g_err',
+    'f515_err', 'r_err', 'f660_err', 'i_err', 'f861_err', 'z_err',
+    'd2d', 'redshift', 'zWarning',
+    'bestObjID', 'run2d', 'plate', 'mjd', 'fiberID'
+]
+
 
 def gen_master_catalog(catalogs_path, output_file, header_file='csv/fits_header_cols.txt'):
     '''
@@ -347,15 +373,13 @@ if __name__ == '__main__':
     # ids = set(ids) - set([0])
     # ids = list(ids)
 
-    # photo_query = '''
-    # select
-    # objID, ra, dec, type,
-    # modelMag_u, modelMag_g, modelMag_r, modelMag_i, modelMag_z
-    # from PhotoObj
-    # where abs(dec) < 1.46 and objID in {}
-    # '''.format(ids)
-
-    # last objID = 1237646647302291737
+    photo_query = '''
+    select
+    objID, ra, dec, type,
+    modelMag_u, modelMag_g, modelMag_r, modelMag_i, modelMag_z
+    from PhotoObj
+    where abs(dec) < 1.46 and objID in {}
+    '''.format(ids)
 
     spec_query = '''
     select
@@ -366,41 +390,14 @@ if __name__ == '__main__':
     order by bestObjID
     '''
     # master catalog: dec in (-1.4139, 1.4503)
-
-    # query_sdss(photo_query, 'csv/sdss_photo_DR16_bestobjids_{}.csv', obj_key='objID', data_release=16)
+    query_sdss(photo_query, 'csv/sdss_photo_DR16_bestobjids_{}.csv', obj_key='objID', data_release=16)
 
     # gen master catalog
-    # data_dir = os.environ['DATA_PATH']
+    data_dir = os.environ['DATA_PATH']
 
-    usecols = [
-        'ID', 'RA', 'Dec', 'X', 'Y', 'MUMAX', 's2nDet', 'PhotoFlag', 'nDet_auto', 'FWHM',
-        'uJAVA_auto', 'F378_auto', 'F395_auto', 'F410_auto', 'F430_auto', 'g_auto',
-        'F515_auto', 'r_auto', 'F660_auto', 'i_auto', 'F861_auto', 'z_auto',
-        'euJAVA_auto', 'eF378_auto', 'eF395_auto', 'eF410_auto', 'eF430_auto', 'eg_auto',
-        'eF515_auto', 'er_auto', 'eF660_auto', 'ei_auto', 'eF861_auto', 'ez_auto'
-    ]
-
-    usecols_renamed = [
-        'id', 'ra', 'dec', 'x', 'y', 'mumax', 's2n', 'photoflag', 'ndet', 'fwhm',
-        'u', 'f378', 'f395', 'f410', 'f430', 'g', 'f515', 'r', 'f660', 'i', 'f861', 'z',
-        'u_err', 'f378_err', 'f395_err', 'f410_err', 'f430_err', 'g_err',
-        'f515_err', 'r_err', 'f660_err', 'i_err', 'f861_err', 'z_err'
-    ]
-
-    matched_cat_cols = [
-        'id', 'ra', 'dec', 'class', 'subclass', 'x', 'y',
-        'photoflag', 'ndet', 'fwhm',
-        'u', 'f378', 'f395', 'f410', 'f430', 'g',
-        'f515', 'r', 'f660', 'i', 'f861', 'z',
-        'u_err', 'f378_err', 'f395_err', 'f410_err', 'f430_err', 'g_err',
-        'f515_err', 'r_err', 'f660_err', 'i_err', 'f861_err', 'z_err',
-        'd2d', 'redshift', 'zWarning',
-        'bestObjID', 'run2d', 'plate', 'mjd', 'fiberID'
-    ]
-
-    # filter_master_catalog(
-    #     data_dir + '/dr1/SPLUS_STRIPE82_master_catalog_dr_march2019.cat',
-    #     'csv/dr1.csv', usecols, usecols_renamed)
+    filter_master_catalog(
+        data_dir + '/dr1/SPLUS_STRIPE82_master_catalog_dr_march2019.cat',
+        'csv/dr1.csv', usecols, usecols_renamed)
 
     # match catalogs
     splus_cat = pd.read_csv('csv/dr1.csv')
@@ -415,6 +412,3 @@ if __name__ == '__main__':
 
     df.to_csv(matched_cat, index=False)
     print(df.bestObjID.value_counts())
-
-    # gen split catalog
-    # stratified_split(matched_cat, e=0.5)

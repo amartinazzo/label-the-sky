@@ -47,22 +47,6 @@ from utils import get_sets
 import warnings
 
 
-def set_random_seeds():
-    os.environ['PYTHONHASHSEED'] = '0'
-    np.random.seed(42)
-    tf.random.set_seed(420)
-    # session_conf = tf.ConfigProto(
-    #     intra_op_parallelism_threads=1, inter_op_parallelism_threads=1)
-    # sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
-    # K.set_session(sess)
-
-
-def get_class_weights(df):
-    x = 1 / df['class'].value_counts(normalize=True).values
-    x = np.round(x / np.max(x), 4)
-    return x
-
-
 def build_dataset(
         df, data_folder, input_dim, n_outputs, target, split=None,
         shuffle=True, bs=32):
@@ -92,174 +76,6 @@ def build_dataset(
     return ids, y, data_gen
 
 
-def build_backbone(
-        input_dim, n_outputs, last_activation, loss, backbone='resnext',
-        include_top=True, include_features=False, weights_file=None,
-        metrics=['accuracy']):
-    if backbone == 'resnext':
-        model = ResNeXt29(
-            input_shape=input_dim, num_classes=n_outputs,
-            last_activation=last_activation, include_top=include_top,
-            include_features=include_features)
-    elif backbone == 'efficientnet':
-        model = EfficientNetB0(
-            input_shape=input_dim, classes=n_outputs,
-            last_activation=last_activation, include_top=include_top,
-            include_features=include_features, weights=None)
-    elif backbone == 'vgg':
-        model = VGG16(
-            input_shape=input_dim, num_classes=n_outputs,
-            last_activation=last_activation, include_top=include_top,
-            include_features=include_features)
-    elif backbone == 'vgg11':
-        model = VGG11b(
-            input_shape=input_dim, num_classes=n_outputs,
-            last_activation=last_activation, include_top=include_top,
-            include_features=include_features)
-    else:
-        print('accepted backbones: resnext, efficientnet, vgg, vgg11')
-        exit()
-
-    if weights_file is not None and os.path.exists(weights_file):
-        model.load_weights(weights_file, skip_mismatch=True, by_name=True)
-        print('loaded weights')
-
-    optimizer = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
-    model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
-
-    model.summary()
-
-    return model
-
-
-def train_backbone(
-        model, gen_train, gen_val, model_file, class_weights=None,
-        epochs=500, verbose=True):
-    time_callback = TimeHistory()
-    callbacks = [
-        ReduceLROnPlateau(
-            monitor='val_loss', factor=0.1, patience=5, verbose=1),
-        ModelCheckpoint(
-            model_file, monitor='val_loss', save_best_only=True,
-            save_weights_only=True, mode='min'),
-        EarlyStopping(
-            monitor='val_loss', mode='min', patience=10,
-            restore_best_weights=True, verbose=1),
-        time_callback
-    ]
-
-    history = model.fit_generator(
-        generator=gen_train,
-        validation_data=gen_val,
-        # steps_per_epoch=len(gen_train),
-        # validation_steps=len(gen_val),
-        epochs=epochs,
-        callbacks=callbacks,
-        class_weight=class_weights,
-        verbose=2)
-
-    if verbose:
-        print('History')
-        print(history.history)
-        print('Time taken per epoch (s)')
-        print(time_callback.times)
-
-    return history
-
-
-def finetune_backbone():
-    pass
-
-
-def build_classifier(
-        input_dim, n_intermed=12, n_classes=3, layer_type='dense'):
-    if type(input_dim) == int:
-        input_dim = (input_dim,)
-    inputs = Input(shape=input_dim)
-    if layer_type == 'conv':
-        x = Conv2D(32, kernel_size=3, activation='relu')(inputs)
-        x = MaxPooling2D(pool_size=7, stride=7)(x)
-        x = Flatten()(x)
-        x = Dense(n_intermed, activation='relu')(x)
-    else:
-        x = Dense(n_intermed, activation='relu')(inputs)
-    outputs = Dense(n_classes, activation='softmax')(x)
-    model = Model(inputs, outputs)
-
-    optimizer = SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True)
-    model.compile(
-        loss='categorical_crossentropy', optimizer=optimizer,
-        metrics=['accuracy'])
-    model.summary()
-
-    return model
-
-
-def train_classifier(
-        model, X_train, y_train, X_val, y_val, clf_file, class_weights=None,
-        batch_size=32, epochs=300, verbose=True, runs=3):
-    time_callback = TimeHistory()
-    callbacks = [
-        ModelCheckpoint(
-            clf_file, monitor='val_accuracy', save_best_only=True,
-            save_weights_only=True, mode='max'),
-        EarlyStopping(
-            monitor='val_loss', mode='min', patience=10,
-            restore_best_weights=True, verbose=1),
-        time_callback,
-    ]
-
-    history = model.fit(
-        X_train, y_train,
-        batch_size=batch_size,
-        callbacks=callbacks,
-        class_weight=class_weights,
-        epochs=epochs,
-        validation_data=(X_val, y_val),
-        verbose=0)
-
-    if verbose:
-        print('History')
-        print(history.history)
-        print('Time taken per epoch (s)')
-        print(time_callback.times)
-
-    return history
-
-
-def compute_metrics(y_pred, y_true, target='classes', onehot=True):
-    if target == 'classes':
-        if onehot:
-            y_pred_arg = np.argmax(y_pred, axis=1)
-            y_true_arg = np.argmax(y_true, axis=1)
-        else:
-            y_pred_arg = np.copy(y_pred)
-            y_true_arg = np.copy(y_true)
-        print(y_true.shape)
-        target_names = ['GALAXY', 'STAR', 'QSO']
-        print(classification_report(
-            y_true_arg, y_pred_arg, target_names=target_names, digits=4))
-        cm = confusion_matrix(y_true_arg, y_pred_arg)
-        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
-        cm = np.round(cm, 2)
-        print('confusion matrix')
-        print(cm)
-
-    else:
-        err_abs = np.absolute(y_true-y_pred)
-        df = pd.DataFrame(err_abs)
-        print(df.describe().to_string())
-        df = pd.DataFrame(err_abs*35)
-        print(df.describe().to_string())
-        err_abs = 35*err_abs
-        print('MAE:', np.mean(err_abs))
-        print('MAPE:', np.mean(err_abs/(35*y_true))*100)
-
-
-def relu_saturated(x):
-    return K.relu(x, max_value=1.)
-
-
 def make_serializable(hist):
     d = {}
     for k in hist.keys():
@@ -284,12 +100,6 @@ n_outputs_switch = {
     'redshifts12': 2,
     'redshifts5': 2,
     'redshifts3': 2,
-}
-
-extension_switch = {
-    3: '.png',
-    5: '.npy',
-    12: '.npy'
 }
 
 images_folder_switch = {
@@ -355,7 +165,6 @@ if __name__ == '__main__':
 
     # set parameters
     n_outputs = n_outputs_switch.get(target + str(n_bands))
-    extension = extension_switch.get(n_bands)
     images_folder = os.path.join(data_dir, images_folder_switch.get(n_bands))
     lst_activation = last_activation_switch.get(target)
     loss = loss_switch.get(target)

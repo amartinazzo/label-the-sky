@@ -1,8 +1,57 @@
-from albumentations import Compose, Flip, HorizontalFlip, RandomRotate90, ShiftScaleRotate
+from albumentations import Compose, Flip, HorizontalFlip
+from _base import MAG_MAX
 from cv2 import imread
 import numpy as np
-from tensorflow.keras.utils import Sequence
+from tensorflow.keras.utils import Sequence, to_categorical
 import os
+
+
+CLASS_MAP = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}
+
+
+def get_dataset(df, target='classes', n_bands=12, filters=None):
+    """
+    receives:
+    * df            pandas dataframe
+    * filters       dict with optional min-max values,
+                    e.g. {'feature1': [min1, max1], 'feature2': [min2, max2]}
+    * obj_list      list of object ids (used to check existing files)
+    * target        classes, magnitudes, mockedmagnitudes
+
+    returns: (ids, y, labels) triplet, where
+    * ids is a list of object ids
+    * y are categorical labels
+    * labels is a dict mapping each id to its label, e.g. {'x1': 0, 'x2': 1}
+    """
+    if filters is not None:
+        for key, val in filters.items():
+            df = df[df[key].between(val[0], val[1])]
+    ids = df.id.values
+
+    if target=='classes':
+        y = df['class'].apply(lambda c: CLASS_MAP[c]).values
+        y = to_categorical(y, num_classes=3)
+    elif target=='magnitudes':
+        if n_bands==5:
+            y = df[['u','g','r','i','z']].values
+        else:
+            y = df[['u','f378','f395','f410','f430','g','f515','r','f660','i','f861','z']].values
+        y = y/MAG_MAX
+    elif target=='mockedmagnitudes':
+        if n_bands==5:
+            y = df[['u_mock','g_mock','r_mock','i_mock','z_mock']].values
+        else:
+            y = df[[
+                'u_mock','f378_mock','f395_mock','f410_mock','f430_mock','g_mock',
+                'f515_mock','r_mock','f660_mock','i_mock','f861_mock','z_mock']].values
+        y = y/MAG_MAX
+    elif target=='redshifts':
+        y = df[['redshift_base', 'redshift_exp']].values
+    else:
+        return X, _, _
+
+    labels = dict(zip(ids, y))
+    return ids, y, labels
 
 
 class DataGenerator(Sequence):
@@ -10,10 +59,11 @@ class DataGenerator(Sequence):
     adapted from
     https://stanford.edu/~shervine/blog/keras-how-to-generate-data-on-the-fly
     """
+
     def __init__(
             self, object_ids, data_folder, input_dim, target='classes',
             labels=None, batch_size=32, n_outputs=3, shuffle=True,
-            extension='npy', augmentation=True):
+            augmentation=True):
         self.batch_size = batch_size
         self.data_folder = data_folder
         self.labels = labels
@@ -60,11 +110,6 @@ class DataGenerator(Sequence):
         return Compose([
             Flip(),
             HorizontalFlip(),
-            # ShiftScaleRotate(
-            #     shift_limit=0.0625,
-            #     scale_limit=0.1,
-            #     rotate_limit=45,
-            #     p=.5),
         ], p=p)
 
     def augment(self, image):

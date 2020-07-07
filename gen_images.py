@@ -4,44 +4,13 @@ from astropy.visualization import AsinhStretch
 from cv2 import imread, imwrite, resize, INTER_CUBIC
 from glob import glob
 from joblib import Parallel, delayed
-import multiprocessing
 import numpy as np
 import pandas as pd
 import os
-from shutil import copyfile
 from time import time
-from tqdm import tqdm
 
 
 asinh_transform = AsinhStretch()
-
-n_cores = multiprocessing.cpu_count()
-
-
-def sample_move(df, src_base, dst_base, n_samples=50):
-    idx = np.random.choice(df.shape[0], n_samples, replace=False)
-    files = df.loc[idx, 'id'].values
-    classes = df.loc[idx, 'class'].values
-    for ix, f in enumerate(files):
-        src = src_base + f.split('/')[-1].split('.')[0] + '/' + f + '.png'
-        dst = dst_base + f + '.' + classes[ix] + '.png'
-        print(src, dst)
-        copyfile(src, dst)
-
-
-def recast_inner(file):
-    try:
-        arr = np.load(file)
-        arr = np.float32(arr)
-        np.save(file, arr)
-    except Exception:
-        print('could not load', file)
-
-
-def recast(folder_pattern):
-    files = glob(folder_pattern)
-    print('nr of files', len(files))
-    Parallel(n_jobs=8)(delayed(recast_inner)(f) for f in tqdm(files))
 
 
 def get_metadata(folder_pattern, save_file):
@@ -377,9 +346,3 @@ if __name__ == '__main__':
         calibrate=True,
         asinh=False
     )
-    exit()
-
-    df = pd.read_csv('csv/dr1_unlabeled.csv')
-    print('shape', df.shape)
-    crop_objects_in_rgb(
-        df, data_dir + '/dr1/color_images/', data_dir + '/crops_rgb32/', 32)
