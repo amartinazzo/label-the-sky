@@ -19,7 +19,7 @@ timestamp=`date "+%y%m%d"`
 
 declare -a backbones=(vgg) #resnext efficientnet)
 declare -a outputs=(magnitudes magnitudesmock) #classes)
-declare -a nbands_=(3 12)
+declare -a nbands_=(12)
 
 declare -a commands
 declare -a pids
@@ -46,7 +46,7 @@ while true
 do
     server=${servers[$s]}
 
-    for gpu in 0 1 2 3
+    for gpu in 2 3
     do
         cmd=${commands[$i]}
         backbone=$(echo $cmd | cut -d" " -f4)

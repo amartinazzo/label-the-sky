@@ -151,8 +151,8 @@ def train_backbone(
     history = model.fit_generator(
         generator=gen_train,
         validation_data=gen_val,
-        steps_per_epoch=len(gen_train),
-        validation_steps=len(gen_val),
+        # steps_per_epoch=len(gen_train),
+        # validation_steps=len(gen_val),
         epochs=epochs,
         callbacks=callbacks,
         class_weight=class_weights,
@@ -293,7 +293,7 @@ extension_switch = {
 }
 
 images_folder_switch = {
-    3: 'crops_rgb32',
+    3: 'crops_rgb',
     5: 'crops_calib',
     12: 'crops_calib'
 }
@@ -380,8 +380,6 @@ if __name__ == '__main__':
     df = pd.read_csv(csv_file)
     df = df[df.pretraining]
 
-    print('new shape', df.shape)
-    print('proportion', df.shape[0] / orig_shape[0])
     print('split proportions')
     print(df.split.value_counts(normalize=True))
     print('class proportions')
@@ -389,45 +387,40 @@ if __name__ == '__main__':
     class_weights = get_class_weights(df) if target == 'classes' else None
     print('class weights', class_weights)
 
-    print('training backbone')
-    X_train, y_train, gen_train = build_dataset(
-        df, images_folder, input_dim, n_outputs, target, 'train')
-    X_val, y_val, gen_val = build_dataset(
-        df, images_folder, input_dim, n_outputs, target, 'val')
+    # print('training backbone')
+    # X_train, y_train, gen_train = build_dataset(
+    #     df, images_folder, input_dim, n_outputs, target, 'train')
+    # X_val, y_val, gen_val = build_dataset(
+    #     df, images_folder, input_dim, n_outputs, target, 'val')
     X_test, y_test, gen_test = build_dataset(
         df, images_folder, input_dim, n_outputs, target, 'test')
 
-    model = build_model(
-        input_dim, n_outputs, lst_activation, loss, backbone, metrics=metrics)
-    history = train(model, gen_train, gen_val, model_file, class_weights)
-    with open(f'history/history_{model_name}.json', 'w') as f:
-        json.dump(make_serializable(history.history), f)
-    print('--- minutes taken:', int((time() - start) / 60))
+    # model = build_backbone(
+    #     input_dim, n_outputs, lst_activation, loss, backbone, metrics=metrics)
+    # history = train_backbone(
+    #     model, gen_train, gen_val, model_file, class_weights)
+    # with open(f'history/history_{model_name}.json', 'w') as f:
+    #     json.dump(make_serializable(history.history), f)
+    # print('--- minutes taken:', int((time() - start) / 60))
 
     print('evaluating model')
-    model = build_model(
+    model = build_backbone(
         input_dim, n_outputs, lst_activation, loss, backbone,
         include_top=True, include_features=True, weights_file=model_file)
     y_test_hat, X_test_feats = model.predict_generator(gen_test)
     compute_metrics(y_test, y_test_hat, target)
 
-    np.save(os.path.join(npy_folder, f'{model_name}_y_test.npy'), y_test)
-    np.save(os.path.join(
-        npy_folder, f'{model_name}_y_test_hat.npy'), y_test_hat)
-    np.save(os.path.join(
-        npy_folder, f'{model_name}_X_test_features.npy'), X_test_feats)
-    print('--- minutes taken:', int((time() - start) / 60))
+    # np.save(os.path.join(npy_folder, f'{model_name}_y_test.npy'), y_test)
+    # np.save(os.path.join(
+    #     npy_folder, f'{model_name}_y_test_hat.npy'), y_test_hat)
+    # np.save(os.path.join(
+    #     npy_folder, f'{model_name}_X_test_features.npy'), X_test_feats)
+    # print('--- minutes taken:', int((time() - start) / 60))
 
     print('training dense classifier')
 
-    model = build_model(
-        input_dim, n_outputs, lst_activation, loss, backbone,
-        include_top=True, include_features=True, weights_file=model_file)
-
     df_clf = pd.read_csv(csv_file)
     df_clf = df_clf[~df_clf.pretraining]
-    # df_clf = df_clf.sample(10000, random_state=0)  # low data regime
-    # df_clf['random'] = np.random.uniform(size=df_clf.shape[0])
 
     # compute validation and testing feature sets (fixed)
 
@@ -441,9 +434,9 @@ if __name__ == '__main__':
     y_test_hat, X_test_feats = model.predict_generator(gen_test)
 
     _, y_val, _ = build_dataset(
-        df_clf, images_folder, input_dim, 2, 'classes', 'val')
+        df_clf, images_folder, input_dim, 3, 'classes', 'val')
     _, y_test, _ = build_dataset(
-        df_clf, images_folder, input_dim, 2, 'classes', 'test')
+        df_clf, images_folder, input_dim, 3, 'classes', 'test')
 
     # vary training set size
 
@@ -462,7 +455,7 @@ if __name__ == '__main__':
     y_train_hat, X_train_feats = model.predict_generator(gen_train)
 
     _, y_train, _ = build_dataset(
-        df_clf_train, images_folder, input_dim, 2, 'classes', 'train')
+        df_clf_train, images_folder, input_dim, 3, 'classes', 'train')
 
     clf = build_classifier(X_train_feats.shape[1])
     clf_history = train_classifier(
