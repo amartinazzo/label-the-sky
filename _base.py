@@ -28,6 +28,10 @@ BACKBONE_FN = {
 
 
 def compute_metrics(y_pred, y_true, target='classes', onehot=True):
+    if target not in OUTPUT_TYPES:
+        raise ValueError('target should be one of %s, but %s was given' % (
+            OUTPUT_TYPES, target))
+
     if target == 'classes':
         if onehot:
             y_pred_arg = np.argmax(y_pred, axis=1)
@@ -52,9 +56,6 @@ def compute_metrics(y_pred, y_true, target='classes', onehot=True):
         err_abs = MAG_MAX*err_abs
         print('MAE:', np.mean(err_abs))
         print('MAPE:', np.mean(err_abs/(MAG_MAX*y_true))*100)
-    else:
-        raise ValueError('target should be one of %s, but %s was given' % (
-            OUTPUT_TYPES, target))
 
 
 def get_class_weights(df):
@@ -182,7 +183,7 @@ class Trainer:
         for l in self.model.layers:
             l.trainable = True
 
-        if self.weights is not None and 'magnitudes' in self.weights:
+        if os.path.exists(self.weights):
             self.model.load_weights(self.weights, by_name=True, skip_mismatch=True)
             print('loaded weights')
 
@@ -222,11 +223,13 @@ class Trainer:
         self.history = hist
 
     def finetune(self, gen_train, gen_val):
+        if self.weights is None:
+            raise ValueError('finetune not available for weights=None')
+
         opt = SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True)
         self.model.compile(loss=self.loss, optimizer=opt)
 
         time_cb = TimeHistory()
-
         histories = []
 
         weights0 = self.model.get_weights()
@@ -265,8 +268,9 @@ class Trainer:
 
     def train_clf(self, gen_train, y_train, gen_val, y_val, class_weights=None, epochs=200, runs=3):
         opt = SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True)
-        time_cb = TimeHistory()
+        self.model.compile(loss=self.loss, optimizer=opt)
 
+        time_cb = TimeHistory()
         histories = []
 
         Xf_train = self.extract_features(gen_train)
@@ -274,11 +278,11 @@ class Trainer:
 
         inpt = Input(shape=Xf_train.shape[:-1])
         x = Dense(12, activation='relu')(inpt)
-        x = Dense(3, activation='softmax')(x)
+        x = Dense(N_CLASSES, activation=self.activation)(x)
 
         self.clf = Model(inpt, x)
 
-        self.clf.compile(loss='categorical_crossentropy', optimizer=opt, metrics=['accuracy'])
+        self.clf.compile(loss=self.loss, optimizer=opt, metrics=['accuracy'])
 
         weights0 = clf.get_weights()
         for run in range(runs):
@@ -298,6 +302,10 @@ class Trainer:
 
         self.history = histories
 
+    def train_clf_lowdata(self, gen_train, gen_val, class_weights=None, epochs=200, runs=10):
+        # TODO
+        raise NotImplementedError()
+
     def print_history(self):
         print(self.history)
 
@@ -308,13 +316,9 @@ class Trainer:
             json.dump(serialize(self.history), f)
         print('dumped history to', os.path.join(base_dir, 'history', self.model_name+'.json'))
 
-    def train_clf_lowdata(self):
-        # TODO
-        raise NotImplementedError()
-
     def evaluate(self, gen, y):
         y_hat = self.model.predict_generator(gen)
-        compute_metrics(y_hat, y)
+        compute_metrics(y_hat, y, target=self.output_type)
 
     def predict(self, gen):
         return self.model.predict_generator(gen)

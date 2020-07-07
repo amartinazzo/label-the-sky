@@ -7,25 +7,25 @@ from time import time
 b.set_random_seeds()
 
 if len(sys.argv) != 4:
-    print('usage: python {} <backbone> <target> <nbands>'.format(
+    print('usage: python {} <backbone> <n_channels> <target>'.format(
         sys.argv[0]))
     exit(1)
 
 backbone = sys.argv[1]
-target = sys.argv[2]
-n_bands = int(sys.argv[3])
+n_channels = int(sys.argv[2])
+target = sys.argv[3]
 
 base_dir = os.environ['HOME']
 csv_file = os.path.join(base_dir, 'mnt/label-the-sky/csv/dr1_split.csv')
 
 print('csv_file', csv_file)
 print('backbone', backbone)
+print('n_channels', n_channels)
 print('target', target)
-print('n_bands', n_bands)
 
 trainer = b.Trainer(
     backbone=backbone,
-    n_channels=n_bands,
+    n_channels=n_channels,
     output_type=target,
     base_dir=base_dir,
     weights=None
