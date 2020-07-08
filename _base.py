@@ -18,7 +18,8 @@ from tensorflow.keras.optimizers import SGD
 from tensorflow.compat.v1 import disable_eager_execution
 
 
-BACKBONES = ['efficientnet', 'resnext', 'vgg']
+BACKBONES = ['efficientnet', 'resnext', 'vgg', None]
+BATCH_SIZE = 32
 BROAD_BANDS = [0, 5, 7, 9, 11]
 CLASS_NAMES = ['GALAXY', 'STAR', 'QSO']
 MAG_MAX = 35.
@@ -77,7 +78,6 @@ def relu_saturated(x):
 
 def serialize(history):
     d = {}
-
     for k in history.keys():
         d[k] = [float(item) for item in history[k]]
     return d
@@ -137,7 +137,10 @@ class Trainer:
         disable_eager_execution()
         os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
-        self.build_model()
+        if self.backbone is not None:
+            self.build_model()
+        else:
+            print('backbone was not set. CNN was not built.')
 
     def load_data(self, split, subset):
         if subset not in ['pretraining', 'clf']:
@@ -152,6 +155,17 @@ class Trainer:
         y = np.load(os.path.join(
             self.data_dir,
             f'{subset}_{channels}_y_{self.output_type}_{split}.npy'))
+
+        return X, y
+
+    def load_magnitudes(self, split):
+        X = np.load(os.path.join(
+            self.data_dir,
+            f'clf_12_y_magnitudes_{split}.npy'))
+
+        y = np.load(os.path.join(
+            self.data_dir,
+            f'clf_12_y_class_{split}.npy'))
 
         return X, y
 
@@ -282,7 +296,7 @@ class Trainer:
         history = self.model.fit(
             Xp_train, yp_train,
             validation_data=(Xp_val, yp_val),
-            batch_size=32,
+            batch_size=BATCH_SIZE,
             epochs=epochs,
             callbacks=self.callbacks + [time_cb],
             class_weight=self.class_weights,
@@ -323,7 +337,7 @@ class Trainer:
             history0 = self.model.fit(
                 Xp_train, yp_train,
                 validation_data=(Xp_val, yp_val),
-                batch_size=32,
+                batch_size=BATCH_SIZE,
                 epochs=1,
                 callbacks=self.callbacks,
                 class_weight=self.class_weights,
@@ -339,7 +353,7 @@ class Trainer:
             history = self.model.fit(
                 Xp_train, yp_train,
                 validation_data=(Xp_val, yp_val),
-                batch_size=32,
+                batch_size=BATCH_SIZE,
                 epochs=epochs,
                 callbacks=self.callbacks + [time_cb],
                 class_weight=self.class_weights,
@@ -361,13 +375,10 @@ class Trainer:
 
         self.set_class_weights(y_train)
 
-        Xp_train = self.preprocess_input(X_train)
+        Xp_train = self.extract_features(X_train)
         yp_train = self.preprocess_output(y_train)
-        Xp_val = self.preprocess_input(X_val)
+        Xp_val = self.extract_features(X_val)
         yp_val = self.preprocess_output(y_val)
-
-        Xf_train = self.extract_features(Xp_train)
-        Xf_val = self.extract_features(Xp_val)
 
         inpt = Input(shape=Xf_train.shape[:-1])
         x = Dense(12, activation=LeakyReLU())(inpt)
@@ -377,13 +388,13 @@ class Trainer:
 
         self.clf.compile(loss=self.loss, optimizer=opt, metrics=['accuracy'])
 
-        weights0 = clf.get_weights()
+        weights0 = self.clf.get_weights()
         for run in range(runs):
             self.clf.set_weights(weights0)
             history = self.clf.fit(
                 Xf_train, yp_train,
                 validation_data=(Xf_val, yp_val),
-                batch_size=32,
+                batch_size=BATCH_SIZE,
                 epochs=epochs,
                 callbacks=self.callbacks + [time_cb],
                 class_weight=self.class_weights,
@@ -395,9 +406,54 @@ class Trainer:
 
         self.history = histories
 
-    def train_lowdata(self, gen_train, gen_val, epochs=200, runs=10):
+    def train_lowdata(self, X_train, y_train, X_val, y_val, epochs=200, runs=10):
         # TODO
         raise NotImplementedError()
+
+    def train_catalog(self, X_train, y_train, X_val, y_val, runs=3):
+        if len(X_train.shape) != 2 or len(X_val.shape) != 2:
+            raise ValueError('X must have shape=2')
+
+        time_cb = TimeHistory()
+        histories = []
+
+        self.set_class_weights(y_train)
+
+        Xp_train = self.preprocess_output(X_train)
+        yp_train = self.preprocess_output(y_train)
+        Xp_val = self.preprocess_output(X_val)
+        yp_val = self.preprocess_output(y_val)
+
+        inpt = Input(shape=X_train.shape[:-1])
+        x = Dense(
+            1024,
+            activation=LeakyReLU(),
+            kernel_initializer='glorot_uniform',
+            kernel_constraint=self.max_norm)(x)
+        y = Dropout(0.5)(x)
+        x = Dense(12, activation=LeakyReLU())(inpt)
+        x = Dense(N_CLASSES, activation=self.activation)(x)
+
+        self.clf = Model(inpt, x)
+        self.clf.compile(loss=self.loss, optimizer=opt, metrics=['accuracy'])
+
+        weights0 = self.clf.get_weights()
+        for run in range(runs):
+            self.clf.set_weights(weights0)
+            history = self.clf.fit(
+                Xp_train, yp_train,
+                validation_data=(Xp_val, yp_val),
+                batch_size=BATCH_SIZE,
+                epochs=epochs,
+                callbacks=self.callbacks + [time_cb],
+                class_weight=self.class_weights,
+                verbose=2
+            )
+            ht = history.history
+            ht['times'] = time_cb.times
+            histories.append(ht)
+
+        self.history = histories
 
     def print_history(self):
         print(self.history)
@@ -418,14 +474,22 @@ class Trainer:
         print('dumped history to', os.path.join(self.base_dir, 'history', self.model_name+'.json'))
 
     def evaluate(self, X, y):
-        Xp = self.preprocess_input(X)
         yp = self.preprocess_output(y)
-        y_hat = self.model.predict(Xp)
+        if self.backbone is not None:
+            Xp = self.preprocess_input(X)
+            y_hat = self.model.predict(Xp)
+        else:
+            Xp = self.preprocess_output(X)
+            y_hat = self.clf.predict(Xp)
         compute_metrics(y_hat, yp, target=self.output_type)
 
     def predict(self, X):
-        Xp = self.preprocess_input(X)
-        return self.model.predict(Xp)
+        if self.backbone is not None:
+            Xp = self.preprocess_input(X)
+            return self.model.predict(Xp)
+        else:
+            Xp = self.preprocess_output(X)
+            return self.clf.predict(Xp)
 
     def predict_with_embeddings(self, X):
         Xp = self.preprocess_input(X)

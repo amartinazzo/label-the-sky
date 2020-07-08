@@ -1,4 +1,3 @@
-albumentations
 astropy
 astroquery
 efficientnet
