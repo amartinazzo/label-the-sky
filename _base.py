@@ -5,6 +5,8 @@ from keras_applications import vgg16, resnext
 from models.callbacks import TimeHistory
 import numpy as np
 import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # info and warning messages are not printed
+
 import pandas as pd
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.utils.class_weight import compute_class_weight
@@ -15,7 +17,6 @@ from tensorflow.keras.constraints import max_norm
 from tensorflow.keras.layers import Input, Dense, Dropout, GlobalAveragePooling2D, LeakyReLU
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import SGD
-from tensorflow.compat.v1 import disable_eager_execution
 
 
 BACKBONES = ['efficientnet', 'resnext', 'vgg', None]
@@ -134,13 +135,12 @@ class Trainer:
             self.metrics = None
             self.n_outputs = 12 if self.n_channels != 5 else 5
 
-        disable_eager_execution()
+        tf.compat.v1.disable_eager_execution()
         os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
+        self.set_callbacks()
         if self.backbone is not None:
-            self.build_model()
-        else:
-            print('backbone was not set. CNN was not built.')
+            self.build_model(learning_rate=0.01)
 
     def load_data(self, split, subset):
         if subset not in ['pretraining', 'clf']:
@@ -196,7 +196,7 @@ class Trainer:
             yp = y
         return yp
 
-    def build_model(self):
+    def build_model(self, learning_rate, freeze_backbone=False):
         architecture_fn = BACKBONE_FN.get(self.backbone)
 
         weights0 = 'imagenet' if self.weights == 'imagenet' else None
@@ -228,29 +228,42 @@ class Trainer:
         self.embedder_x = Model(inputs=self.model.input, outputs=x)
         self.embedder_yx = Model(inputs=self.model.input, outputs=[y, x])
 
-        for l in self.model.layers:
-            l.trainable = True
-
         if self.weights is not None and os.path.exists(self.weights):
             self.model.load_weights(self.weights, by_name=True, skip_mismatch=True)
             print('loaded .h5 weights')
 
-        self.set_callbacks()
+        if freeze_backbone:
+            for layer in self.model.layers[:self.top_layer_idx]:
+                layer.trainable = False
+
+        opt = SGD(lr=learning_rate, decay=1e-6, momentum=0.9, nesterov=True)
+        self.model.compile(loss=self.loss, optimizer=opt, metrics=self.metrics)
+
+    def build_top_clf(self, inpt_dim):
+        # TODO
+        inpt = Input(shape=(inpt_dim,))
+        x = Dense(12, activation=LeakyReLU())(inpt)
+        x = Dense(N_CLASSES, activation=self.activation)(x)
+        self.clf = Model(inpt, x)
+
+        opt = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
+        self.clf.compile(loss=self.loss, optimizer=opt, metrics=self.metrics)
 
     def describe(self, verbose=False):
         if verbose:
             self.model.summary()
 
-        trainable = np.sum([
-            keras.backend.count_params(w) for w in self.model.trainable_weights])
-        non_trainable = np.sum([
-            keras.backend.count_params(w) for w in self.model.non_trainable_weights])
+        if self.model is not None:
+            trainable = np.sum([
+                keras.backend.count_params(w) for w in self.model.trainable_weights])
+            non_trainable = np.sum([
+                keras.backend.count_params(w) for w in self.model.non_trainable_weights])
+            print('******************************')
+            print('total params\t', f'{int(trainable + non_trainable):,}')
+            print('trainable\t', f'{int(trainable):,}')
+            print('non-trainable\t', f'{int(non_trainable):,}')
+            print()
 
-        print('******************************')
-        print('total params\t', f'{int(trainable + non_trainable):,}')
-        print('trainable\t', f'{int(trainable):,}')
-        print('non-trainable\t', f'{int(non_trainable):,}')
-        print()
         print('backbone\t', self.backbone)
         print('n_channels\t', self.n_channels)
         print('output\t\t', self.output_type)
@@ -269,18 +282,15 @@ class Trainer:
         ]
 
     def set_class_weights(self, y):
-        if self.output_type!='class':
+        if self.output_type != 'class':
             self.class_weights = None
         else:
-            if len(y.shape)>1:
+            if len(y.shape) > 1:
                 yy = np.argmax(y, axis=1)
             self.class_weights = compute_class_weight('balanced', np.unique(yy), yy)
             print('set class weights to', self.class_weights)
 
-    def train(self, X_train, y_train, X_val, y_val, epochs=500):
-        opt = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
-        self.model.compile(loss=self.loss, optimizer=opt)
-
+    def train(self, X_train, y_train, X_val, y_val, epochs=500, runs=3):
         self.set_class_weights(y_train)
 
         Xp_train = self.preprocess_input(X_train)
@@ -288,31 +298,32 @@ class Trainer:
         Xp_val = self.preprocess_input(X_val)
         yp_val = self.preprocess_output(y_val)
 
-        print('Xp_train', Xp_train.min(), Xp_train.max())
-        print('yp_train', yp_train.min(), yp_train.max())
-
         time_cb = TimeHistory()
+        histories = []
 
-        history = self.model.fit(
-            Xp_train, yp_train,
-            validation_data=(Xp_val, yp_val),
-            batch_size=BATCH_SIZE,
-            epochs=epochs,
-            callbacks=self.callbacks + [time_cb],
-            class_weight=self.class_weights,
-            verbose=2
-        )
+        for run in range(runs):
+            self.build_model(learning_rate=0.01)
+            history = self.model.fit(
+                Xp_train, yp_train,
+                validation_data=(Xp_val, yp_val),
+                batch_size=BATCH_SIZE,
+                epochs=epochs,
+                callbacks=self.callbacks + [time_cb],
+                class_weight=self.class_weights,
+                verbose=2
+            )
+            ht = history.history
+            ht['times'] = time_cb.times
+            histories.append(ht)
 
-        hist = history.history
-        hist['times'] = time_cb.times
+            print("RUN #", run)
+            print('val acc', np.max(ht['val_accuracy']))
 
-        self.history = hist
+        self.history = histories
 
     def finetune(self, X_train, y_train, X_val, y_val, epochs=200, runs=3):
         if self.weights is None:
             raise ValueError('finetune not available for weights=None')
-
-        opt = SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True)
 
         self.set_class_weights(y_train)
 
@@ -324,31 +335,24 @@ class Trainer:
         time_cb = TimeHistory()
         histories = []
 
-        weights0 = self.model.get_weights()
         for run in range(runs):
-            self.model.set_weights(weights0)
-
-            for layer in self.model.layers[:self.top_layer_idx]:
-                layer.trainable = False
-            self.model.compile(loss=self.loss, optimizer=opt, metrics=['accuracy'])
-
-            self.describe(verbose=True)
-
+            self.build_model(learning_rate=0.001, freeze_backbone=True)
             history0 = self.model.fit(
                 Xp_train, yp_train,
                 validation_data=(Xp_val, yp_val),
                 batch_size=BATCH_SIZE,
-                epochs=1,
+                epochs=10,
                 callbacks=self.callbacks,
                 class_weight=self.class_weights,
                 verbose=2
             )
 
-            for layer in self.model.layers:
-                layer.trainable = True
-            self.model.compile(loss=self.loss, optimizer=opt, metrics=['accuracy'])
-
-            self.describe(verbose=True)
+            for l in self.model.layers:
+                l.trainable = True
+            self.model.compile(
+                loss=self.loss,
+                optimizer=SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True),
+                metrics=self.metrics)
 
             history = self.model.fit(
                 Xp_train, yp_train,
@@ -364,15 +368,12 @@ class Trainer:
             ht['times'] = time_cb.times
             histories.append(ht)
 
-            self.history = histories
+            print('RUN #', run)
+            print('val acc', np.max(ht['val_accuracy']))
+
+        self.history = histories
 
     def train_top(self, X_train, y_train, X_val, y_val, epochs=200, runs=3):
-        opt = SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True)
-        self.model.compile(loss=self.loss, optimizer=opt)
-
-        time_cb = TimeHistory()
-        histories = []
-
         self.set_class_weights(y_train)
 
         Xp_train = self.extract_features(X_train)
@@ -380,20 +381,15 @@ class Trainer:
         Xp_val = self.extract_features(X_val)
         yp_val = self.preprocess_output(y_val)
 
-        inpt = Input(shape=Xf_train.shape[:-1])
-        x = Dense(12, activation=LeakyReLU())(inpt)
-        x = Dense(N_CLASSES, activation=self.activation)(x)
+        inpt_dim = Xp_train.shape[1]
+        time_cb = TimeHistory()
+        histories = []
 
-        self.clf = Model(inpt, x)
-
-        self.clf.compile(loss=self.loss, optimizer=opt, metrics=['accuracy'])
-
-        weights0 = self.clf.get_weights()
         for run in range(runs):
-            self.clf.set_weights(weights0)
+            self.build_top_clf(inpt_dim)
             history = self.clf.fit(
-                Xf_train, yp_train,
-                validation_data=(Xf_val, yp_val),
+                Xp_train, yp_train,
+                validation_data=(Xp_val, yp_val),
                 batch_size=BATCH_SIZE,
                 epochs=epochs,
                 callbacks=self.callbacks + [time_cb],
@@ -403,6 +399,9 @@ class Trainer:
             ht = history.history
             ht['times'] = time_cb.times
             histories.append(ht)
+
+            print("RUN #", run)
+            print('val acc', np.max(ht['val_accuracy']))
 
         self.history = histories
 
@@ -414,9 +413,6 @@ class Trainer:
         if len(X_train.shape) != 2 or len(X_val.shape) != 2:
             raise ValueError('X must have shape=2')
 
-        time_cb = TimeHistory()
-        histories = []
-
         self.set_class_weights(y_train)
 
         Xp_train = self.preprocess_output(X_train)
@@ -424,22 +420,13 @@ class Trainer:
         Xp_val = self.preprocess_output(X_val)
         yp_val = self.preprocess_output(y_val)
 
-        inpt = Input(shape=X_train.shape[:-1])
-        x = Dense(
-            1024,
-            activation=LeakyReLU(),
-            kernel_initializer='glorot_uniform',
-            kernel_constraint=self.max_norm)(x)
-        y = Dropout(0.5)(x)
-        x = Dense(12, activation=LeakyReLU())(inpt)
-        x = Dense(N_CLASSES, activation=self.activation)(x)
+        inpt_dim = Xp_train.shape[1]
+        time_cb = TimeHistory()
+        histories = []
 
-        self.clf = Model(inpt, x)
-        self.clf.compile(loss=self.loss, optimizer=opt, metrics=['accuracy'])
-
-        weights0 = self.clf.get_weights()
         for run in range(runs):
-            self.clf.set_weights(weights0)
+            print("RUN #", run)
+            self.build_top_clf(inpt_dim)
             history = self.clf.fit(
                 Xp_train, yp_train,
                 validation_data=(Xp_val, yp_val),

@@ -13,7 +13,7 @@ if len(sys.argv) != 6:
 backbone = sys.argv[1]
 n_channels = int(sys.argv[2])
 weights = sys.argv[3]
-finetune = bool(sys.argv[4])
+finetune = True if sys.argv[4]=='1' else False
 timestamp = sys.argv[5]
 
 base_dir = os.environ['HOME']
@@ -45,19 +45,19 @@ X_test, y_test = trainer.load_data(subset=subset, split='test')
 
 start = time()
 
-print('training model')
 if weights is None:
+    print('training: from scratch')
     trainer.train(X_train, y_train, X_val, y_val)
 elif finetune:
+    print('training: finetuning')
     trainer.finetune(X_train, y_train, X_val, y_val)
 else:
+    print('training: top clf')
     trainer.train_top(X_train, y_train, X_val, y_val)
+
 trainer.dump_history()
 print('--- minutes taken:', int((time() - start) / 60))
 
 print('evaluating model on test set')
 trainer.evaluate(X_test, y_test)
 print('--- minutes taken:', int((time() - start) / 60))
-
-print('printing history')
-trainer.print_history()
