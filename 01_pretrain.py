@@ -23,10 +23,10 @@ trainer = b.Trainer(
     output_type=target,
     base_dir=base_dir,
     weights=None,
-    model_name=f'{timestamp}_{backbone}_{target}_{n_channels}'
+    model_name=f'{timestamp}_{backbone}_{n_channels}_{target}'
 )
 
-trainer.describe()
+trainer.describe(verbose=True)
 
 print('loading data')
 subset = 'pretraining'

@@ -18,16 +18,23 @@ timestamp = sys.argv[5]
 
 base_dir = os.environ['HOME']
 
-if weights is not None & weights!='imagenet':
-    weights = os.path.join(base_dir, 'trained_models', f'{backbone}_{target}_{n_channels}_{timestamp}.h5')
+if weights not in b.OUTPUT_TYPES+['imagenet']:
+    print('setting weights to NULL')
+    weights = None
+
+if weights is not None and weights!='imagenet':
+    weights_file = os.path.join(
+        base_dir, 'trained_models', f'{timestamp}_{backbone}_{n_channels}_{weights}.h5')
+else:
+    weights_file = weights
 
 trainer = b.Trainer(
     backbone=backbone,
     n_channels=n_channels,
     output_type='class',
     base_dir=base_dir,
-    weights=weights,
-    model_name=f'{timestamp}_clf_{backbone}_{weights}_ft{int(finetune)}_{n_channels}'
+    weights=weights_file,
+    model_name=f'{timestamp}_{backbone}_{n_channels}_{weights}_clf_ft{int(finetune)}'
 )
 
 print('loading data')

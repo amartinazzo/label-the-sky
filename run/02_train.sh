@@ -13,27 +13,40 @@ function waitpids {
     wait ${pids[*]}
 }
 
+if [ "$1" = "" ]
+then
+    echo "Usage: $0 <timestamp>"
+    exit 1
+fi
+
+export timestamp=$1
+
 declare -a servers=($(hostname))
 
-timestamp=`date "+%m%d"`
-
-declare -a backbones=(vgg) #resnext efficientnet)
-declare -a outputs=(magnitudes mockedmagnitudes)
-declare -a nbands_=(3 12)
-
-# 3 * 2 = 6
+declare -a backbones=(vgg)
+declare -a nbands_weights_ft=(
+    "3 imagenet 0"
+    "3 imagenet 1"
+    "3 None 1"
+    "12 None 1"
+    "3 magnitudes 0"
+    "3 magnitudes 1"
+    "3 mockedmagnitudes 0"
+    "3 mockedmagnitudes 1"
+    "12 magnitudes 0"
+    "12 magnitudes 1"
+    "12 mockedmagnitudes 0"
+    "12 mockedmagnitudes 1"
+)
 
 declare -a commands
 declare -a pids
 
-for nbands in ${nbands_[*]}
+for backbone in ${backbones[*]}
 do
-    for backbone in ${backbones[*]}
+    for arg in "${nbands_weights_ft[@]}"
     do
-        for output in ${outputs[*]}
-        do
-            commands+=("python -u 01_pretrain.py $backbone $nbands $output $timestamp")
-        done
+        commands+=("python -u 02_train.py $backbone $arg $timestamp")
     done
 done
 
@@ -52,12 +65,13 @@ do
     do
         cmd=${commands[$i]}
         backbone=$(echo $cmd | cut -d" " -f4)
-        target=$(echo $cmd | cut -d" " -f5)
-        nbandss=$(echo $cmd | cut -d" " -f6)
+        nbandss=$(echo $cmd | cut -d" " -f5)
+        weights=$(echo $cmd | cut -d" " -f6)
+        ft=$(echo $cmd | cut -d" " -f7)
         
         if [ "$cmd" != "" ]
         then
-            logfile="logs/${timestamp}_${backbone}_${target}_${nbandss}.log"
+            logfile="logs/${timestamp}_${backbone}_${nbandss}_${weights}_ft${ft}.log"
             echo "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"
             echo "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &" >> $logfile
             eval "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"

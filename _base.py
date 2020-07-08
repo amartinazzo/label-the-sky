@@ -11,7 +11,8 @@ from sklearn.utils.class_weight import compute_class_weight
 import tensorflow as tf
 import tensorflow.keras as keras
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
-from tensorflow.keras.layers import Input, Dense, GlobalAveragePooling2D, Dropout
+from tensorflow.keras.constraints import max_norm
+from tensorflow.keras.layers import Input, Dense, Dropout, GlobalAveragePooling2D, LeakyReLU
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import SGD
 from tensorflow.compat.v1 import disable_eager_execution
@@ -76,6 +77,7 @@ def relu_saturated(x):
 
 def serialize(history):
     d = {}
+
     for k in history.keys():
         d[k] = [float(item) for item in history[k]]
     return d
@@ -115,6 +117,7 @@ class Trainer:
         self.model_name = model_name
 
         self.input_shape = (32, 32, n_channels)
+        self.max_norm = max_norm(2)
 
         self.base_dir = base_dir
         self.data_dir = os.path.join(base_dir, 'data')
@@ -195,13 +198,17 @@ class Trainer:
 
         x = model.output
         x = GlobalAveragePooling2D()(x)
-        x = Dense(1024, activation='relu')(x)
+        x = Dense(
+            1024,
+            activation=LeakyReLU(),
+            kernel_initializer='glorot_uniform',
+            kernel_constraint=self.max_norm)(x)
 
         # top layer
         y = Dropout(0.5)(x)
         y = Dense(self.n_outputs, activation=self.activation)(y)
 
-        self.top_layer_idx = -3
+        self.top_layer_idx = -4
         self.model = Model(inputs=model.input, outputs=y)
 
         self.embedder_x = Model(inputs=self.model.input, outputs=x)
@@ -212,7 +219,7 @@ class Trainer:
 
         if self.weights is not None and os.path.exists(self.weights):
             self.model.load_weights(self.weights, by_name=True, skip_mismatch=True)
-            print('loaded weights')
+            print('loaded .h5 weights')
 
         self.set_callbacks()
 
@@ -251,11 +258,16 @@ class Trainer:
         if self.output_type!='class':
             self.class_weights = None
         else:
-            self.class_weights = compute_class_weight('balanced', np.unique(y), y)
+            if len(y.shape)>1:
+                yy = np.argmax(y, axis=1)
+            self.class_weights = compute_class_weight('balanced', np.unique(yy), yy)
+            print('set class weights to', self.class_weights)
 
     def train(self, X_train, y_train, X_val, y_val, epochs=500):
         opt = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
         self.model.compile(loss=self.loss, optimizer=opt)
+
+        self.set_class_weights(y_train)
 
         Xp_train = self.preprocess_input(X_train)
         yp_train = self.preprocess_output(y_train)
@@ -264,8 +276,6 @@ class Trainer:
 
         print('Xp_train', Xp_train.min(), Xp_train.max())
         print('yp_train', yp_train.min(), yp_train.max())
-
-        self.set_class_weights(yp_train)
 
         time_cb = TimeHistory()
 
@@ -284,19 +294,18 @@ class Trainer:
 
         self.history = hist
 
-    def finetune(self, X_train, y_train, X_val, y_val, epochs=200):
+    def finetune(self, X_train, y_train, X_val, y_val, epochs=200, runs=3):
         if self.weights is None:
             raise ValueError('finetune not available for weights=None')
 
         opt = SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True)
-        self.model.compile(loss=self.loss, optimizer=opt)
+
+        self.set_class_weights(y_train)
 
         Xp_train = self.preprocess_input(X_train)
         Xp_val = self.preprocess_input(X_val)
         yp_train = self.preprocess_output(y_train)
         yp_val = self.preprocess_output(y_val)
-
-        self.set_class_weights(yp_train)
 
         time_cb = TimeHistory()
         histories = []
@@ -307,12 +316,15 @@ class Trainer:
 
             for layer in self.model.layers[:self.top_layer_idx]:
                 layer.trainable = False
+            self.model.compile(loss=self.loss, optimizer=opt, metrics=['accuracy'])
+
+            self.describe(verbose=True)
 
             history0 = self.model.fit(
                 Xp_train, yp_train,
                 validation_data=(Xp_val, yp_val),
                 batch_size=32,
-                epochs=10,
+                epochs=1,
                 callbacks=self.callbacks,
                 class_weight=self.class_weights,
                 verbose=2
@@ -320,8 +332,11 @@ class Trainer:
 
             for layer in self.model.layers:
                 layer.trainable = True
+            self.model.compile(loss=self.loss, optimizer=opt, metrics=['accuracy'])
 
-            history = clf.fit(
+            self.describe(verbose=True)
+
+            history = self.model.fit(
                 Xp_train, yp_train,
                 validation_data=(Xp_val, yp_val),
                 batch_size=32,
@@ -344,6 +359,8 @@ class Trainer:
         time_cb = TimeHistory()
         histories = []
 
+        self.set_class_weights(y_train)
+
         Xp_train = self.preprocess_input(X_train)
         yp_train = self.preprocess_output(y_train)
         Xp_val = self.preprocess_input(X_val)
@@ -352,10 +369,8 @@ class Trainer:
         Xf_train = self.extract_features(Xp_train)
         Xf_val = self.extract_features(Xp_val)
 
-        self.set_class_weights(yp_train)
-
         inpt = Input(shape=Xf_train.shape[:-1])
-        x = Dense(12, activation='relu')(inpt)
+        x = Dense(12, activation=LeakyReLU())(inpt)
         x = Dense(N_CLASSES, activation=self.activation)(x)
 
         self.clf = Model(inpt, x)
@@ -388,10 +403,18 @@ class Trainer:
         print(self.history)
 
     def dump_history(self):
+        if type(self.history) == list:
+            hist_tmp = []
+            for h in self.history:
+                hist_tmp.append(serialize(h))
+            self.history = hist_tmp
+        else:
+            self.history = serialize(self.history)
+
         if not os.path.exists(os.path.join(self.base_dir, 'history')):
             os.makedirs(os.path.join(self.base_dir, 'history'))
         with open(os.path.join(self.base_dir, 'history', self.model_name+'.json'), 'w') as f:
-            json.dump(serialize(self.history), f)
+            json.dump(self.history, f)
         print('dumped history to', os.path.join(self.base_dir, 'history', self.model_name+'.json'))
 
     def evaluate(self, X, y):
