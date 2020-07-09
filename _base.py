@@ -461,6 +461,7 @@ class Trainer:
         print('dumped history to', os.path.join(self.base_dir, 'history', self.model_name+'.json'))
 
     def evaluate(self, X, y):
+        # TODO FIX
         yp = self.preprocess_output(y)
         if self.backbone is not None:
             Xp = self.preprocess_input(X)
