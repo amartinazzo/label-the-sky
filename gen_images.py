@@ -341,7 +341,7 @@ if __name__ == '__main__':
 
     sweep_fields(
         fields_path=data_dir + '/dr1/coadded/*/*.fz',
-        catalog_path='csv/dr1_unlabeled.csv',
+        catalog_path='datasets/clf.csv',
         crops_folder=data_dir + '/crops_calib/',
         calibrate=True,
         asinh=False

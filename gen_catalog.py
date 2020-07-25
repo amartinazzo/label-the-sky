@@ -235,18 +235,19 @@ def stratified_split(
     df = df[df.f660.between(mag_min, mag_max)]
     df = df[df.f861.between(mag_min, mag_max)]
 
-    df = df[df.u_mock.between(mag_min, mag_max)]
-    df = df[df.g_mock.between(mag_min, mag_max)]
-    df = df[df.r_mock.between(mag_min, mag_max)]
-    df = df[df.i_mock.between(mag_min, mag_max)]
-    df = df[df.z_mock.between(mag_min, mag_max)]
-    df = df[df.f378_mock.between(mag_min, mag_max)]
-    df = df[df.f395_mock.between(mag_min, mag_max)]
-    df = df[df.f410_mock.between(mag_min, mag_max)]
-    df = df[df.f430_mock.between(mag_min, mag_max)]
-    df = df[df.f515_mock.between(mag_min, mag_max)]
-    df = df[df.f660_mock.between(mag_min, mag_max)]
-    df = df[df.f861_mock.between(mag_min, mag_max)]
+    if 'u_mock' in df.columns:
+        df = df[df.u_mock.between(mag_min, mag_max)]
+        df = df[df.g_mock.between(mag_min, mag_max)]
+        df = df[df.r_mock.between(mag_min, mag_max)]
+        df = df[df.i_mock.between(mag_min, mag_max)]
+        df = df[df.z_mock.between(mag_min, mag_max)]
+        df = df[df.f378_mock.between(mag_min, mag_max)]
+        df = df[df.f395_mock.between(mag_min, mag_max)]
+        df = df[df.f410_mock.between(mag_min, mag_max)]
+        df = df[df.f430_mock.between(mag_min, mag_max)]
+        df = df[df.f515_mock.between(mag_min, mag_max)]
+        df = df[df.f660_mock.between(mag_min, mag_max)]
+        df = df[df.f861_mock.between(mag_min, mag_max)]
 
     print('shape after filtering', df.shape)
 
@@ -272,51 +273,22 @@ def stratified_split(
     df['class_mag_int'] = df.class_mag.cat.codes
     df['split'] = ''
 
-    # split pretraining set
-    df['rnd'] = np.random.uniform(size=df.shape[0])
-    df['pretraining'] = df.rnd.apply(lambda r: True if r<=0.88 else False)
-
-    print(df[df.pretraining].class_mag.value_counts(normalize=True))
-    print(df[~df.pretraining].class_mag.value_counts(normalize=True))
-
-    X = df[df.pretraining].index.values
-    y = df[df.pretraining].class_mag_int.values
-    sss = StratifiedShuffleSplit(n_splits=1, test_size=0.02, random_state=0)
-    train_idx, test_idx = next(sss.split(X,y))
-    df_train_idx, df_test_idx = X[train_idx], X[test_idx]
-    df.loc[df_train_idx, 'split'] = 'train'
-    df.loc[df_test_idx, 'split'] = 'test'
-
-    X = df[(df.pretraining) & (df.split=='train')].index.values
-    y = df[(df.pretraining) & (df.split=='train')].class_mag_int.values
-    sss = StratifiedShuffleSplit(n_splits=1, test_size=0.02, random_state=0)
-    train_idx, test_idx = next(sss.split(X,y))
-    df_train_idx, df_test_idx = X[train_idx], X[test_idx]
-    df.loc[df_train_idx, 'split'] = 'train'
-    df.loc[df_test_idx, 'split'] = 'val'
-
     # split classification set
-    X = df[~df.pretraining].index.values
-    y = df[~df.pretraining].class_mag_int.values
+    X = df.index.values
+    y = df.class_mag_int.values
     sss = StratifiedShuffleSplit(n_splits=1, test_size=0.05, random_state=0)
     train_idx, test_idx = next(sss.split(X,y))
     df_train_idx, df_test_idx = X[train_idx], X[test_idx]
     df.loc[df_train_idx, 'split'] = 'train'
     df.loc[df_test_idx, 'split'] = 'test'
 
-    X = df[(~df.pretraining) & (df.split=='train')].index.values
-    y = df[(~df.pretraining) & (df.split=='train')].class_mag_int.values
+    X = df[(df.split=='train')].index.values
+    y = df[(df.split=='train')].class_mag_int.values
     sss = StratifiedShuffleSplit(n_splits=1, test_size=0.05, random_state=0)
     train_idx, test_idx = next(sss.split(X,y))
     df_train_idx, df_test_idx = X[train_idx], X[test_idx]
     df.loc[df_train_idx, 'split'] = 'train'
     df.loc[df_test_idx, 'split'] = 'val'
-
-    # show counts per split
-    df['split_pretraining'] = df[['split', 'pretraining']].apply(
-        lambda x: 'pretraining '+x[0] if x[1] else 'classification '+x[0],
-        axis=1)
-    print(df.split_pretraining.value_counts().sort_index())
 
     if verbose:
         print('SPLITS PER CAT')
@@ -324,23 +296,22 @@ def stratified_split(
         for i in np.unique(df.class_mag_int.values):
             dff = df[df.class_mag_int==i]
             print(dff['class_mag'].head(1))
-            print(dff.split_pretraining.value_counts(normalize=True))
             print()
 
-    df.drop(columns=['rnd', 'split_pretraining', 'class_mag', 'class_mag_int'], inplace=True)
-    # df.to_csv('{}_split.csv'.format(filepath[:-4]), index=False)
+    df.drop(columns=['class_mag', 'class_mag_int'], inplace=True)
     return df
 
 
-def stratified_split_unlabeled(filepath, mag_range=None, test_split=0.1, val_split=0.11):
-    df = pd.read_csv(filepath)
-    s0 = df.shape
-    print(s0)
-    df = df[df['min']!=df['max']]
-    print(df.shape)
-    print(s0[0]-df.shape[0])
-    if mag_range is not None:
-        df = df[df.r.between(mag_range[0], mag_range[1])]
+def stratified_split_unlabeled(input_file, e=0.05, test_split=0.05, val_split=0.05):
+    df = pd.read_csv(input_file)
+    df = df[(df['class'].isna())]
+    print('shape before filtering', df.shape)
+    df = df[(df.ndet==12) & (df.photoflag==0)]
+    df = df[(
+        df.u_err <= e) & (df.f378_err <= e) & (df.f395_err <= e) & (df.f410_err <= e) & (df.f430_err <= e) & (df.g_err <= e) & (
+        df.f515_err <= e) & (df.r_err <= e) & (df.f660_err <= e) & (df.i_err <= e) & (df.f861_err <= e) & (df.z_err <= e)]
+    print('shape after filtering', df.shape)
+
     df['class_mag'] = np.round(df.r.values).astype(np.uint8)
 
     # train-test split
@@ -362,7 +333,7 @@ def stratified_split_unlabeled(filepath, mag_range=None, test_split=0.1, val_spl
     df.loc[df_test_idx, 'split'] = 'val'
 
     df.drop(columns=['class_mag'], inplace=True)
-    df.to_csv('{}_split.csv'.format(filepath[:-4]), index=False)
+    return df
 
 
 if __name__ == '__main__':

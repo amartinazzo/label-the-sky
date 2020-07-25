@@ -1,4 +1,4 @@
-from gen_catalog import stratified_split
+from gen_catalog import stratified_split, stratified_split_unlabeled
 import numpy as np
 import pandas as pd
 import random
