@@ -21,6 +21,8 @@ fi
 
 export timestamp=$1
 
+dataset="clf"
+
 declare -a servers=($(hostname))
 
 declare -a backbones=(vgg)
@@ -28,15 +30,14 @@ declare -a nbands_weights_ft=(
     "3 imagenet 0"
     "3 imagenet 1"
     "3 None 1"
+    "5 None 1"
     "12 None 1"
     "3 magnitudes 0"
     "3 magnitudes 1"
-    "3 mockedmagnitudes 0"
-    "3 mockedmagnitudes 1"
+    "5 magnitudes 0"
+    "5 magnitudes 1"
     "12 magnitudes 0"
     "12 magnitudes 1"
-    "12 mockedmagnitudes 0"
-    "12 mockedmagnitudes 1"
 )
 
 declare -a commands
@@ -46,7 +47,7 @@ for backbone in ${backbones[*]}
 do
     for arg in "${nbands_weights_ft[@]}"
     do
-        commands+=("python -u 02_train.py $backbone $arg $timestamp")
+        commands+=("python -u 02_train.py $dataset $backbone $arg $timestamp")
     done
 done
 

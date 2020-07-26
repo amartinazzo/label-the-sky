@@ -15,13 +15,12 @@ function waitpids {
 
 declare -a servers=($(hostname))
 
+dataset="unlabeled"
 timestamp=`date "+%m%d"`
 
 declare -a backbones=(vgg) #resnext efficientnet)
-declare -a outputs=(magnitudes mockedmagnitudes)
-declare -a nbands_=(3 12)
-
-# 3 * 2 = 6
+declare -a outputs=(magnitudes)
+declare -a nbands_=(3 5 12)
 
 declare -a commands
 declare -a pids
@@ -32,7 +31,7 @@ do
     do
         for output in ${outputs[*]}
         do
-            commands+=("python -u 01_pretrain.py $backbone $nbands $output $timestamp")
+            commands+=("python -u 01_pretrain.py $dataset $backbone $nbands $output $timestamp")
         done
     done
 done
@@ -51,13 +50,14 @@ do
     for gpu in 0 1 2 3
     do
         cmd=${commands[$i]}
-        backbone=$(echo $cmd | cut -d" " -f4)
-        target=$(echo $cmd | cut -d" " -f5)
+        dataset=$(echo $cmd | cut -d" " -f4)
+        backbone=$(echo $cmd | cut -d" " -f5)
         nbandss=$(echo $cmd | cut -d" " -f6)
+        target=$(echo $cmd | cut -d" " -f7)
         
         if [ "$cmd" != "" ]
         then
-            logfile="logs/${timestamp}_${backbone}_${target}_${nbandss}.log"
+            logfile="logs/${timestamp}_${dataset}_${backbone}_${target}_${nbandss}.log"
             echo "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"
             echo "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &" >> $logfile
             eval "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"

@@ -302,7 +302,7 @@ def stratified_split(
     return df
 
 
-def stratified_split_unlabeled(input_file, e=0.05, test_split=0.05, val_split=0.05):
+def stratified_split_unlabeled(input_file, e, test_split=0.05, val_split=0.05):
     df = pd.read_csv(input_file)
     df = df[(df['class'].isna())]
     print('shape before filtering', df.shape)
@@ -344,13 +344,13 @@ if __name__ == '__main__':
     # ids = set(ids) - set([0])
     # ids = list(ids)
 
-    photo_query = '''
-    select
-    objID, ra, dec, type,
-    modelMag_u, modelMag_g, modelMag_r, modelMag_i, modelMag_z
-    from PhotoObj
-    where abs(dec) < 1.46 and objID in {}
-    '''.format(ids)
+    # photo_query = '''
+    # select
+    # objID, ra, dec, type,
+    # modelMag_u, modelMag_g, modelMag_r, modelMag_i, modelMag_z
+    # from PhotoObj
+    # where abs(dec) < 1.46 and objID in {}
+    # '''.format(ids)
 
     spec_query = '''
     select
@@ -361,20 +361,20 @@ if __name__ == '__main__':
     order by bestObjID
     '''
     # master catalog: dec in (-1.4139, 1.4503)
-    query_sdss(photo_query, 'csv/sdss_photo_DR16_bestobjids_{}.csv', obj_key='objID', data_release=16)
+    # query_sdss(photo_query, 'csv/sdss_photo_DR16_bestobjids_{}.csv', obj_key='objID', data_release=16)
 
     # gen master catalog
     data_dir = os.environ['DATA_PATH']
 
-    filter_master_catalog(
-        data_dir + '/dr1/SPLUS_STRIPE82_master_catalog_dr_march2019.cat',
-        'csv/dr1.csv', usecols, usecols_renamed)
+    # filter_master_catalog(
+    #     data_dir + '/dr1/SPLUS_STRIPE82_master_catalog_dr_march2019.cat',
+    #     'csv/dr1.csv', usecols, usecols_renamed)
 
     # match catalogs
     splus_cat = pd.read_csv('csv/dr1.csv')
     sloan_cat = pd.read_csv('csv/sdss_spec_DR16.csv')
     matched_cat = 'csv/dr1_crossmatched.csv'
-    c = match_catalogs(sloan_cat, splus_cat, matched_cat_cols, matched_cat)
+    df = match_catalogs(sloan_cat, splus_cat, matched_cat_cols, matched_cat)
 
     df = pd.read_csv(matched_cat)
     df = df[(df.photoflag==0)&(df.ndet==12)&(df.zWarning==0)&(df.bestObjID!=0)]

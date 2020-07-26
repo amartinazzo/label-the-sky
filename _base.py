@@ -142,30 +142,16 @@ class Trainer:
         if self.backbone is not None:
             self.build_model(learning_rate=0.01)
 
-    def load_data(self, split, subset):
-        if subset not in ['pretraining', 'clf']:
-            raise ValueError('subset must be: pretraining, clf')
-
+    def load_data(self, dataset, split):
         channels = 12 if self.n_channels==5 else self.n_channels
 
         X = np.load(os.path.join(
             self.data_dir,
-            f'{subset}_{channels}_X_{split}.npy'))
+            f'{dataset}_{channels}_X_{split}.npy'))
 
         y = np.load(os.path.join(
             self.data_dir,
-            f'{subset}_{channels}_y_{self.output_type}_{split}.npy'))
-
-        return X, y
-
-    def load_magnitudes(self, split):
-        X = np.load(os.path.join(
-            self.data_dir,
-            f'clf_12_y_magnitudes_{split}.npy'))
-
-        y = np.load(os.path.join(
-            self.data_dir,
-            f'clf_12_y_class_{split}.npy'))
+            f'{dataset}_{channels}_y_{split}.npy'))
 
         return X, y
 

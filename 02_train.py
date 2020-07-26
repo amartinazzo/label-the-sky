@@ -5,16 +5,17 @@ from time import time
 
 b.set_random_seeds()
 
-if len(sys.argv) != 6:
-    print('usage: python {} <backbone> <nbands> <weights> <finetune> <timestamp>'.format(
+if len(sys.argv) != 7:
+    print('usage: python {} <dataset> <backbone> <n_channels> <weights> <finetune> <timestamp>'.format(
         sys.argv[0]))
     exit(1)
 
-backbone = sys.argv[1]
+dataset = sys.argv[1]
 n_channels = int(sys.argv[2])
-weights = sys.argv[3]
-finetune = True if sys.argv[4]=='1' else False
-timestamp = sys.argv[5]
+backbone = sys.argv[3]
+weights = sys.argv[4]
+finetune = True if sys.argv[5]=='1' else False
+timestamp = sys.argv[6]
 
 base_dir = os.environ['HOME']
 
@@ -38,10 +39,9 @@ trainer = b.Trainer(
 )
 
 print('loading data')
-subset = 'clf'
-X_train, y_train = trainer.load_data(subset=subset, split='train')
-X_val, y_val = trainer.load_data(subset=subset, split='val')
-X_test, y_test = trainer.load_data(subset=subset, split='test')
+X_train, y_train = trainer.load_data(dataset=dataset, split='train')
+X_val, y_val = trainer.load_data(dataset=dataset, split='val')
+X_test, y_test = trainer.load_data(dataset=dataset, split='test')
 
 start = time()
 
