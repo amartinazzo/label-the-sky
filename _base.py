@@ -1,5 +1,5 @@
 import efficientnet
-from efficientnet.tfkeras import EfficientNetB2
+from efficientnet.tfkeras import EfficientNetB0
 import json
 from keras_applications import vgg16, resnext
 from models.callbacks import TimeHistory
@@ -118,7 +118,7 @@ class Trainer:
         self.model_name = model_name
 
         self.input_shape = (32, 32, n_channels)
-        self.max_norm = max_norm(2)
+        self.max_norm = None
 
         self.base_dir = base_dir
         self.data_dir = os.path.join(base_dir, 'data')
@@ -152,6 +152,11 @@ class Trainer:
         y = np.load(os.path.join(
             self.data_dir,
             f'{dataset}_{channels}_y_{split}.npy'))
+
+        if self.n_channels==5:
+            X = X[:, :, :, BROAD_BANDS]
+            if self.output_type in ['magnitudes', 'mockedmagnitudes']:
+                y = y[:, BROAD_BANDS]
 
         return X, y
 
@@ -211,7 +216,7 @@ class Trainer:
         self.top_layer_idx = -4
         self.model = Model(inputs=model.input, outputs=y)
 
-        self.embedder_x = Model(inputs=self.model.input, outputs=x)
+        self.embedder = Model(inputs=self.model.input, outputs=x)
         self.embedder_yx = Model(inputs=self.model.input, outputs=[y, x])
 
         if self.weights is not None and os.path.exists(self.weights):
@@ -303,7 +308,9 @@ class Trainer:
             histories.append(ht)
 
             print("RUN #", run)
-            print('val acc', np.max(ht['val_accuracy']))
+            if 'val_accuracy' in  ht.keys():
+                print('val acc', np.max(ht['val_accuracy']))
+            print('val loss', np.max(ht['val_loss']))
 
         self.history = histories
 
@@ -447,7 +454,6 @@ class Trainer:
         print('dumped history to', os.path.join(self.base_dir, 'history', self.model_name+'.json'))
 
     def evaluate(self, X, y):
-        # TODO FIX
         yp = self.preprocess_output(y)
         if self.backbone is not None:
             Xp = self.preprocess_input(X)
@@ -465,10 +471,10 @@ class Trainer:
             Xp = self.preprocess_output(X)
             return self.clf.predict(Xp)
 
-    def predict_with_embeddings(self, X):
-        Xp = self.preprocess_input(X)
-        return self.embedder_yx.predict(Xp)
-
     def extract_features(self, X):
         Xp = self.preprocess_input(X)
-        return self.embedder_x.predict(Xp)
+        return self.embedder.predict(Xp)
+
+    def extract_features_and_predict(self, X):
+        Xp = self.preprocess_input(X)
+        return self.embedder_yx.predict(Xp)

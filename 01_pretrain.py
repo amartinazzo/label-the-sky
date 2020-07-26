@@ -11,8 +11,8 @@ if len(sys.argv) != 6:
     exit(1)
 
 dataset = sys.argv[1]
-n_channels = int(sys.argv[2])
-backbone = sys.argv[3]
+backbone = sys.argv[2]
+n_channels = int(sys.argv[3])
 target = sys.argv[4]
 timestamp = sys.argv[5]
 
