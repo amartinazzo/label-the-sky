@@ -30,7 +30,7 @@ OUTPUT_TYPES = ['class', 'magnitudes', 'mockedmagnitudes']
 SPLITS = ['train', 'val', 'test']
 
 BACKBONE_FN = {
-    'efficientnet': EfficientNetB2,
+    'efficientnet': EfficientNetB0,
     'resnext': resnext.ResNeXt50,
     'vgg': vgg16.VGG16
 }

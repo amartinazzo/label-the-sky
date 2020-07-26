@@ -34,8 +34,9 @@ def get_metadata(folder_pattern, save_file):
     print('saved csv again')
 
 
-def crop_objects_in_rgb(df, input_folder, save_folder, size=32, fwhm_radius=1.5):
+def crop_objects_in_rgb(catalog_path, input_folder, save_folder, size=32, fwhm_radius=1.5):
     d = size // 2
+    df = pd.read_csv(catalog_path)
     print('df (original)', df.shape)
 
     if not os.path.exists(save_folder):
@@ -191,7 +192,7 @@ def sweep_fields(fields_path, catalog_path, crops_folder, calibrate=True, asinh=
 
     if len(files) == 0:
         print('all objects already have crops')
-        exit()
+        return
 
     bands_order = get_bands_order()
     bands = get_bands()
@@ -345,4 +346,10 @@ if __name__ == '__main__':
         crops_folder=data_dir + '/crops_calib/',
         calibrate=True,
         asinh=False
+    )
+
+    crop_objects_in_rgb(
+        catalog_path='datasets/clf.csv',
+        input_folder=data_dir + '/dr1/color_images/',
+        save_folder=data_dir + '/crops_rgb32/'
     )
