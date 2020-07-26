@@ -65,14 +65,15 @@ do
     for gpu in 0 1 2 3
     do
         cmd=${commands[$i]}
-        backbone=$(echo $cmd | cut -d" " -f4)
-        nbandss=$(echo $cmd | cut -d" " -f5)
-        weights=$(echo $cmd | cut -d" " -f6)
-        ft=$(echo $cmd | cut -d" " -f7)
+        dataset=$(echo $cmd | cut -d" " -f4)
+        backbone=$(echo $cmd | cut -d" " -f5)
+        nbandss=$(echo $cmd | cut -d" " -f6)
+        weights=$(echo $cmd | cut -d" " -f7)
+        ft=$(echo $cmd | cut -d" " -f8)
         
         if [ "$cmd" != "" ]
         then
-            logfile="logs/${timestamp}_${backbone}_${nbandss}_${weights}_ft${ft}.log"
+            logfile="logs/${timestamp}_${dataset}_${backbone}_${nbandss}_${weights}_ft${ft}.log"
             echo "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"
             echo "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &" >> $logfile
             eval "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"

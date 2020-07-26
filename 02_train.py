@@ -11,8 +11,8 @@ if len(sys.argv) != 7:
     exit(1)
 
 dataset = sys.argv[1]
-n_channels = int(sys.argv[2])
-backbone = sys.argv[3]
+backbone = sys.argv[2]
+n_channels = int(sys.argv[3])
 weights = sys.argv[4]
 finetune = True if sys.argv[5]=='1' else False
 timestamp = sys.argv[6]

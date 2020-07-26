@@ -237,7 +237,7 @@ class Trainer:
         x = Dense(N_CLASSES, activation=self.activation)(x)
         self.clf = Model(inpt, x)
 
-        opt = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
+        opt = SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True)
         self.clf.compile(loss=self.loss, optimizer=opt, metrics=self.metrics)
 
     def describe(self, verbose=False):
@@ -310,7 +310,7 @@ class Trainer:
             print("RUN #", run)
             if 'val_accuracy' in  ht.keys():
                 print('val acc', np.max(ht['val_accuracy']))
-            print('val loss', np.max(ht['val_loss']))
+            print('val loss', np.min(ht['val_loss']))
 
         self.history = histories
 
@@ -458,9 +458,12 @@ class Trainer:
         if self.backbone is not None:
             Xp = self.preprocess_input(X)
             y_hat = self.model.predict(Xp)
-        else:
+        elif self.clf is not None:
             Xp = self.preprocess_output(X)
             y_hat = self.clf.predict(Xp)
+        else:
+            print('no model to use on evaluation')
+            return
         compute_metrics(y_hat, yp, target=self.output_type)
 
     def predict(self, X):
