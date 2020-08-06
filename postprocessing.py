@@ -5,7 +5,16 @@ import numpy as np
 import sys
 
 
-def agg_histories(pattern):
+AGG_FN = {
+    'max': lambda arr: np.max(arr).round(4),
+    'mean': lambda arr: str(
+        np.mean(arr).round(4)) + '+-' + str(
+        np.std(arr, ddof=1).round(4)) if np.mean(arr) < 1e3 else 'inf'
+}
+
+
+def agg_histories(pattern, mode):
+    agg_fn = AGG_FN.get(mode)
     hist_list = []
     files = glob(pattern)
     for f in files:
@@ -25,12 +34,8 @@ def agg_histories(pattern):
                     val_acc.append(hist['val_accuracy'][arg])
                     val_loss.append(hist['val_loss'][arg])
                 hist_data = {
-                    'val_acc': str(
-                        np.mean(val_acc).round(4)) + '+-' + str(
-                        np.std(val_acc, ddof=1).round(4)),
-                    'val_loss': str(
-                        np.mean(val_loss).round(4)) + '+-' + str(
-                        np.std(val_loss, ddof=1).round(4)) if np.mean(val_loss) < 1e3 else 'inf',
+                    'val_acc': agg_fn(val_acc),
+                    'val_loss': agg_fn(val_loss),
                     'runs': len(val_acc)
                 }
             else:
@@ -51,13 +56,14 @@ def agg_histories(pattern):
     return hist_list
 
 
-if len(sys.argv) != 2:
-    print('usage: python {} "<glob_pattern>"'.format(sys.argv[0]))
+if len(sys.argv) < 2:
+    print('usage: python {} "<glob_pattern>" <mode>'.format(sys.argv[0]))
     exit()
 
 glob_pattern = sys.argv[1]
+mode = sys.argv[2] if len(sys.argv)>2 else 'mean'
 
-history_dict = agg_histories(glob_pattern)
+history_dict = agg_histories(glob_pattern, mode=mode)
 
 df = pd.DataFrame.from_dict(history_dict)
 df.drop(columns=['timestamp', 'backbone', 'runs'], inplace=True)
