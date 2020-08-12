@@ -1,5 +1,6 @@
 history/
 out
+sandbox.py
 
 .DS_Store
 ._*

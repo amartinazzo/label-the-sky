@@ -302,8 +302,9 @@ def stratified_split(
     return df
 
 
-def stratified_split_unlabeled(input_file, e, test_split=0.05, val_split=0.05):
-    df = pd.read_csv(input_file)
+def stratified_split_unlabeled(df, e, test_split=0.05, val_split=0.05, n=None):
+    if type(df) == str:
+        df = pd.read_csv(df)
     df = df[(df['class'].isna())]
     print('shape before filtering', df.shape)
     df = df[(df.ndet==12) & (df.photoflag==0)]
@@ -312,7 +313,12 @@ def stratified_split_unlabeled(input_file, e, test_split=0.05, val_split=0.05):
         df.f515_err <= e) & (df.r_err <= e) & (df.f660_err <= e) & (df.i_err <= e) & (df.f861_err <= e) & (df.z_err <= e)]
     print('shape after filtering', df.shape)
 
-    df['class_mag'] = np.round(df.r.values).astype(np.uint8)
+    df['class_mag'] = df.r.apply(lambda r: r if r%2==0 else r+1).astype(np.uint8)
+
+    if n is not None:
+        # df = df.sort_values(by='r_err', ascending=False)
+        # df = df.iloc[:n]
+        df = df.sample(n)
 
     # train-test split
     X = df.index.values
