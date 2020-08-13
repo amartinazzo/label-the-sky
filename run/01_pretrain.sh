@@ -16,22 +16,26 @@ function waitpids {
 declare -a servers=($(hostname))
 
 dataset="unlabeled"
-timestamp=0726 #`date "+%m%d"`
+timestamp=0813 #`date "+%m%d"`
 
-declare -a backbones=(resnext efficientnet)
+declare -a datasets=(unlabeled-005-100k unlabeled-01-100k unlabeled-05-100k unlabeled-1-100k)
+declare -a backbones=(vgg) #(resnext efficientnet)
 declare -a outputs=(magnitudes)
-declare -a nbands_=(3 5 12)
+declare -a nbands_=(3 12)
 
 declare -a commands
 declare -a pids
 
-for nbands in ${nbands_[*]}
+for backbone in ${backbones[*]} 
 do
-    for backbone in ${backbones[*]}
+    for nbands in ${nbands_[*]}
     do
         for output in ${outputs[*]}
         do
-            commands+=("python -u 01_pretrain.py $dataset $backbone $nbands $output $timestamp")
+            for dataset in ${datasets[*]}
+            do
+                commands+=("python -u 01_pretrain.py $dataset $backbone $nbands $output $timestamp")
+            done
         done
     done
 done

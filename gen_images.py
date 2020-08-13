@@ -52,6 +52,8 @@ def crop_objects_in_rgb(catalog_path, input_folder, save_folder, size=32, fwhm_r
     df = df[~df.id.isin(imgfiles)]
     print('df after ignoring existing crops', df.shape)
 
+    df = df.sort_values(by='id')
+
     lst_field = ''
     for ix, r in df.iterrows():
         field = r['field']
@@ -221,7 +223,7 @@ def sweep_fields(fields_path, catalog_path, crops_folder, calibrate=True, asinh=
             objects_df = df[df.field_name == prev].reset_index()
             if not os.path.exists(crops_folder + prev):
                 os.makedirs(crops_folder + prev)
-            Parallel(n_jobs=1)(delayed(crop_object_in_field)(
+            Parallel(n_jobs=8)(delayed(crop_object_in_field)(
                 ix, arr, objects_df, crops_folder + prev, asinh) for ix in range(
                 objects_df.shape[0]))
             arr = np.zeros((s0, s1, n_channels), dtype=np.float32)
