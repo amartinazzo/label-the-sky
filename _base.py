@@ -455,6 +455,7 @@ class Trainer:
 
     def evaluate(self, X, y):
         yp = self.preprocess_output(y)
+        y_hat = []
         if self.backbone is not None:
             Xp = self.preprocess_input(X)
             y_hat = self.model.predict(Xp)

@@ -26,28 +26,29 @@ dataset="clf"
 declare -a servers=($(hostname))
 
 declare -a backbones=(vgg)
-declare -a nbands_weights_ft=(
-    "3 imagenet 0"
-    "3 imagenet 1"
-    "3 None 1"
-    "5 None 1"
-    "12 None 1"
-    "3 magnitudes 0"
-    "3 magnitudes 1"
-    "5 magnitudes 0"
-    "5 magnitudes 1"
-    "12 magnitudes 0"
-    "12 magnitudes 1"
-)
+declare -a pretraining_datasets=(unlabeled-005-100k unlabeled-01-100k unlabeled-05-100k unlabeled-1-100k imagenet)
+declare -a nbands_=(12 3)
+declare -a finetune=(0 1)
 
 declare -a commands
 declare -a pids
 
 for backbone in ${backbones[*]}
 do
-    for arg in "${nbands_weights_ft[@]}"
+    for nbands in ${nbands_[*]}
     do
-        commands+=("python -u 02_train.py $dataset $backbone $arg $timestamp")
+        for pretraining_data in ${pretraining_datasets[*]}
+        do
+            for ft in ${finetune[*]}
+            do
+                if [[ $pretraining_data == "imagenet" && $nbands -ne 3 ]];
+                then
+                    continue
+                else
+                    commands+=("python -u 02_train.py $dataset $backbone $pretraining_data $nbands $ft $timestamp")
+                fi
+            done
+        done
     done
 done
 
@@ -67,10 +68,10 @@ do
         cmd=${commands[$i]}
         dataset=$(echo $cmd | cut -d" " -f4)
         backbone=$(echo $cmd | cut -d" " -f5)
-        nbandss=$(echo $cmd | cut -d" " -f6)
-        weights=$(echo $cmd | cut -d" " -f7)
+        weights=$(echo $cmd | cut -d" " -f6)
+        nbandss=$(echo $cmd | cut -d" " -f7)
         ft=$(echo $cmd | cut -d" " -f8)
-        
+
         if [ "$cmd" != "" ]
         then
             logfile="logs/${timestamp}_${dataset}_${backbone}_${nbandss}_${weights}_ft${ft}.log"

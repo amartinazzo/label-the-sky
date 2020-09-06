@@ -24,7 +24,7 @@ trainer = b.Trainer(
     output_type=target,
     base_dir=base_dir,
     weights=None,
-    model_name=f'{timestamp}_{backbone}_{n_channels}_{target}'
+    model_name=f'{timestamp}_{backbone}_{n_channels}_{dataset}'
 )
 
 trainer.describe(verbose=True)

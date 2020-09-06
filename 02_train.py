@@ -6,28 +6,24 @@ from time import time
 b.set_random_seeds()
 
 if len(sys.argv) != 7:
-    print('usage: python {} <dataset> <backbone> <n_channels> <weights> <finetune> <timestamp>'.format(
+    print('usage: python {} <dataset> <backbone> <pretraining_dataset> <n_channels> <finetune> <timestamp>'.format(
         sys.argv[0]))
     exit(1)
 
 dataset = sys.argv[1]
 backbone = sys.argv[2]
-n_channels = int(sys.argv[3])
-weights = sys.argv[4]
+pretraining_dataset = sys.argv[3]
+n_channels = int(sys.argv[4])
 finetune = True if sys.argv[5]=='1' else False
 timestamp = sys.argv[6]
 
 base_dir = os.environ['HOME']
 
-if weights not in b.OUTPUT_TYPES+['imagenet']:
-    print('setting weights to NULL')
-    weights = None
-
-if weights is not None and weights!='imagenet':
+if pretraining_dataset is not None and pretraining_dataset!='imagenet':
     weights_file = os.path.join(
-        base_dir, 'trained_models', f'{timestamp}_{backbone}_{n_channels}_{weights}.h5')
+        base_dir, 'trained_models', f'{timestamp}_{backbone}_{n_channels}_{pretraining_dataset}.h5')
 else:
-    weights_file = weights
+    weights_file = pretraining_dataset
 
 trainer = b.Trainer(
     backbone=backbone,
@@ -35,7 +31,7 @@ trainer = b.Trainer(
     output_type='class',
     base_dir=base_dir,
     weights=weights_file,
-    model_name=f'{timestamp}_{backbone}_{n_channels}_{weights}_clf_ft{int(finetune)}'
+    model_name=f'{timestamp}_{backbone}_{n_channels}_{pretraining_dataset}_clf_ft{int(finetune)}'
 )
 
 print('loading data')
@@ -45,7 +41,7 @@ X_test, y_test = trainer.load_data(dataset=dataset, split='test')
 
 start = time()
 
-if weights is None:
+if pretraining_dataset is None:
     print('training: from scratch')
     trainer.train(X_train, y_train, X_val, y_val)
 elif finetune:
