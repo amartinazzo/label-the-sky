@@ -281,7 +281,7 @@ class Trainer:
             self.class_weights = compute_class_weight('balanced', np.unique(yy), yy)
             print('set class weights to', self.class_weights)
 
-    def train(self, X_train, y_train, X_val, y_val, epochs=500, runs=3):
+    def train(self, X_train, y_train, X_val, y_val, epochs=500, runs=5):
         self.set_class_weights(y_train)
 
         Xp_train = self.preprocess_input(X_train)
@@ -314,7 +314,7 @@ class Trainer:
 
         self.history = histories
 
-    def finetune(self, X_train, y_train, X_val, y_val, epochs=200, runs=3):
+    def finetune(self, X_train, y_train, X_val, y_val, epochs=200, runs=5):
         if self.weights is None:
             raise ValueError('finetune not available for weights=None')
 
@@ -329,7 +329,7 @@ class Trainer:
         histories = []
 
         for run in range(runs):
-            self.build_model(learning_rate=0.001, freeze_backbone=True)
+            self.build_model(learning_rate=0.0001, freeze_backbone=True)
             history0 = self.model.fit(
                 Xp_train, yp_train,
                 validation_data=(Xp_val, yp_val),
@@ -344,7 +344,7 @@ class Trainer:
                 l.trainable = True
             self.model.compile(
                 loss=self.loss,
-                optimizer=SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True),
+                optimizer=SGD(lr=0.0001, decay=1e-6, momentum=0.9, nesterov=True),
                 metrics=self.metrics)
 
             history = self.model.fit(
@@ -366,7 +366,7 @@ class Trainer:
 
         self.history = histories
 
-    def train_top(self, X_train, y_train, X_val, y_val, epochs=200, runs=3):
+    def train_top(self, X_train, y_train, X_val, y_val, epochs=200, runs=5):
         self.set_class_weights(y_train)
 
         Xp_train = self.extract_features(X_train)
@@ -402,7 +402,7 @@ class Trainer:
         # TODO
         raise NotImplementedError()
 
-    def train_catalog(self, X_train, y_train, X_val, y_val, runs=3):
+    def train_catalog(self, X_train, y_train, X_val, y_val, runs=5):
         if len(X_train.shape) != 2 or len(X_val.shape) != 2:
             raise ValueError('X must have shape=2')
 

@@ -90,14 +90,18 @@ def make_history_curves(timestamp, target='magnitudes', rows=1, cols=2):
         split = f.split('_')
         label = split[-3] + ' ' + split[-1][:-5]
         if 'clf' in f:
-            acc = history['val_accuracy']
             plt.subplot(121)
+            acc = history['accuracy']
+            acc_val = history['val_accuracy']
             plt.plot(range(len(acc)), acc, alpha=0.9, label=label)
+            plt.plot(range(len(acc_val)), acc_val, alpha=0.9, label=label+'_val')
             # ax[1].plot(range(len(acc)), acc, alpha=0.9, label=label)
         else:
-            loss = history['val_loss']
             plt.subplot(120)
+            loss = history['loss']
+            loss_val = history['val_loss']
             plt.plot(range(len(loss)), loss, alpha=0.9, label=label)
+            plt.plot(range(len(loss_val)), loss_val, alpha=0.9, label=label+'_val')
             # ax[0].plot(range(len(loss)), loss, alpha=0.9, label=label)
     plt.legend()
     plt.savefig(f'svg/history_{timestamp}_{target}.svg', format='svg', bbox_inches='tight')
