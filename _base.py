@@ -424,7 +424,7 @@ class Trainer:
                 Xp_train, yp_train,
                 validation_data=(Xp_val, yp_val),
                 batch_size=BATCH_SIZE,
-                epochs=epochs,
+                epochs=self.epochs,
                 callbacks=self.callbacks + [time_cb],
                 class_weight=self.class_weights,
                 verbose=2
@@ -447,11 +447,11 @@ class Trainer:
         else:
             self.history = serialize(self.history)
 
-        if not os.path.exists(os.path.join(self.base_dir, 'history')):
-            os.makedirs(os.path.join(self.base_dir, 'history'))
-        with open(os.path.join(self.base_dir, 'history', self.model_name+'.json'), 'w') as f:
+        if not os.path.exists(os.path.join(self.base_dir, 'mnt/history')):
+            os.makedirs(os.path.join(self.base_dir, 'mnt/history'))
+        with open(os.path.join(self.base_dir, 'mnt/history', self.model_name+'.json'), 'w') as f:
             json.dump(self.history, f)
-        print('dumped history to', os.path.join(self.base_dir, 'history', self.model_name+'.json'))
+        print('dumped history to', os.path.join(self.base_dir, 'mnt/history', self.model_name+'.json'))
 
     def evaluate(self, X, y):
         yp = self.preprocess_output(y)

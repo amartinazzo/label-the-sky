@@ -76,35 +76,32 @@ def make_err_histograms_overlapped(arr, xmax=0.5):
     plt.savefig('svg/magnitude_errors_overlap.svg', format='svg', bbox_inches='tight')
 
 
-def make_history_curves(timestamp, target='magnitudes', rows=1, cols=2):
-    files = glob(f'history/history_{timestamp}_*_{target}_*.json')
+def make_history_curves(glob_pattern, output_file, metric='loss', color_duos=True):
+    files = glob(glob_pattern)
+    files.sort()
     print('nr of files', len(files))
-    print(files)
+
+    len_cmap = len(files)/2 if color_duos else len(files)
+    cmap = mpl.cm.get_cmap('rainbow_r', len_cmap)
 
     # ax[0] -> backbone loss
     # ax[1] -> top classifier accuracy
 
-    plt.subplots(rows, cols, figsize=set_size(subplots=[rows, cols]))
-    for f in files:
-        history = json.load(open(f, 'r'))
-        split = f.split('_')
-        label = split[-3] + ' ' + split[-1][:-5]
-        if 'clf' in f:
-            plt.subplot(121)
-            acc = history['accuracy']
-            acc_val = history['val_accuracy']
-            plt.plot(range(len(acc)), acc, alpha=0.9, label=label)
-            plt.plot(range(len(acc_val)), acc_val, alpha=0.9, label=label+'_val')
-            # ax[1].plot(range(len(acc)), acc, alpha=0.9, label=label)
-        else:
-            plt.subplot(120)
-            loss = history['loss']
-            loss_val = history['val_loss']
-            plt.plot(range(len(loss)), loss, alpha=0.9, label=label)
-            plt.plot(range(len(loss_val)), loss_val, alpha=0.9, label=label+'_val')
-            # ax[0].plot(range(len(loss)), loss, alpha=0.9, label=label)
-    plt.legend()
-    plt.savefig(f'svg/history_{timestamp}_{target}.svg', format='svg', bbox_inches='tight')
+    plt.subplots(figsize=set_size())
+    for i, f in enumerate(files):
+        history = json.load(open(f, 'r'))[0]
+        label = '_'.join(f.split('/')[-1].split('_')[1:])
+        ft = label[-1]
+        marker = 'x' if ft == '0' else 'None'
+        color_idx = int(i/2) if color_duos else i
+        print(label, '\t', ft, '\t', marker)
+        loss = history[f'{metric}']
+        loss_val = history[f'val_{metric}']
+        plt.plot(range(len(loss)), loss, linewidth=1, color=cmap(color_idx), linestyle='dotted')
+        plt.plot(range(len(loss_val)), loss_val, linewidth=1, alpha=0.9, color=cmap(color_idx), markersize=3, markevery=5, marker=marker, label=label)
+        # ax[0].plot(range(len(loss)), loss, alpha=0.9, color=cmap(i), label=label)
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.savefig(output_file, format='svg', bbox_inches='tight')
 
 
 if __name__ == '__main__':
