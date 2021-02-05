@@ -12,6 +12,20 @@ import numpy as np
 import pandas as pd
 
 
+def set_fonts():
+    plt.style.use('seaborn')
+    nice_fonts = {
+            'text.usetex': False,#True,
+            'font.family': 'serif',
+            'axes.labelsize': 6,
+            'font.size': 8,
+            'legend.fontsize': 8,
+            'xtick.labelsize': 6,
+            'ytick.labelsize': 6,
+    }
+    mpl.rcParams.update(nice_fonts)
+
+
 def set_size(width='thesis', fraction=1, subplots=[1, 1]):
     if width == 'thesis':
         width_pt = 468.33257
@@ -104,20 +118,17 @@ def make_history_curves(glob_pattern, output_file, metric='loss', color_duos=Tru
     plt.savefig(output_file, format='svg', bbox_inches='tight')
 
 
+def gen_scatterplot(x, y, x_label, y_label, output_file):
+    # use to generate score vs r-magnitude plots
+    plt.plot(x, y, alpha=0.9)
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.savefig(output_file, format='svg', bbox_inches='tight')
+    pass
+
+
 if __name__ == '__main__':
-    plt.style.use('seaborn')
-
-    nice_fonts = {
-            'text.usetex': False,#True,
-            'font.family': 'serif',
-            'axes.labelsize': 6,
-            'font.size': 8,
-            'legend.fontsize': 8,
-            'xtick.labelsize': 6,
-            'ytick.labelsize': 6,
-    }
-
-    mpl.rcParams.update(nice_fonts)
+    set_fonts()
 
     # make magnitude uncertainty histograms
     # df = pd.read_csv('datasets/clf.csv')

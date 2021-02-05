@@ -37,7 +37,7 @@ X_test, y_test = trainer.load_data(dataset=dataset, split='test')
 start = time()
 
 print('pretraining model')
-trainer.train(X_train, y_train, X_val, y_val, runs=1)
+trainer.train(X_train, y_train, X_val, y_val, runs=3)
 trainer.dump_history()
 print('--- minutes taken:', int((time() - start) / 60))
 

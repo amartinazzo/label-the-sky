@@ -16,12 +16,12 @@ function waitpids {
 declare -a servers=($(hostname))
 
 dataset="unlabeled"
-timestamp=0814 #`date "+%m%d"`
+timestamp=`date "+%m%d"`
 
-declare -a datasets=(unlabeled-005-100k unlabeled-01-100k unlabeled-05-100k unlabeled-1-100k)
+declare -a datasets=(unlabeled) #(unlabeled-005-100k unlabeled-01-100k unlabeled-05-100k unlabeled-1-100k)
 declare -a backbones=(vgg) #(resnext efficientnet)
 declare -a outputs=(magnitudes)
-declare -a nbands_=(3 12)
+declare -a nbands_=(3 5 12)
 
 declare -a commands
 declare -a pids
