@@ -124,4 +124,3 @@ def gen_scatterplot(x, y, x_label, y_label, output_file):
     plt.xlabel(x_label)
     plt.ylabel(y_label)
     plt.savefig(output_file, format='svg', bbox_inches='tight')
-    pass
