@@ -90,7 +90,7 @@ def make_err_histograms_overlapped(arr, xmax=0.5):
     plt.savefig('svg/magnitude_errors_overlap.svg', format='svg', bbox_inches='tight')
 
 
-def make_history_curves(glob_pattern, output_file, metric='loss', color_duos=True):
+def make_trainval_curves(glob_pattern, output_file, metric='loss', color_duos=True):
     files = glob(glob_pattern)
     files.sort()
     print('nr of files', len(files))
@@ -114,6 +114,30 @@ def make_history_curves(glob_pattern, output_file, metric='loss', color_duos=Tru
         plt.plot(range(len(loss)), loss, linewidth=1, color=cmap(color_idx), linestyle='dotted')
         plt.plot(range(len(loss_val)), loss_val, linewidth=1, alpha=0.9, color=cmap(color_idx), markersize=3, markevery=5, marker=marker, label=label)
         # ax[0].plot(range(len(loss)), loss, alpha=0.9, color=cmap(i), label=label)
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.savefig(output_file, format='svg', bbox_inches='tight')
+
+
+def make_metrics_curves(glob_pattern, output_file, metrics=['val_loss'], color_duos=True):
+    files = glob(glob_pattern)
+    files.sort()
+    print('nr of files', len(files))
+    print('metrics', metrics)
+
+    plt.subplots(figsize=set_size())
+    for i, f in enumerate(files):
+        print(f)
+        history = json.load(open(f, 'r'))
+        n_runs = len(history)
+
+        for m in metrics:
+            metric = [history[n][f'{m}'] for n in range(n_runs)]
+            metric = np.array(metric)
+            means = metric.mean(axis=0)
+            errors = metric.std(axis=0, ddof=1)
+            iterations = range(means.shape[0])
+            plt.plot(iterations, means, linewidth=1)
+            plt.fill_between(iterations, means-errors, means+errors, alpha=0.5)
     plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
     plt.savefig(output_file, format='svg', bbox_inches='tight')
 

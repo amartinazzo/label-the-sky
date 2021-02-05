@@ -37,8 +37,9 @@ X_test, y_test = trainer.load_data(dataset=dataset, split='test')
 start = time()
 
 print('pretraining model')
-trainer.train(X_train, y_train, X_val, y_val, runs=3)
+trainer.train(X_train, y_train, X_val, y_val)
 trainer.dump_history()
+trainer.pick_best_model()
 print('--- minutes taken:', int((time() - start) / 60))
 
 print('evaluating model on test set')

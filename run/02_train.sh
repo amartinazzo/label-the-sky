@@ -26,8 +26,8 @@ dataset="clf"
 declare -a servers=($(hostname))
 
 declare -a backbones=(vgg)
-declare -a pretraining_datasets=(unlabeled-005-100k unlabeled-01-100k unlabeled-05-100k unlabeled-1-100k imagenet)
-declare -a nbands_=(12 3)
+declare -a pretraining_datasets=(unlabeled imagenet)
+declare -a nbands_=(12 5 3)
 declare -a finetune=(0 1)
 
 declare -a commands

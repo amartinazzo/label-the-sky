@@ -10,13 +10,14 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # info and warning messages are not pri
 import pandas as pd
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.utils.class_weight import compute_class_weight
+import shutil
 import tensorflow as tf
 import tensorflow.keras as keras
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from tensorflow.keras.constraints import max_norm
 from tensorflow.keras.layers import Input, Dense, Dropout, GlobalAveragePooling2D, LeakyReLU
 from tensorflow.keras.models import Model
-from tensorflow.keras.optimizers import SGD
+from tensorflow.keras.optimizers import Adam
 
 
 BACKBONES = ['efficientnet', 'resnext', 'vgg', None]
@@ -116,6 +117,8 @@ class Trainer:
         self.output_type = output_type
         self.weights = weights
         self.model_name = model_name
+        self.history = None
+        self.run = -1
 
         self.input_shape = (32, 32, n_channels)
         self.max_norm = None
@@ -140,7 +143,7 @@ class Trainer:
 
         self.set_callbacks()
         if self.backbone is not None:
-            self.build_model(learning_rate=0.01)
+            self.build_model()
 
     def load_data(self, dataset, split):
         channels = 12 if self.n_channels==5 else self.n_channels
@@ -187,7 +190,7 @@ class Trainer:
             yp = y
         return yp
 
-    def build_model(self, learning_rate, freeze_backbone=False):
+    def build_model(self, learning_rate=0.0001, freeze_backbone=False):
         architecture_fn = BACKBONE_FN.get(self.backbone)
 
         weights0 = 'imagenet' if self.weights == 'imagenet' else None
@@ -227,17 +230,17 @@ class Trainer:
             for layer in self.model.layers[:self.top_layer_idx]:
                 layer.trainable = False
 
-        opt = SGD(lr=learning_rate, decay=1e-6, momentum=0.9, nesterov=True)
+        opt = Adam(lr=learning_rate)
         self.model.compile(loss=self.loss, optimizer=opt, metrics=self.metrics)
 
-    def build_top_clf(self, inpt_dim):
+    def build_top_clf(self, inpt_dim, learning_rate=0.0001):
         # TODO
         inpt = Input(shape=(inpt_dim,))
         x = Dense(12, activation=LeakyReLU())(inpt)
         x = Dense(N_CLASSES, activation=self.activation)(x)
         self.clf = Model(inpt, x)
 
-        opt = SGD(lr=0.001, decay=1e-6, momentum=0.9, nesterov=True)
+        opt = Adam(lr=learning_rate)
         self.clf.compile(loss=self.loss, optimizer=opt, metrics=self.metrics)
 
     def describe(self, verbose=False):
@@ -261,15 +264,22 @@ class Trainer:
         print('weights\t\t', self.weights)
         print('******************************')
 
+    def pick_best_model(self, metric='val_loss'):
+        if self.history is None:
+            raise ValueError('no training history available.')
+        min_metrics = [min(self.history[i][metric]) for i in range(len(self.history))]
+        argmin = np.argmin(min_metrics)
+        shutil.copy2(
+            os.path.join(self.save_dir, f'{self.model_name}_{argmin}.h5'),
+            os.path.join(self.save_dir, f'{self.model_name}.h5'))
+
     def set_callbacks(self):
         self.callbacks = [
-            ReduceLROnPlateau(
-                monitor='val_loss', factor=0.1, patience=5, verbose=1),
             ModelCheckpoint(
-                os.path.join(self.base_dir, 'trained_models', self.model_name+'.h5'),
-                monitor='val_loss', save_best_only=True, save_weights_only=True, mode='min'),
-            EarlyStopping(
-                monitor='val_loss', mode='min', patience=10, restore_best_weights=True, verbose=1),
+                os.path.join(self.save_dir, f'{self.model_name}_{self.run}.h5'),
+                monitor='val_loss', save_best_only=True, save_weights_only=True, mode='min')
+            # EarlyStopping(
+            #     monitor='val_loss', mode='min', patience=10, restore_best_weights=True, verbose=1)
         ]
 
     def set_class_weights(self, y):
@@ -281,7 +291,7 @@ class Trainer:
             self.class_weights = compute_class_weight('balanced', np.unique(yy), yy)
             print('set class weights to', self.class_weights)
 
-    def train(self, X_train, y_train, X_val, y_val, epochs=500, runs=5):
+    def train(self, X_train, y_train, X_val, y_val, epochs=60, runs=5):
         self.set_class_weights(y_train)
 
         Xp_train = self.preprocess_input(X_train)
@@ -293,7 +303,9 @@ class Trainer:
         histories = []
 
         for run in range(runs):
-            self.build_model(learning_rate=0.01)
+            self.run = run
+            self.build_model()
+            self.set_callbacks()
             history = self.model.fit(
                 Xp_train, yp_train,
                 validation_data=(Xp_val, yp_val),
@@ -314,7 +326,7 @@ class Trainer:
 
         self.history = histories
 
-    def finetune(self, X_train, y_train, X_val, y_val, epochs=200, runs=5):
+    def finetune(self, X_train, y_train, X_val, y_val, epochs=30, runs=5, learning_rate=0.0001):
         if self.weights is None:
             raise ValueError('finetune not available for weights=None')
 
@@ -329,7 +341,9 @@ class Trainer:
         histories = []
 
         for run in range(runs):
-            self.build_model(learning_rate=0.0001, freeze_backbone=True)
+            self.run = run
+            self.build_model(freeze_backbone=True)
+            self.set_callbacks()
             history0 = self.model.fit(
                 Xp_train, yp_train,
                 validation_data=(Xp_val, yp_val),
@@ -344,7 +358,7 @@ class Trainer:
                 l.trainable = True
             self.model.compile(
                 loss=self.loss,
-                optimizer=SGD(lr=0.0001, decay=1e-6, momentum=0.9, nesterov=True),
+                optimizer=Adam(lr=learning_rate),
                 metrics=self.metrics)
 
             history = self.model.fit(
@@ -366,7 +380,7 @@ class Trainer:
 
         self.history = histories
 
-    def train_top(self, X_train, y_train, X_val, y_val, epochs=200, runs=5):
+    def train_top(self, X_train, y_train, X_val, y_val, epochs=30, runs=5):
         self.set_class_weights(y_train)
 
         Xp_train = self.extract_features(X_train)
@@ -379,7 +393,9 @@ class Trainer:
         histories = []
 
         for run in range(runs):
+            self.run = run
             self.build_top_clf(inpt_dim)
+            self.set_callbacks()
             history = self.clf.fit(
                 Xp_train, yp_train,
                 validation_data=(Xp_val, yp_val),
@@ -398,42 +414,9 @@ class Trainer:
 
         self.history = histories
 
-    def train_lowdata(self, X_train, y_train, X_val, y_val, epochs=200, runs=10):
+    def train_lowdata(self, X_train, y_train, X_val, y_val, epochs=30, runs=10):
         # TODO
         raise NotImplementedError()
-
-    def train_catalog(self, X_train, y_train, X_val, y_val, runs=5):
-        if len(X_train.shape) != 2 or len(X_val.shape) != 2:
-            raise ValueError('X must have shape=2')
-
-        self.set_class_weights(y_train)
-
-        Xp_train = self.preprocess_output(X_train)
-        yp_train = self.preprocess_output(y_train)
-        Xp_val = self.preprocess_output(X_val)
-        yp_val = self.preprocess_output(y_val)
-
-        inpt_dim = Xp_train.shape[1]
-        time_cb = TimeHistory()
-        histories = []
-
-        for run in range(runs):
-            print("RUN #", run)
-            self.build_top_clf(inpt_dim)
-            history = self.clf.fit(
-                Xp_train, yp_train,
-                validation_data=(Xp_val, yp_val),
-                batch_size=BATCH_SIZE,
-                epochs=self.epochs,
-                callbacks=self.callbacks + [time_cb],
-                class_weight=self.class_weights,
-                verbose=2
-            )
-            ht = history.history
-            ht['times'] = time_cb.times
-            histories.append(ht)
-
-        self.history = histories
 
     def print_history(self):
         print(self.history)
