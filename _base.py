@@ -117,6 +117,8 @@ class Trainer:
         self.output_type = output_type
         self.weights = weights
         self.model_name = model_name
+
+        self.clf = None
         self.history = None
         self.run = -1
 
@@ -234,7 +236,6 @@ class Trainer:
         self.model.compile(loss=self.loss, optimizer=opt, metrics=self.metrics)
 
     def build_top_clf(self, inpt_dim, learning_rate=0.0001):
-        # TODO
         inpt = Input(shape=(inpt_dim,))
         x = Dense(12, activation=LeakyReLU())(inpt)
         x = Dense(N_CLASSES, activation=self.activation)(x)
@@ -291,7 +292,7 @@ class Trainer:
             self.class_weights = compute_class_weight('balanced', np.unique(yy), yy)
             print('set class weights to', self.class_weights)
 
-    def train(self, X_train, y_train, X_val, y_val, epochs=60, runs=5):
+    def train(self, X_train, y_train, X_val, y_val, epochs=100, runs=3):
         self.set_class_weights(y_train)
 
         Xp_train = self.preprocess_input(X_train)
@@ -326,7 +327,7 @@ class Trainer:
 
         self.history = histories
 
-    def finetune(self, X_train, y_train, X_val, y_val, epochs=30, runs=5, learning_rate=0.0001):
+    def finetune(self, X_train, y_train, X_val, y_val, epochs=50, runs=5, learning_rate=0.0001):
         if self.weights is None:
             raise ValueError('finetune not available for weights=None')
 
@@ -380,7 +381,7 @@ class Trainer:
 
         self.history = histories
 
-    def train_top(self, X_train, y_train, X_val, y_val, epochs=30, runs=5):
+    def train_top(self, X_train, y_train, X_val, y_val, epochs=50, runs=5):
         self.set_class_weights(y_train)
 
         Xp_train = self.extract_features(X_train)
@@ -414,9 +415,66 @@ class Trainer:
 
         self.history = histories
 
-    def train_lowdata(self, X_train, y_train, X_val, y_val, epochs=30, runs=10):
-        # TODO
-        raise NotImplementedError()
+    def train_lowdata(self, X_train, y_train, X_val, y_val, epochs=30, size_increment=500, runs=20, learning_rate=0.0001):
+        # finetune with varying training set sizes
+        if self.weights is None:
+            raise ValueError('train_lowdata not available for weights=None')
+
+        self.set_class_weights(y_train)
+
+        Xp_train = self.preprocess_input(X_train)
+        Xp_val = self.preprocess_input(X_val)
+        yp_train = self.preprocess_output(y_train)
+        yp_val = self.preprocess_output(y_val)
+
+        time_cb = TimeHistory()
+        histories = []
+
+        rnd = np.random.uniform(size=Xp_train.shape[0])
+        percentages = np.linspace(size_increment, size_increment*runs, runs)/Xp_train.shape[0]
+
+        for p in percentages:
+            Xpp_train = Xp_train[rnd <= p]
+            ypp_train = yp_train[rnd <= p]
+
+            self.run = str(p)
+            self.build_model(freeze_backbone=True)
+            self.set_callbacks()
+            history0 = self.model.fit(
+                Xpp_train, ypp_train,
+                validation_data=(Xp_val, yp_val),
+                batch_size=BATCH_SIZE,
+                epochs=10,
+                callbacks=self.callbacks,
+                class_weight=self.class_weights,
+                verbose=2
+            )
+
+            for l in self.model.layers:
+                l.trainable = True
+            self.model.compile(
+                loss=self.loss,
+                optimizer=Adam(lr=learning_rate),
+                metrics=self.metrics)
+
+            history = self.model.fit(
+                Xpp_train, ypp_train,
+                validation_data=(Xp_val, yp_val),
+                batch_size=BATCH_SIZE,
+                epochs=epochs,
+                callbacks=self.callbacks + [time_cb],
+                class_weight=self.class_weights,
+                verbose=2
+            )
+
+            ht = history.history
+            ht['times'] = time_cb.times
+            histories.append(ht)
+
+            print('percentage', p)
+            print('val acc', np.max(ht['val_accuracy']))
+
+        self.history = histories
 
     def print_history(self):
         print(self.history)
