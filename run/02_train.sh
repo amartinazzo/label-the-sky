@@ -26,7 +26,7 @@ dataset="clf"
 declare -a servers=($(hostname))
 
 declare -a backbones=(vgg)
-declare -a pretraining_datasets=(unlabeled imagenet)
+declare -a pretraining_datasets=(unlabeled imagenet None)
 declare -a nbands_=(12 5 3)
 declare -a finetune=(0 1)
 
@@ -41,7 +41,7 @@ do
         do
             for ft in ${finetune[*]}
             do
-                if [[ $pretraining_data == "imagenet" && $nbands -ne 3 ]];
+                if [[ $pretraining_data == "imagenet" && $nbands -ne 3 ]] || [[ $pretraining_data == "None" && $ft -eq 1 ]]
                 then
                     continue
                 else

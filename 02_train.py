@@ -12,7 +12,7 @@ if len(sys.argv) != 7:
 
 dataset = sys.argv[1]
 backbone = sys.argv[2]
-pretraining_dataset = sys.argv[3]
+pretraining_dataset = None if sys.argv[3]=='None' else sys.argv[3]
 n_channels = int(sys.argv[4])
 finetune = True if sys.argv[5]=='1' else False
 timestamp = sys.argv[6]
@@ -41,15 +41,14 @@ X_test, y_test = trainer.load_data(dataset=dataset, split='test')
 
 start = time()
 
+mode = 'top_clf'
 if pretraining_dataset is None:
-    print('training: from scratch')
-    trainer.train(X_train, y_train, X_val, y_val)
+    mode = 'from_scratch'
 elif finetune:
-    print('training: finetuning')
-    trainer.finetune(X_train, y_train, X_val, y_val)
-else:
-    print('training: top clf')
-    trainer.train_top(X_train, y_train, X_val, y_val)
+    mode = 'finetune'
+
+print(f'training: {mode}')
+trainer.train(X_train, y_train, X_val, y_val, mode=mode)
 
 trainer.dump_history()
 print('--- minutes taken:', int((time() - start) / 60))

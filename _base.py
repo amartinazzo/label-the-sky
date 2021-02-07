@@ -264,7 +264,10 @@ class Trainer:
         print('******************************')
 
     def load_weights(self, weights_file):
-        self.model.load_weights(weights_file) #by_name=True, skip_mismatch=True
+        if self.output_type != 'class':
+            self.model.load_weights(weights_file)
+        else:
+            self.model.load_weights(weights_file, by_name=True, skip_mismatch=True)
         print('loaded .h5 weights')
 
     def pick_best_model(self, metric='val_loss'):
@@ -294,35 +297,43 @@ class Trainer:
             self.class_weights = compute_class_weight('balanced', np.unique(yy), yy)
             print('set class weights to', self.class_weights)
 
-    def train(self, X_train, y_train, X_val, y_val, epochs=50, runs=3, mode='train', learning_rate=0.001):
-        # available modes: train, finetune, top_clf
-        if mode!='train' and self.weights is None:
-            raise ValueError('finetune not available for weights=None')
+    def train(self, X_train, y_train, X_val, y_val, mode='from_scratch', epochs=50, runs=3):
+        # available modes: from_scratch, finetune, top_clf
+        if mode!='from_scratch' and self.weights is None:
+            raise ValueError(f'{mode} not available for weights=None')
         self.set_class_weights(y_train)
 
-        Xp_train = self.preprocess_input(X_train)
+        if mode=='top_clf':
+            Xp_train = self.extract_features(X_train)
+            Xp_val = self.extract_features(X_val)
+        else:
+            Xp_train = self.preprocess_input(X_train)
+            Xp_val = self.preprocess_input(X_val)
         yp_train = self.preprocess_output(y_train)
-        Xp_val = self.preprocess_input(X_val)
         yp_val = self.preprocess_output(y_val)
 
-        if mode=='train':
-            history = self.train_default(X_train, y_train, X_val, y_val, epochs, runs)
+        if mode=='from_scratch':
+            history = self.from_scratch(Xp_train, yp_train, Xp_val, yp_val, epochs, runs)
         elif mode=='finetune':
-            history = self.finetune(X_train, y_train, X_val, y_val, epochs, runs)
+            history = self.finetune(Xp_train, yp_train, Xp_val, yp_val, epochs, runs)
         elif mode=='top_clf':
-            history = self.train_top(X_train, y_train, X_val, y_val, epochs, runs)
+            history = self.train_top(Xp_train, yp_train, Xp_val, yp_val, epochs, runs)
 
         self.history = history
 
-    def train_lowdata(self, X_train, y_train, X_val, y_val, epochs=30, runs=3, size_increment=500,
-                      n_subsets=20, mode='train', learning_rate=0.0001):
-        if mode!='train' and self.weights is None:
-            raise ValueError('train_lowdata not available for weights=None')
+    def train_lowdata(self, X_train, y_train, X_val, y_val, mode='from_scratch', epochs=30, runs=3,
+                      size_increment=500, n_subsets=20):
+        if mode!='from_scratch' and self.weights is None:
+            raise ValueError(f'{mode} not available for weights=None')
 
         self.set_class_weights(y_train)
 
-        Xp_train = self.preprocess_input(X_train)
-        Xp_val = self.preprocess_input(X_val)
+        if mode=='top_clf':
+            Xp_train = self.extract_features(X_train)
+            Xp_val = self.extract_features(X_val)
+        else:
+            Xp_train = self.preprocess_input(X_train)
+            Xp_val = self.preprocess_input(X_val)
         yp_train = self.preprocess_output(y_train)
         yp_val = self.preprocess_output(y_val)
 
@@ -336,19 +347,19 @@ class Trainer:
             Xpp_train = Xp_train[rnd <= p]
             ypp_train = yp_train[rnd <= p]
 
-        if mode=='train':
-            ht = self.train_default(X_train, y_train, X_val, y_val, epochs, runs)
-        elif mode=='finetune':
-            ht = self.finetune(X_train, y_train, X_val, y_val, epochs, runs)
-        elif mode=='top_clf':
-            ht = self.train_top(X_train, y_train, X_val, y_val, epochs, runs)
+            if mode=='from_scratch':
+                ht = self.from_scratch(Xpp_train, ypp_train, X_val, y_val, epochs, runs)
+            elif mode=='finetune':
+                ht = self.finetune(Xpp_train, ypp_train, X_val, y_val, epochs, runs)
+            elif mode=='top_clf':
+                ht = self.train_top(Xpp_train, ypp_train, X_val, y_val, epochs, runs)
 
             ht['percentage'] = p
             histories.append(ht)
 
         self.history = histories
 
-    def train_default(self, X_train, y_train, X_val, y_val, epochs, runs):
+    def from_scratch(self, X_train, y_train, X_val, y_val, epochs, runs):
         time_cb = TimeHistory()
         histories = []
 
