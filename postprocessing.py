@@ -56,16 +56,20 @@ def agg_histories(pattern, mode):
     return hist_list
 
 
-if len(sys.argv) < 2:
-    print('usage: python {} "<glob_pattern>" <mode>'.format(sys.argv[0]))
-    exit()
+def kl_divergence(p, q):
+    return np.sum(np.where(p != 0, p * np.log(p / q), 0))
 
-glob_pattern = sys.argv[1]
-mode = sys.argv[2] if len(sys.argv)>2 else 'mean'
+if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print('usage: python {} "<glob_pattern>" <mode>'.format(sys.argv[0]))
+        exit()
 
-history_dict = agg_histories(glob_pattern, mode=mode)
+    glob_pattern = sys.argv[1]
+    mode = sys.argv[2] if len(sys.argv)>2 else 'mean'
 
-df = pd.DataFrame.from_dict(history_dict)
-df.drop(columns=['timestamp', 'backbone', 'runs'], inplace=True)
-dfg = df.groupby(['weights', 'finetune', 'n_channels']).first().unstack().unstack().T
-print(dfg)
+    history_dict = agg_histories(glob_pattern, mode=mode)
+
+    df = pd.DataFrame.from_dict(history_dict)
+    df.drop(columns=['timestamp', 'backbone', 'runs'], inplace=True)
+    dfg = df.groupby(['weights', 'finetune', 'n_channels']).first().unstack().unstack().T
+    print(dfg)

@@ -143,7 +143,6 @@ class Trainer:
         tf.compat.v1.disable_eager_execution()
         os.environ['TF_FORCE_GPU_ALLOW_GROWTH'] = 'true'
 
-        self.set_callbacks()
         if self.backbone is not None:
             self.build_model()
 
@@ -225,8 +224,7 @@ class Trainer:
         self.embedder_yx = Model(inputs=self.model.input, outputs=[y, x])
 
         if self.weights is not None and os.path.exists(self.weights):
-            self.model.load_weights(self.weights, by_name=True, skip_mismatch=True)
-            print('loaded .h5 weights')
+            self.load_weights(self.weights)
 
         if freeze_backbone:
             for layer in self.model.layers[:self.top_layer_idx]:
@@ -265,6 +263,10 @@ class Trainer:
         print('weights\t\t', self.weights)
         print('******************************')
 
+    def load_weights(self, weights_file):
+        self.model.load_weights(weights_file) #by_name=True, skip_mismatch=True
+        print('loaded .h5 weights')
+
     def pick_best_model(self, metric='val_loss'):
         if self.history is None:
             raise ValueError('no training history available.')
@@ -292,7 +294,10 @@ class Trainer:
             self.class_weights = compute_class_weight('balanced', np.unique(yy), yy)
             print('set class weights to', self.class_weights)
 
-    def train(self, X_train, y_train, X_val, y_val, epochs=100, runs=3):
+    def train(self, X_train, y_train, X_val, y_val, epochs=50, runs=3, mode='train', learning_rate=0.001):
+        # available modes: train, finetune, top_clf
+        if mode!='train' and self.weights is None:
+            raise ValueError('finetune not available for weights=None')
         self.set_class_weights(y_train)
 
         Xp_train = self.preprocess_input(X_train)
@@ -300,6 +305,50 @@ class Trainer:
         Xp_val = self.preprocess_input(X_val)
         yp_val = self.preprocess_output(y_val)
 
+        if mode=='train':
+            history = self.train_default(X_train, y_train, X_val, y_val, epochs, runs)
+        elif mode=='finetune':
+            history = self.finetune(X_train, y_train, X_val, y_val, epochs, runs)
+        elif mode=='top_clf':
+            history = self.train_top(X_train, y_train, X_val, y_val, epochs, runs)
+
+        self.history = history
+
+    def train_lowdata(self, X_train, y_train, X_val, y_val, epochs=30, runs=3, size_increment=500,
+                      n_subsets=20, mode='train', learning_rate=0.0001):
+        if mode!='train' and self.weights is None:
+            raise ValueError('train_lowdata not available for weights=None')
+
+        self.set_class_weights(y_train)
+
+        Xp_train = self.preprocess_input(X_train)
+        Xp_val = self.preprocess_input(X_val)
+        yp_train = self.preprocess_output(y_train)
+        yp_val = self.preprocess_output(y_val)
+
+        time_cb = TimeHistory()
+        histories = []
+
+        rnd = np.random.uniform(size=Xp_train.shape[0])
+        percentages = np.linspace(size_increment, size_increment*n_subsets, n_subsets)/Xp_train.shape[0]
+
+        for p in percentages:
+            Xpp_train = Xp_train[rnd <= p]
+            ypp_train = yp_train[rnd <= p]
+
+        if mode=='train':
+            ht = self.train_default(X_train, y_train, X_val, y_val, epochs, runs)
+        elif mode=='finetune':
+            ht = self.finetune(X_train, y_train, X_val, y_val, epochs, runs)
+        elif mode=='top_clf':
+            ht = self.train_top(X_train, y_train, X_val, y_val, epochs, runs)
+
+            ht['percentage'] = p
+            histories.append(ht)
+
+        self.history = histories
+
+    def train_default(self, X_train, y_train, X_val, y_val, epochs, runs):
         time_cb = TimeHistory()
         histories = []
 
@@ -308,8 +357,8 @@ class Trainer:
             self.build_model()
             self.set_callbacks()
             history = self.model.fit(
-                Xp_train, yp_train,
-                validation_data=(Xp_val, yp_val),
+                X_train, y_train,
+                validation_data=(X_val, y_val),
                 batch_size=BATCH_SIZE,
                 epochs=epochs,
                 callbacks=self.callbacks + [time_cb],
@@ -325,19 +374,9 @@ class Trainer:
                 print('val acc', np.max(ht['val_accuracy']))
             print('val loss', np.min(ht['val_loss']))
 
-        self.history = histories
+        return histories
 
-    def finetune(self, X_train, y_train, X_val, y_val, epochs=50, runs=5, learning_rate=0.0001):
-        if self.weights is None:
-            raise ValueError('finetune not available for weights=None')
-
-        self.set_class_weights(y_train)
-
-        Xp_train = self.preprocess_input(X_train)
-        Xp_val = self.preprocess_input(X_val)
-        yp_train = self.preprocess_output(y_train)
-        yp_val = self.preprocess_output(y_val)
-
+    def finetune(self, X_train, y_train, X_val, y_val, epochs, runs, learning_rate=0.0001):
         time_cb = TimeHistory()
         histories = []
 
@@ -346,15 +385,14 @@ class Trainer:
             self.build_model(freeze_backbone=True)
             self.set_callbacks()
             history0 = self.model.fit(
-                Xp_train, yp_train,
-                validation_data=(Xp_val, yp_val),
+                X_train, y_train,
+                validation_data=(X_val, y_val),
                 batch_size=BATCH_SIZE,
                 epochs=10,
                 callbacks=self.callbacks,
                 class_weight=self.class_weights,
                 verbose=2
             )
-
             for l in self.model.layers:
                 l.trainable = True
             self.model.compile(
@@ -363,15 +401,14 @@ class Trainer:
                 metrics=self.metrics)
 
             history = self.model.fit(
-                Xp_train, yp_train,
-                validation_data=(Xp_val, yp_val),
+                X_train, y_train,
+                validation_data=(X_val, y_val),
                 batch_size=BATCH_SIZE,
                 epochs=epochs,
                 callbacks=self.callbacks + [time_cb],
                 class_weight=self.class_weights,
                 verbose=2
             )
-
             ht = history.history
             ht['times'] = time_cb.times
             histories.append(ht)
@@ -379,17 +416,10 @@ class Trainer:
             print('RUN #', run)
             print('val acc', np.max(ht['val_accuracy']))
 
-        self.history = histories
+        return histories
 
-    def train_top(self, X_train, y_train, X_val, y_val, epochs=50, runs=5):
-        self.set_class_weights(y_train)
-
-        Xp_train = self.extract_features(X_train)
-        yp_train = self.preprocess_output(y_train)
-        Xp_val = self.extract_features(X_val)
-        yp_val = self.preprocess_output(y_val)
-
-        inpt_dim = Xp_train.shape[1]
+    def train_top(self, X_train, y_train, X_val, y_val, epochs, runs):
+        inpt_dim = X_train.shape[1]
         time_cb = TimeHistory()
         histories = []
 
@@ -398,8 +428,8 @@ class Trainer:
             self.build_top_clf(inpt_dim)
             self.set_callbacks()
             history = self.clf.fit(
-                Xp_train, yp_train,
-                validation_data=(Xp_val, yp_val),
+                X_train, y_train,
+                validation_data=(X_val, y_val),
                 batch_size=BATCH_SIZE,
                 epochs=epochs,
                 callbacks=self.callbacks + [time_cb],
@@ -413,68 +443,7 @@ class Trainer:
             print("RUN #", run)
             print('val acc', np.max(ht['val_accuracy']))
 
-        self.history = histories
-
-    def train_lowdata(self, X_train, y_train, X_val, y_val, epochs=30, size_increment=500, runs=20, learning_rate=0.0001):
-        # finetune with varying training set sizes
-        if self.weights is None:
-            raise ValueError('train_lowdata not available for weights=None')
-
-        self.set_class_weights(y_train)
-
-        Xp_train = self.preprocess_input(X_train)
-        Xp_val = self.preprocess_input(X_val)
-        yp_train = self.preprocess_output(y_train)
-        yp_val = self.preprocess_output(y_val)
-
-        time_cb = TimeHistory()
-        histories = []
-
-        rnd = np.random.uniform(size=Xp_train.shape[0])
-        percentages = np.linspace(size_increment, size_increment*runs, runs)/Xp_train.shape[0]
-
-        for p in percentages:
-            Xpp_train = Xp_train[rnd <= p]
-            ypp_train = yp_train[rnd <= p]
-
-            self.run = str(p)
-            self.build_model(freeze_backbone=True)
-            self.set_callbacks()
-            history0 = self.model.fit(
-                Xpp_train, ypp_train,
-                validation_data=(Xp_val, yp_val),
-                batch_size=BATCH_SIZE,
-                epochs=10,
-                callbacks=self.callbacks,
-                class_weight=self.class_weights,
-                verbose=2
-            )
-
-            for l in self.model.layers:
-                l.trainable = True
-            self.model.compile(
-                loss=self.loss,
-                optimizer=Adam(lr=learning_rate),
-                metrics=self.metrics)
-
-            history = self.model.fit(
-                Xpp_train, ypp_train,
-                validation_data=(Xp_val, yp_val),
-                batch_size=BATCH_SIZE,
-                epochs=epochs,
-                callbacks=self.callbacks + [time_cb],
-                class_weight=self.class_weights,
-                verbose=2
-            )
-
-            ht = history.history
-            ht['times'] = time_cb.times
-            histories.append(ht)
-
-            print('percentage', p)
-            print('val acc', np.max(ht['val_accuracy']))
-
-        self.history = histories
+        return histories
 
     def print_history(self):
         print(self.history)
@@ -511,7 +480,10 @@ class Trainer:
     def predict(self, X):
         if self.backbone is not None:
             Xp = self.preprocess_input(X)
-            return self.model.predict(Xp)
+            yhat = self.model.predict(Xp)
+            if self.output_type != 'class':
+                return yhat * MAG_MAX
+            return yhat
         else:
             Xp = self.preprocess_output(X)
             return self.clf.predict(Xp)
@@ -521,5 +493,7 @@ class Trainer:
         return self.embedder.predict(Xp)
 
     def extract_features_and_predict(self, X):
+        # TODO apply MAG_MAX when output_type != class
         Xp = self.preprocess_input(X)
-        return self.embedder_yx.predict(Xp)
+        yhat = self.embedder_yx.predict(Xp)
+        return yhat

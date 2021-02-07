@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 
-def set_fonts():
+def set_plt_style():
     plt.style.use('seaborn')
     nice_fonts = {
             'text.usetex': False,#True,
@@ -57,11 +57,17 @@ def make_magnitude_histograms(df_arr, df_names, mag_col='r'):
     plt.savefig('svg/magnitude_hists.svg', format='svg', bbox_inches='tight')
 
 
-def make_err_histograms(arr, rows=3, cols=4, xmax=0.5):
+def make_err_histograms(arr, output_file, rows=3, cols=4, xmax=0.5):
     cmap = mpl.cm.get_cmap('rainbow_r', 12)
     legend = ['U', 'F378', 'F395', 'F410', 'F430', 'G', 'F515', 'R', 'F660', 'I', 'F861', 'Z']
     fig, ax = plt.subplots(rows, cols, figsize=set_size(subplots=[rows, cols]))
-    plt.setp(ax, xticks=[0.1, 0.2, 0.3, 0.4, 0.5], yticks=[10000, 20000, 30000, 40000, 50000, 60000, 70000], xticklabels=[], yticklabels=[])
+    plt.setp(
+        ax,
+        xticks=[0.1, 0.2, 0.3, 0.4, 0.5],
+        yticks=[10000, 20000, 30000, 40000, 50000, 60000, 70000],
+        xticklabels=[0.1, 0.2, 0.3, 0.4, 0.5],
+        yticklabels=[10000, None, None, None, 50000, None, None]
+        )
     n = 0
     for i in range(rows):
         for j in range(cols):
@@ -70,7 +76,7 @@ def make_err_histograms(arr, rows=3, cols=4, xmax=0.5):
             ax[i, j].set_xlabel(legend[n], labelpad=-5)
             ax[i, j].set_xlim(0, xmax)
             n = n+1
-    plt.savefig('svg/magnitude_errors.svg', format='svg', bbox_inches='tight')
+    plt.savefig(output_file, format='svg', bbox_inches='tight')
 
 
 def make_err_histograms_overlapped(arr, xmax=0.5):
@@ -118,17 +124,19 @@ def make_trainval_curves(glob_pattern, output_file, metric='loss', color_duos=Tr
     plt.savefig(output_file, format='svg', bbox_inches='tight')
 
 
-def make_metrics_curves(glob_pattern, output_file, metrics=['val_loss'], color_duos=True):
+def make_metrics_curves(glob_pattern, output_file, metrics=['val_loss']):
     files = glob(glob_pattern)
     files.sort()
     print('nr of files', len(files))
     print('metrics', metrics)
 
+    max_iterations = -1
+
     plt.subplots(figsize=set_size())
-    for i, f in enumerate(files):
-        print(f)
+    for f in files:
         history = json.load(open(f, 'r'))
         n_runs = len(history)
+        plt_label = f.split('_')[-2] + ' channels'
 
         for m in metrics:
             metric = [history[n][f'{m}'] for n in range(n_runs)]
@@ -136,9 +144,14 @@ def make_metrics_curves(glob_pattern, output_file, metrics=['val_loss'], color_d
             means = metric.mean(axis=0)
             errors = metric.std(axis=0, ddof=1)
             iterations = range(means.shape[0])
-            plt.plot(iterations, means, linewidth=1)
+            if means.shape[0] > max_iterations:
+                max_iterations = means.shape[0]
+            plt.plot(iterations, means, linewidth=1, label=plt_label)
             plt.fill_between(iterations, means-errors, means+errors, alpha=0.5)
-    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.xlim(0, max_iterations)
+    plt.xlabel('# of iterations')
+    plt.ylabel(metrics[0])
+    plt.legend(loc='upper right')
     plt.savefig(output_file, format='svg', bbox_inches='tight')
 
 
