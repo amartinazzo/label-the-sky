@@ -29,6 +29,7 @@ declare -a backbones=(vgg)
 declare -a pretraining_datasets=(unlabeled imagenet None)
 declare -a nbands_=(12 5 3)
 declare -a finetune=(0 1)
+declare -a dataset_modes=(lowdata) # full)
 
 declare -a commands
 declare -a pids
@@ -41,12 +42,15 @@ do
         do
             for ft in ${finetune[*]}
             do
-                if [[ $pretraining_data == "imagenet" && $nbands -ne 3 ]] || [[ $pretraining_data == "None" && $ft -eq 1 ]]
-                then
-                    continue
-                else
-                    commands+=("python -u 02_train.py $dataset $backbone $pretraining_data $nbands $ft $timestamp")
-                fi
+                for dataset_mode in ${dataset_modes[*]}
+                do
+                    if [[ $pretraining_data == "imagenet" && $nbands -ne 3 ]] || [[ $pretraining_data == "None" && $ft -eq 1 ]]
+                    then
+                        continue
+                    else
+                        commands+=("python -u 02_train.py $dataset $backbone $pretraining_data $nbands $ft $dataset_mode $timestamp")
+                    fi
+                done
             done
         done
     done
@@ -71,10 +75,11 @@ do
         weights=$(echo $cmd | cut -d" " -f6)
         nbandss=$(echo $cmd | cut -d" " -f7)
         ft=$(echo $cmd | cut -d" " -f8)
+        datasetmode=$(echo $cmd | cut -d" " -f9)
 
         if [ "$cmd" != "" ]
         then
-            logfile="logs/${timestamp}_${dataset}_${backbone}_${nbandss}_${weights}_ft${ft}.log"
+            logfile="logs/${timestamp}_${dataset}_${backbone}_${nbandss}_${weights}_ft${ft}_${datasetmode}.log"
             echo "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"
             echo "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &" >> $logfile
             eval "CUDA_VISIBLE_DEVICES=$gpu $cmd > $logfile 2>&1 &"

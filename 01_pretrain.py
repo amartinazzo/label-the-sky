@@ -37,13 +37,13 @@ X_test, y_test = trainer.load_data(dataset=dataset, split='test')
 start = time()
 
 print('pretraining model')
-trainer.train(X_train, y_train, X_val, y_val)
+trainer.train(X_train, y_train, X_val, y_val, epochs=100)
 trainer.dump_history()
-trainer.pick_best_model()
 print('--- minutes taken:', int((time() - start) / 60))
 
-print('evaluating model on test set')
-trainer.evaluate(X_test, y_test)
+print('evaluating model on validation set')
+trainer.pick_best_model()
+trainer.evaluate(X_val, y_val)
 print('--- minutes taken:', int((time() - start) / 60))
 
 print('printing history')

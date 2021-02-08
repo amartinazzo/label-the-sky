@@ -191,7 +191,7 @@ class Trainer:
             yp = y
         return yp
 
-    def build_model(self, learning_rate=0.0001, freeze_backbone=False):
+    def build_model(self, learning_rate=1e-4, freeze_backbone=False):
         architecture_fn = BACKBONE_FN.get(self.backbone)
 
         weights0 = 'imagenet' if self.weights == 'imagenet' else None
@@ -233,7 +233,7 @@ class Trainer:
         opt = Adam(lr=learning_rate)
         self.model.compile(loss=self.loss, optimizer=opt, metrics=self.metrics)
 
-    def build_top_clf(self, inpt_dim, learning_rate=0.0001):
+    def build_top_clf(self, inpt_dim, learning_rate=1e-4):
         inpt = Input(shape=(inpt_dim,))
         x = Dense(12, activation=LeakyReLU())(inpt)
         x = Dense(N_CLASSES, activation=self.activation)(x)
@@ -321,7 +321,7 @@ class Trainer:
 
         self.history = history
 
-    def train_lowdata(self, X_train, y_train, X_val, y_val, mode='from_scratch', epochs=30, runs=3,
+    def train_lowdata(self, X_train, y_train, X_val, y_val, mode='from_scratch', epochs=50, runs=3,
                       size_increment=500, n_subsets=20):
         if mode!='from_scratch' and self.weights is None:
             raise ValueError(f'{mode} not available for weights=None')
@@ -347,24 +347,25 @@ class Trainer:
             Xpp_train = Xp_train[rnd <= p]
             ypp_train = yp_train[rnd <= p]
 
-            if mode=='from_scratch':
-                ht = self.from_scratch(Xpp_train, ypp_train, X_val, y_val, epochs, runs)
-            elif mode=='finetune':
-                ht = self.finetune(Xpp_train, ypp_train, X_val, y_val, epochs, runs)
-            elif mode=='top_clf':
-                ht = self.train_top(Xpp_train, ypp_train, X_val, y_val, epochs, runs)
+            run_suffix = f'-{p}'
 
-            ht['percentage'] = p
+            if mode=='from_scratch':
+                ht = self.from_scratch(Xpp_train, ypp_train, X_val, y_val, epochs, runs, run_suffix)
+            elif mode=='finetune':
+                ht = self.finetune(Xpp_train, ypp_train, X_val, y_val, epochs, runs, run_suffix)
+            elif mode=='top_clf':
+                ht = self.train_top(Xpp_train, ypp_train, X_val, y_val, epochs, runs, run_suffix)
+
             histories.append(ht)
 
         self.history = histories
 
-    def from_scratch(self, X_train, y_train, X_val, y_val, epochs, runs):
+    def from_scratch(self, X_train, y_train, X_val, y_val, epochs, runs, run_suffix=''):
         time_cb = TimeHistory()
         histories = []
 
         for run in range(runs):
-            self.run = run
+            self.run = f'{run}{run_suffix}'
             self.build_model()
             self.set_callbacks()
             history = self.model.fit(
@@ -387,12 +388,12 @@ class Trainer:
 
         return histories
 
-    def finetune(self, X_train, y_train, X_val, y_val, epochs, runs, learning_rate=0.0001):
+    def finetune(self, X_train, y_train, X_val, y_val, epochs, runs, run_suffix='', learning_rate=1e-6):
         time_cb = TimeHistory()
         histories = []
 
         for run in range(runs):
-            self.run = run
+            self.run = f'{run}{run_suffix}'
             self.build_model(freeze_backbone=True)
             self.set_callbacks()
             history0 = self.model.fit(
@@ -429,13 +430,13 @@ class Trainer:
 
         return histories
 
-    def train_top(self, X_train, y_train, X_val, y_val, epochs, runs):
+    def train_top(self, X_train, y_train, X_val, y_val, epochs, runs, run_suffix=''):
         inpt_dim = X_train.shape[1]
         time_cb = TimeHistory()
         histories = []
 
         for run in range(runs):
-            self.run = run
+            self.run = f'{run}{run_suffix}'
             self.build_top_clf(inpt_dim)
             self.set_callbacks()
             history = self.clf.fit(
