@@ -29,7 +29,7 @@ declare -a backbones=(vgg)
 declare -a pretraining_datasets=(unlabeled imagenet None)
 declare -a nbands_=(12 5 3)
 declare -a finetune=(0 1)
-declare -a dataset_modes=(lowdata) # full)
+declare -a dataset_modes=(lowdata full)
 
 declare -a commands
 declare -a pids

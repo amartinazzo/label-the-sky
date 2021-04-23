@@ -125,35 +125,45 @@ def make_trainval_curves(glob_pattern, output_file, metric='loss', color_duos=Tr
 
 
 def make_metrics_curves(glob_pattern, output_file, metrics=['val_loss']):
-    files = glob(glob_pattern)
-    files.sort()
-    print('nr of files', len(files))
-    print('metrics', metrics)
+    if type(glob_pattern) != list:
+        pattern_lst = [glob_pattern]
+    else:
+        pattern_lst = glob_pattern
 
+    markers = [None, '$x$']
     max_iterations = -1
+    fig, ax = plt.subplots(figsize=set_size())
 
-    plt.subplots(figsize=set_size())
-    for f in files:
-        history = json.load(open(f, 'r'))
-        n_runs = len(history)
-        plt_label = f.split('_')[-2] + ' channels'
+    prop_cycle = plt.rcParams['axes.prop_cycle']
+    colors = prop_cycle.by_key()['color']
 
-        for m in metrics:
-            metric = [history[n][f'{m}'] for n in range(n_runs)]
-            metric = np.array(metric)
-            means = metric.mean(axis=0)
-            errors = metric.std(axis=0, ddof=1)
-            iterations = range(means.shape[0])
-            if means.shape[0] > max_iterations:
-                max_iterations = means.shape[0]
-            plt.plot(iterations, means, linewidth=1, label=plt_label)
-            plt.fill_between(iterations, means-errors, means+errors, alpha=0.5)
+    for ix, pattern in enumerate(pattern_lst):
+        files = glob(pattern)
+        files.sort()
+        print('nr of files', len(files))
+        print('metrics', metrics)
+
+        for ix_f, f in enumerate(files):
+            history = json.load(open(f, 'r'))
+            n_runs = len(history)
+            plt_label = f.split('_')[2] + ' channels'
+
+            for m in metrics:
+                metric = [history[n][f'{m}'] for n in range(n_runs)]
+                metric = np.array(metric)
+                means = metric.mean(axis=0)
+                errors = metric.std(axis=0, ddof=1)
+                iterations = range(means.shape[0])
+                if means.shape[0] > max_iterations:
+                    max_iterations = means.shape[0]
+                plt.plot(iterations, means, color=colors[ix_f], linewidth=1, label=plt_label, marker=markers[ix], markevery=10)
+                plt.fill_between(iterations, means-errors, means+errors, color=colors[ix_f], alpha=0.5)
+        if ix==0:
+            plt.legend(loc='lower right')
     plt.xlim(0, max_iterations)
     plt.xlabel('# of iterations')
     plt.ylabel(metrics[0])
-    plt.legend(loc='upper right')
     plt.savefig(output_file, format='svg', bbox_inches='tight')
-
 
 def gen_scatterplot(x, y, x_label, y_label, output_file):
     # use to generate score vs r-magnitude plots

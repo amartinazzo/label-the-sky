@@ -53,6 +53,8 @@ if pretraining_dataset is None:
 elif finetune:
     mode = 'finetune'
 
+trainer.describe(verbose=True)
+
 print(f'training: {mode}; dataset mode: {dataset_mode}')
 if dataset_mode == 'full':
     trainer.train(X_train, y_train, X_val, y_val, mode=mode)

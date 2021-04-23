@@ -297,7 +297,7 @@ class Trainer:
             self.class_weights = compute_class_weight('balanced', np.unique(yy), yy)
             print('set class weights to', self.class_weights)
 
-    def train(self, X_train, y_train, X_val, y_val, mode='from_scratch', epochs=50, runs=3):
+    def train(self, X_train, y_train, X_val, y_val, mode='from_scratch', epochs=100, runs=3):
         # available modes: from_scratch, finetune, top_clf
         if mode!='from_scratch' and self.weights is None:
             raise ValueError(f'{mode} not available for weights=None')
@@ -321,8 +321,8 @@ class Trainer:
 
         self.history = history
 
-    def train_lowdata(self, X_train, y_train, X_val, y_val, mode='from_scratch', epochs=50, runs=3,
-                      size_increment=500, n_subsets=20):
+    def train_lowdata(self, X_train, y_train, X_val, y_val, mode='from_scratch', epochs=300, runs=3,
+                      size_increment=100, n_subsets=20):
         if mode!='from_scratch' and self.weights is None:
             raise ValueError(f'{mode} not available for weights=None')
 
@@ -350,11 +350,11 @@ class Trainer:
             run_suffix = f'-{p}'
 
             if mode=='from_scratch':
-                ht = self.from_scratch(Xpp_train, ypp_train, X_val, y_val, epochs, runs, run_suffix)
+                ht = self.from_scratch(Xpp_train, ypp_train, Xp_val, yp_val, epochs, runs, run_suffix)
             elif mode=='finetune':
-                ht = self.finetune(Xpp_train, ypp_train, X_val, y_val, epochs, runs, run_suffix)
+                ht = self.finetune(Xpp_train, ypp_train, Xp_val, yp_val, epochs, runs, run_suffix)
             elif mode=='top_clf':
-                ht = self.train_top(Xpp_train, ypp_train, X_val, y_val, epochs, runs, run_suffix)
+                ht = self.train_top(Xpp_train, ypp_train, Xp_val, yp_val, epochs, runs, run_suffix)
 
             histories.append(ht)
 
@@ -388,7 +388,7 @@ class Trainer:
 
         return histories
 
-    def finetune(self, X_train, y_train, X_val, y_val, epochs, runs, run_suffix='', learning_rate=1e-6):
+    def finetune(self, X_train, y_train, X_val, y_val, epochs, runs, run_suffix='', learning_rate=1e-5):
         time_cb = TimeHistory()
         histories = []
 
@@ -473,7 +473,7 @@ class Trainer:
             os.makedirs(os.path.join(self.base_dir, 'mnt/history'))
         with open(os.path.join(self.base_dir, 'mnt/history', self.model_name+'.json'), 'w') as f:
             json.dump(self.history, f)
-        print('dumped history to', os.path.join(self.base_dir, 'mnt/history', self.model_name+'.json'))
+        print('dumped history to', os.path.join(self.base_dir, 'mnt/history', f'{self.model_name}_{self.run}.json'))
 
     def evaluate(self, X, y):
         yp = self.preprocess_output(y)
@@ -507,5 +507,7 @@ class Trainer:
     def extract_features_and_predict(self, X):
         # TODO apply MAG_MAX when output_type != class
         Xp = self.preprocess_input(X)
-        yhat = self.embedder_yx.predict(Xp)
-        return yhat
+        yhat, X_features = self.embedder_yx.predict(Xp)
+        if self.output_type != 'class':
+            return yhat * MAG_MAX, X_features
+        return yhat, X_features
