@@ -54,7 +54,7 @@ def make_magnitude_histograms(df_arr, df_names, mag_col='r'):
         mags = df[mag_col].values
         plt.hist(mags, bins=50, alpha=0.5, color=cmap(i), label=df_names[i], linewidth=0.)
     plt.legend()
-    plt.savefig('svg/magnitude_hists.svg', format='svg', bbox_inches='tight')
+    plt.savefig('figures/magnitude_hists.pdf', format='pdf', bbox_inches='tight')
 
 
 def make_err_histograms(arr, output_file, rows=3, cols=4, xmax=0.5):
@@ -76,7 +76,7 @@ def make_err_histograms(arr, output_file, rows=3, cols=4, xmax=0.5):
             ax[i, j].set_xlabel(legend[n], labelpad=-5)
             ax[i, j].set_xlim(0, xmax)
             n = n+1
-    plt.savefig(output_file, format='svg', bbox_inches='tight')
+    plt.savefig(output_file, format='pdf', bbox_inches='tight')
 
 
 def make_err_histograms_overlapped(arr, xmax=0.5):
@@ -93,7 +93,7 @@ def make_err_histograms_overlapped(arr, xmax=0.5):
         # ax[i,j].set_ylim(0, 50000)
     plt.legend()
     plt.xticks([], [])
-    plt.savefig('svg/magnitude_errors_overlap.svg', format='svg', bbox_inches='tight')
+    plt.savefig('figures/magnitude_errors_overlap.pdf', format='pdf', bbox_inches='tight')
 
 
 def make_trainval_curves(glob_pattern, output_file, metric='loss', color_duos=True):
@@ -121,10 +121,10 @@ def make_trainval_curves(glob_pattern, output_file, metric='loss', color_duos=Tr
         plt.plot(range(len(loss_val)), loss_val, linewidth=1, alpha=0.9, color=cmap(color_idx), markersize=3, markevery=5, marker=marker, label=label)
         # ax[0].plot(range(len(loss)), loss, alpha=0.9, color=cmap(i), label=label)
     plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    plt.savefig(output_file, format='svg', bbox_inches='tight')
+    plt.savefig(output_file, format='pdf', bbox_inches='tight')
 
 
-def make_metrics_curves(glob_pattern, output_file, metrics=['val_loss']):
+def make_metrics_curves(glob_pattern, output_file, metrics=['val_loss'], legend_location='upper right'):
     if type(glob_pattern) != list:
         pattern_lst = [glob_pattern]
     else:
@@ -159,15 +159,15 @@ def make_metrics_curves(glob_pattern, output_file, metrics=['val_loss']):
                 plt.plot(iterations, means, color=colors[ix_f], linewidth=1, label=plt_label, marker=markers[ix], markevery=10)
                 plt.fill_between(iterations, means-errors, means+errors, color=colors[ix_f], alpha=0.5)
         if ix==0:
-            plt.legend(loc='lower right')
+            plt.legend(loc=legend_location)
     plt.xlim(0, max_iterations)
     plt.xlabel('# of iterations')
     plt.ylabel(metrics[0])
-    plt.savefig(output_file, format='svg', bbox_inches='tight')
+    plt.savefig(output_file, format='pdf', bbox_inches='tight')
 
 def gen_scatterplot(x, y, x_label, y_label, output_file):
     # use to generate score vs r-magnitude plots
     plt.plot(x, y, alpha=0.9)
     plt.xlabel(x_label)
     plt.ylabel(y_label)
-    plt.savefig(output_file, format='svg', bbox_inches='tight')
+    plt.savefig(output_file, format='pdf', bbox_inches='tight')
