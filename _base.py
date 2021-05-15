@@ -460,20 +460,27 @@ class Trainer:
     def print_history(self):
         print(self.history)
 
-    def dump_history(self):
+    # TODO refactor
+    def dump_history(self, history_dir):
         if type(self.history) == list:
             hist_tmp = []
             for h in self.history:
-                hist_tmp.append(serialize(h))
+                if type(h) == list:
+                    hist_tmp2 = []
+                    for h_perc in h:
+                        hist_tmp2.append(serialize(h_perc))
+                    hist_tmp.append(hist_tmp2)
+                else:
+                    hist_tmp.append(serialize(h))
             self.history = hist_tmp
         else:
             self.history = serialize(self.history)
 
-        if not os.path.exists(os.path.join(self.base_dir, 'mnt/history')):
-            os.makedirs(os.path.join(self.base_dir, 'mnt/history'))
-        with open(os.path.join(self.base_dir, 'mnt/history', self.model_name+'.json'), 'w') as f:
+        if not os.path.exists(os.path.join(self.base_dir, history_dir)):
+            os.makedirs(os.path.join(self.base_dir, history_dir))
+        with open(os.path.join(self.base_dir, history_dir, self.model_name+'.json'), 'w') as f:
             json.dump(self.history, f)
-        print('dumped history to', os.path.join(self.base_dir, 'mnt/history', f'{self.model_name}_{self.run}.json'))
+        print('dumped history to', os.path.join(self.base_dir, history_dir, f'{self.model_name}.json'))
 
     def evaluate(self, X, y):
         yp = self.preprocess_output(y)

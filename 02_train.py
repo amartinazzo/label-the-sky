@@ -29,7 +29,7 @@ if pretraining_dataset is not None and pretraining_dataset!='imagenet':
 else:
     weights_file = pretraining_dataset
 
-model_name = f'{timestamp}_{backbone}_{n_channels}_{pretraining_dataset}_clf_ft{int(finetune)}'
+model_name = f'{timestamp}_{backbone}_{n_channels}_{pretraining_dataset}_clf_ft{int(finetune)}_{dataset_mode}'
 
 trainer = b.Trainer(
     backbone=backbone,
@@ -61,7 +61,7 @@ if dataset_mode == 'full':
 else:
     trainer.train_lowdata(X_train, y_train, X_val, y_val, mode=mode)
 
-trainer.dump_history()
+trainer.dump_history('mnt/history')
 print('--- minutes taken:', int((time() - start) / 60))
 
 if dataset_mode == 'full':
