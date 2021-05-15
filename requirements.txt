@@ -1,7 +1,7 @@
 astropy
 astroquery
 efficientnet
-keras
 pandas
 scikit-learn
+tensorflow
 umap-learn
