@@ -10,6 +10,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from _datagen import CLASS_MAP
 
 
 def set_plt_style():
@@ -44,7 +45,7 @@ def set_size(width='thesis', fraction=1, subplots=[1, 1]):
     return fig_dim
 
 
-def make_magnitude_histograms(df_arr, df_names, mag_col='r'):
+def make_magnitude_histograms(df_arr, df_names, output_file, mag_col='r'):
     cmap = mpl.cm.get_cmap('rainbow_r', len(df_arr))
     alpha = np.linspace(1, 0.4, len(df_arr))
     fig, ax = plt.subplots(figsize=set_size())
@@ -54,7 +55,7 @@ def make_magnitude_histograms(df_arr, df_names, mag_col='r'):
         mags = df[mag_col].values
         plt.hist(mags, bins=50, alpha=0.5, color=cmap(i), label=df_names[i], linewidth=0.)
     plt.legend()
-    plt.savefig('figures/magnitude_hists.pdf', format='pdf', bbox_inches='tight')
+    plt.savefig(output_file, format='pdf', bbox_inches='tight')
 
 
 def make_err_histograms(arr, output_file, rows=3, cols=4, xmax=0.5):
@@ -79,7 +80,7 @@ def make_err_histograms(arr, output_file, rows=3, cols=4, xmax=0.5):
     plt.savefig(output_file, format='pdf', bbox_inches='tight')
 
 
-def make_err_histograms_overlapped(arr, xmax=0.5):
+def make_err_histograms_overlapped(arr, xmax=0.5, output_file):
     cmap = mpl.cm.get_cmap('rainbow_r', 12)
     legend = ['U', 'F378', 'F395', 'F410', 'F430', 'G', 'F515', 'R', 'F660', 'I', 'F861', 'Z']
     legend.reverse()
@@ -93,7 +94,7 @@ def make_err_histograms_overlapped(arr, xmax=0.5):
         # ax[i,j].set_ylim(0, 50000)
     plt.legend()
     plt.xticks([], [])
-    plt.savefig('figures/magnitude_errors_overlap.pdf', format='pdf', bbox_inches='tight')
+    plt.savefig(output_file, format='pdf', bbox_inches='tight')
 
 
 def make_trainval_curves(glob_pattern, output_file, metric='loss', color_duos=True):
@@ -165,9 +166,62 @@ def make_metrics_curves(glob_pattern, output_file, metrics=['val_loss'], legend_
     plt.ylabel(metrics[0])
     plt.savefig(output_file, format='pdf', bbox_inches='tight')
 
-def gen_scatterplot(x, y, x_label, y_label, output_file):
-    # use to generate score vs r-magnitude plots
-    plt.plot(x, y, alpha=0.9)
+
+def gen_score_vs_attribute_plot(yhat_path, dataset_path, split, attribute, include, output_file):
+    '''
+        yhat_path:      path of npy file with y_hat outputs, shape (n_samples, n_classes)
+        dataset_path:   path of csv file 
+        split:          dataset split from which yhat was computed (train, val, test)
+        attribute:      object attribute to plot on x-axis (fwhm, magnitude, magnitude error)
+        include:        which objects from yhat to include on the plot
+                        'all'       (plot all samples)
+                        'correct'   (plot correctly classified samples)
+                        'incorrect' (plot incorrecly classifier samples)
+        output_file:    path of output image
+    '''
+    INCLUDE_VALS = ['all', 'correct', 'incorrect']
+    if include not in INCLUDE_VALS:
+        raise ValueError('include must be one of:', INCLUDE_VALS)
+
+    df = pd.read_csv(dataset_path)
+    if attribute not in df.columns:
+        raise ValueError('attribute must be one of:', df.columns)
+
+    df = df[df.split==split]
+    attribute_vals = df[attribute].values
+    class_names = df['class'].values
+    y = [CLASS_MAP[c] for c in class_names]
+
+    yhat = np.load(yhat_path)
+    yhat_class = np.argmax(yhat, axis=1)
+    yhat_score = yhat[yhat_class]
+
+    if include != 'all':
+        include_idx = y == yhat_score if include == 'correct' else y != yhat_score
+        attribute_vals = attribute_vals[include_idx]
+        class_names = class_names[include_idx]
+        yhat_class = yhat_class[include_idx]
+        yhat_score = yhat_score[include_idx]
+
+    gen_scatterplot(
+        x=attribute_vals,
+        y=yhat_score,
+        colors=yhat_class,
+        labels=class_names,
+        x_label=attribute,
+        y_label='score',
+        output_file=output_file
+    )
+
+
+def gen_scatterplot(x, y, colors, labels, x_label, y_label, output_file):
+    plt.plot(x, y, c=colors, labels=labels, alpha=0.5)
     plt.xlabel(x_label)
     plt.ylabel(y_label)
+    plt.legend()
     plt.savefig(output_file, format='pdf', bbox_inches='tight')
+
+
+def gen_2d_projection(X_features_path, dataset_path):
+    # TODO implement
+    raise NotImplementedError
