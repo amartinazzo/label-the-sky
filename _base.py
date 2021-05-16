@@ -12,7 +12,6 @@ from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.utils.class_weight import compute_class_weight
 import shutil
 import tensorflow as tf
-import tensorflow.keras as keras
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
 from tensorflow.keras.constraints import max_norm
 from tensorflow.keras.layers import Input, Dense, Dropout, GlobalAveragePooling2D, LeakyReLU
@@ -75,7 +74,7 @@ def compute_metrics(y_pred, y_true, target='class', onehot=True):
 
 
 def relu_saturated(x):
-    return keras.backend.relu(x, max_value=1.)
+    return tf.keras.backend.relu(x, max_value=1.)
 
 
 def serialize(history):
@@ -169,10 +168,10 @@ class Trainer:
             preprocessing_fn = PREPROCESSING_FN.get(self.backbone)
             Xp = preprocessing_fn(
                 X,
-                backend=keras.backend,
-                layers=keras.layers,
-                models=keras.models,
-                utils=keras.utils
+                backend=tf.keras.backend,
+                layers=tf.keras.layers,
+                models=tf.keras.models,
+                utils=tf.keras.utils
             )
         elif self.n_channels==5 and X.shape[-1]>5:
             Xp = X[:, :, :, BROAD_BANDS]
@@ -192,17 +191,18 @@ class Trainer:
         return yp
 
     def build_model(self, learning_rate=1e-4, freeze_backbone=False):
-        architecture_fn = BACKBONE_FN.get(self.backbone)
+        tf.keras.backend.clear_session()
 
+        architecture_fn = BACKBONE_FN.get(self.backbone)
         weights0 = 'imagenet' if self.weights == 'imagenet' else None
         model = architecture_fn(
             input_shape=self.input_shape,
             include_top=False,
             weights=weights0,
-            backend=keras.backend,
-            layers=keras.layers,
-            models=keras.models,
-            utils=keras.utils
+            backend=tf.keras.backend,
+            layers=tf.keras.layers,
+            models=tf.keras.models,
+            utils=tf.keras.utils
         )
 
         x = model.output
@@ -248,9 +248,9 @@ class Trainer:
 
         if self.model is not None:
             trainable = np.sum([
-                keras.backend.count_params(w) for w in self.model.trainable_weights])
+                tf.keras.backend.count_params(w) for w in self.model.trainable_weights])
             non_trainable = np.sum([
-                keras.backend.count_params(w) for w in self.model.non_trainable_weights])
+                tf.keras.backend.count_params(w) for w in self.model.non_trainable_weights])
             print('******************************')
             print('total params\t', f'{int(trainable + non_trainable):,}')
             print('trainable\t', f'{int(trainable):,}')
