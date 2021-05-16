@@ -13,6 +13,11 @@ import pandas as pd
 from _datagen import CLASS_MAP
 
 
+prop_cycle = plt.rcParams['axes.prop_cycle']
+COLORS = prop_cycle.by_key()['color']
+LEGEND_LOCATION = 'upper right'
+
+
 def set_plt_style():
     plt.style.use('seaborn')
     nice_fonts = {
@@ -80,7 +85,7 @@ def make_err_histograms(arr, output_file, rows=3, cols=4, xmax=0.5):
     plt.savefig(output_file, format='pdf', bbox_inches='tight')
 
 
-def make_err_histograms_overlapped(arr, xmax=0.5, output_file):
+def make_err_histograms_overlapped(arr, output_file, xmax=0.5):
     cmap = mpl.cm.get_cmap('rainbow_r', 12)
     legend = ['U', 'F378', 'F395', 'F410', 'F430', 'G', 'F515', 'R', 'F660', 'I', 'F861', 'Z']
     legend.reverse()
@@ -125,7 +130,7 @@ def make_trainval_curves(glob_pattern, output_file, metric='loss', color_duos=Tr
     plt.savefig(output_file, format='pdf', bbox_inches='tight')
 
 
-def make_metrics_curves(glob_pattern, output_file, metrics=['val_loss'], legend_location='upper right'):
+def make_metrics_curves(glob_pattern, output_file, metrics=['val_loss'], legend_location=LEGEND_LOCATION):
     if type(glob_pattern) != list:
         pattern_lst = [glob_pattern]
     else:
@@ -134,9 +139,6 @@ def make_metrics_curves(glob_pattern, output_file, metrics=['val_loss'], legend_
     markers = [None, '$x$']
     max_iterations = -1
     fig, ax = plt.subplots(figsize=set_size())
-
-    prop_cycle = plt.rcParams['axes.prop_cycle']
-    colors = prop_cycle.by_key()['color']
 
     for ix, pattern in enumerate(pattern_lst):
         files = glob(pattern)
@@ -157,7 +159,7 @@ def make_metrics_curves(glob_pattern, output_file, metrics=['val_loss'], legend_
                 iterations = range(means.shape[0])
                 if means.shape[0] > max_iterations:
                     max_iterations = means.shape[0]
-                plt.plot(iterations, means, color=colors[ix_f], linewidth=1, label=plt_label, marker=markers[ix], markevery=10)
+                plt.plot(iterations, means, color=COLORS[ix_f], linewidth=1, label=plt_label, marker=markers[ix], markevery=10)
                 plt.fill_between(iterations, means-errors, means+errors, color=colors[ix_f], alpha=0.5)
         if ix==0:
             plt.legend(loc=legend_location)
@@ -167,61 +169,41 @@ def make_metrics_curves(glob_pattern, output_file, metrics=['val_loss'], legend_
     plt.savefig(output_file, format='pdf', bbox_inches='tight')
 
 
-def gen_score_vs_attribute_plot(yhat_path, dataset_path, split, attribute, include, output_file):
+def gen_score_vs_attribute_plot(yhat_files_glob, dataset_file, split, attribute, output_file):
     '''
-        yhat_path:      path of npy file with y_hat outputs, shape (n_samples, n_classes)
-        dataset_path:   path of csv file 
+        yhat_files_glob:glob pattern for paths of npy files with y_hat outputs, shape (n_samples, n_classes)
+        dataset_file:   path of csv file 
         split:          dataset split from which yhat was computed (train, val, test)
         attribute:      object attribute to plot on x-axis (fwhm, magnitude, magnitude error)
-        include:        which objects from yhat to include on the plot
-                        'all'       (plot all samples)
-                        'correct'   (plot correctly classified samples)
-                        'incorrect' (plot incorrecly classifier samples)
         output_file:    path of output image
     '''
-    INCLUDE_VALS = ['all', 'correct', 'incorrect']
-    if include not in INCLUDE_VALS:
-        raise ValueError('include must be one of:', INCLUDE_VALS)
-
-    df = pd.read_csv(dataset_path)
+    df = pd.read_csv(dataset_file)
     if attribute not in df.columns:
         raise ValueError('attribute must be one of:', df.columns)
 
     df = df[df.split==split]
     attribute_vals = df[attribute].values
     class_names = df['class'].values
-    y = [CLASS_MAP[c] for c in class_names]
+    y = [CLASS_MAP[c] for c in class_names] # ground truth class of each sample
 
-    yhat = np.load(yhat_path)
-    yhat_class = np.argmax(yhat, axis=1)
-    yhat_score = yhat[yhat_class]
+    yhat_files = glob(yhat_files_glob)
+    yhat_files.sort()
+    print(yhat_files)
 
-    if include != 'all':
-        include_idx = y == yhat_score if include == 'correct' else y != yhat_score
-        attribute_vals = attribute_vals[include_idx]
-        class_names = class_names[include_idx]
-        yhat_class = yhat_class[include_idx]
-        yhat_score = yhat_score[include_idx]
-
-    gen_scatterplot(
-        x=attribute_vals,
-        y=yhat_score,
-        colors=yhat_class,
-        labels=class_names,
-        x_label=attribute,
-        y_label='score',
-        output_file=output_file
-    )
-
-
-def gen_scatterplot(x, y, colors, labels, x_label, y_label, output_file):
-    plt.plot(x, y, c=colors, labels=labels, alpha=0.5)
-    plt.xlabel(x_label)
-    plt.ylabel(y_label)
-    plt.legend()
+    for ix, yhat_file in enumerate(yhat_files):
+        yhat = np.load(yhat_file)
+        yhat_scores = yhat[range(yhat.shape[0]), y] # get scores predicted for ground truth classes
+        plt_label = yhat_file.split('_')[4] + ' channels'
+        print(attribute_vals.shape, yhat.shape, yhat_scores.shape)
+        plt.scatter(attribute_vals, yhat_scores, c=COLORS[ix], label=plt_label, alpha=0.5)
+    plt.xlabel(attribute)
+    plt.ylabel('yhat')
+    plt.legend(loc=LEGEND_LOCATION)
     plt.savefig(output_file, format='pdf', bbox_inches='tight')
 
 
+def make_error_analysis():
+    raise NotImplementedError
+
 def gen_2d_projection(X_features_path, dataset_path):
-    # TODO implement
     raise NotImplementedError
