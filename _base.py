@@ -281,7 +281,7 @@ class Trainer:
             os.path.join(self.save_dir, f'{self.model_name}.h5'))
 
     def set_callbacks(self):
-        self.save_checkpoints:
+        if self.save_checkpoints:
             self.callbacks = [
                 ModelCheckpoint(
                     os.path.join(self.save_dir, f'{self.model_name}_{self.run}.h5'),
