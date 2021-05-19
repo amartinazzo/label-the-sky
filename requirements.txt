@@ -3,6 +3,7 @@ astroquery
 efficientnet
 matplotlib
 pandas
+pyyaml
 scikit-learn
 tensorflow
 umap-learn

@@ -1,0 +1,20 @@
+base_dir: '~'
+eval_split: 'test'
+timestamp: '0206'
+
+backbones:
+  - vgg
+
+n_channels:
+  - 12
+  - 5
+  - 3
+
+pretraining_datasets:
+  - unlabeled
+  - imagenet
+  - null
+
+finetune:
+  # - 0
+  - 1
