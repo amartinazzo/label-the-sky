@@ -201,11 +201,46 @@ def gen_score_vs_attribute_plot(yhat_files_glob, dataset_file, split, attribute,
     plt.savefig(output_file, format='pdf', bbox_inches='tight')
 
 
-def acc_attribute_bins(yhat_files_glob, dataset_file, split, attribute, output_file):
+def acc_attribute_bins(yhat_files_glob, dataset_file, split, attribute, output_file, nbins=100):
     '''
     plot accuracy vs attribute curve. use bins with approximate number of samples.
     '''
-    raise NotImplementedError
+    df = pd.read_csv(dataset_file)
+    if attribute not in df.columns:
+        raise ValueError('attribute must be one of:', df.columns)
+
+    df = df[df.split==split]
+    attribute_vals = df[attribute].values
+    class_names = df['class'].values
+    y = np.array([CLASS_MAP[c] for c in class_names]) # ground truth class of each sample
+
+    sorted_idx = np.argsort(attribute_vals)
+    attribute_vals = attribute_vals[sorted_idx]
+    attribute_vals = np.array_split(attribute_vals, nbins)
+    attribute_vals = [np.median(subarr) for subarr in attribute_vals]
+
+    y = y[sorted_idx]
+
+    yhat_files = glob(yhat_files_glob)
+    yhat_files.sort()
+    print(yhat_files)
+
+    for ix, yhat_file in enumerate(yhat_files):
+        plt_label = yhat_file.split('_')[4] + ' channels'
+        yhat = np.load(yhat_file)
+        yhat = np.argmax(yhat, axis=1)
+        yhat = yhat[sorted_idx]
+        is_correct = yhat==y
+        is_correct = np.array_split(is_correct, nbins)
+        acc = [sum(subarr) / len(subarr) for subarr in is_correct]
+        plt.plot(attribute_vals, acc, c=COLORS[ix], label=plt_label)
+    plt.xlabel(attribute)
+    plt.ylabel('acc')
+    plt.legend(loc='lower left')
+    plt.savefig(output_file, format='pdf', bbox_inches='tight')
+
+def clear_plot():
+    plt.clf()
 
 def make_error_analysis():
     raise NotImplementedError
