@@ -1,6 +1,7 @@
 astropy
 astroquery
 efficientnet
+matplotlib
 pandas
 scikit-learn
 tensorflow

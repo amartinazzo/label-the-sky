@@ -95,7 +95,7 @@ def set_random_seeds():
 
 
 class Trainer:
-    def __init__(self, backbone, n_channels, output_type, base_dir, weights, model_name):
+    def __init__(self, backbone, n_channels, output_type, base_dir, weights, model_name, save_checkpoints=True):
         if backbone not in BACKBONES:
             raise ValueError('backbone should be one of %s, but %s was given' % (
                 BACKBONES, backbone))
@@ -116,6 +116,7 @@ class Trainer:
         self.output_type = output_type
         self.weights = weights
         self.model_name = model_name
+        self.save_checkpoints = save_checkpoints
 
         self.clf = None
         self.history = None
@@ -223,7 +224,7 @@ class Trainer:
         self.embedder = Model(inputs=self.model.input, outputs=x)
         self.embedder_yx = Model(inputs=self.model.input, outputs=[y, x])
 
-        if self.weights is not None and os.path.exists(self.weights):
+        if self.weights not in [None, 'imagenet']:
             self.load_weights(self.weights)
 
         if freeze_backbone:
@@ -263,11 +264,11 @@ class Trainer:
         print('weights\t\t', self.weights)
         print('******************************')
 
-    def load_weights(self, weights_file):
-        if self.output_type != 'class':
-            self.model.load_weights(weights_file)
-        else:
+    def load_weights(self, weights_file, skip_mismatch=True):
+        if skip_mismatch: # use for training
             self.model.load_weights(weights_file, by_name=True, skip_mismatch=True)
+        else: # use for inference
+            self.model.load_weights(weights_file)
         print('loaded .h5 weights')
 
     def pick_best_model(self, metric='val_loss'):
@@ -280,13 +281,12 @@ class Trainer:
             os.path.join(self.save_dir, f'{self.model_name}.h5'))
 
     def set_callbacks(self):
-        self.callbacks = [
-            ModelCheckpoint(
-                os.path.join(self.save_dir, f'{self.model_name}_{self.run}.h5'),
-                monitor='val_loss', save_best_only=True, save_weights_only=True, mode='min')
-            # EarlyStopping(
-            #     monitor='val_loss', mode='min', patience=10, restore_best_weights=True, verbose=1)
-        ]
+        self.save_checkpoints:
+            self.callbacks = [
+                ModelCheckpoint(
+                    os.path.join(self.save_dir, f'{self.model_name}_{self.run}.h5'),
+                    monitor='val_loss', save_best_only=True, save_weights_only=True, mode='min')
+            ]
 
     def set_class_weights(self, y):
         if self.output_type != 'class':

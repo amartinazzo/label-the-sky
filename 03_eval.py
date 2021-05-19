@@ -32,14 +32,20 @@ trainer = b.Trainer(
     weights=weights_file
 )
 
+trainer.load_weights(weights_file, skip_mismatch=False)
+
 print('loading data')
-X_val, y_val = trainer.load_data(dataset='clf', split='val')
+X_test, y_test = trainer.load_data(dataset='clf', split='test')
 
 start = time()
 
-print('predicting on val set')
-y_hat, X_features = trainer.extract_features_and_predict(X_val)
+print('predicting on test set')
+y_hat, X_features = trainer.extract_features_and_predict(X_test)
 print(y_hat.shape, X_features.shape)
-np.save(os.path.join('npy', 'yhat_val_'+model_name), y_hat)
-np.save(os.path.join('npy', 'Xf_val_'+model_name), X_features)
+np.save(os.path.join('npy', 'yhat_test_'+model_name), y_hat)
+np.save(os.path.join('npy', 'Xf_test_'+model_name), X_features)
+trainer.evaluate(X_test, y_test)
 print('--- minutes taken:', int((time() - start) / 60))
+
+print('generating figures')
+# TODO

@@ -1,6 +1,6 @@
 history/
 out
-**sandbox*.py
+**sandbox*
 
 .DS_Store
 ._*
@@ -11,6 +11,7 @@ logs/*
 *.dat
 *.fits
 *.h5
+*.ipynb
 *.log
 *.npy
 *.out

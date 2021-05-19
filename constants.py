@@ -1,0 +1,1 @@
+CLASS_MAP = {'GALAXY': 0, 'STAR': 1, 'QSO': 2}

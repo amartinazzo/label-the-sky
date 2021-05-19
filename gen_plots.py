@@ -4,14 +4,13 @@ based on: https://jwalton.info/Embed-Publication-Matplotlib-Latex/
 
 '''
 
+from constants import CLASS_MAP
 from glob import glob
 import json
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from _datagen import CLASS_MAP
-
 
 prop_cycle = plt.rcParams['axes.prop_cycle']
 COLORS = prop_cycle.by_key()['color']
@@ -160,7 +159,7 @@ def make_metrics_curves(glob_pattern, output_file, metrics=['val_loss'], legend_
                 if means.shape[0] > max_iterations:
                     max_iterations = means.shape[0]
                 plt.plot(iterations, means, color=COLORS[ix_f], linewidth=1, label=plt_label, marker=markers[ix], markevery=10)
-                plt.fill_between(iterations, means-errors, means+errors, color=colors[ix_f], alpha=0.5)
+                plt.fill_between(iterations, means-errors, means+errors, color=COLORS[ix_f], alpha=0.5)
         if ix==0:
             plt.legend(loc=legend_location)
     plt.xlim(0, max_iterations)
@@ -195,12 +194,18 @@ def gen_score_vs_attribute_plot(yhat_files_glob, dataset_file, split, attribute,
         yhat_scores = yhat[range(yhat.shape[0]), y] # get scores predicted for ground truth classes
         plt_label = yhat_file.split('_')[4] + ' channels'
         print(attribute_vals.shape, yhat.shape, yhat_scores.shape)
-        plt.scatter(attribute_vals, yhat_scores, c=COLORS[ix], label=plt_label, alpha=0.5)
+        plt.scatter(attribute_vals, np.log(yhat_scores), c=COLORS[ix], label=plt_label, alpha=0.2, s=2)
     plt.xlabel(attribute)
     plt.ylabel('yhat')
-    plt.legend(loc=LEGEND_LOCATION)
+    plt.legend(loc='lower left')
     plt.savefig(output_file, format='pdf', bbox_inches='tight')
 
+
+def acc_attribute_bins(yhat_files_glob, dataset_file, split, attribute, output_file):
+    '''
+    plot accuracy vs attribute curve. use bins with approximate number of samples.
+    '''
+    raise NotImplementedError
 
 def make_error_analysis():
     raise NotImplementedError
