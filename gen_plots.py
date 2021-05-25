@@ -11,9 +11,9 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 
-prop_cycle = plt.rcParams['axes.prop_cycle']
-COLORS = prop_cycle.by_key()['color']
+
 LEGEND_LOCATION = 'upper right'
 
 
@@ -24,7 +24,7 @@ def set_plt_style():
             'font.family': 'serif',
             'axes.labelsize': 6,
             'font.size': 8,
-            'legend.fontsize': 8,
+            'legend.fontsize': 6,
             'xtick.labelsize': 6,
             'ytick.labelsize': 6,
     }
@@ -135,33 +135,36 @@ def make_metrics_curves(glob_pattern, output_file, metrics=['val_loss'], legend_
     else:
         pattern_lst = glob_pattern
 
-    markers = [None, '$x$']
+    files = []
+    for pattern in pattern_lst:
+        files = files + glob(pattern)
+    files.sort()
+    print('nr of files', len(files), metrics)
+
     max_iterations = -1
-    fig, ax = plt.subplots(figsize=set_size())
+    _, ax = plt.subplots(figsize=set_size())
+    set_colors(ax=ax, n_colors=len(files))
 
-    for ix, pattern in enumerate(pattern_lst):
-        files = glob(pattern)
-        files.sort()
-        print('nr of files', len(files))
-        print('metrics', metrics)
+    for f in files:
+        history = json.load(open(f, 'r'))
+        splt = f.split('_')
+        if len(splt)>4:
+            plt_label = f'{splt[3]}; {splt[2]} channels; {splt[5][2]}'
+        else:
+            plt_label = f'{splt[2]} channels'
 
-        for ix_f, f in enumerate(files):
-            history = json.load(open(f, 'r'))
-            n_runs = len(history)
-            plt_label = f.split('_')[2] + ' channels'
-
-            for m in metrics:
-                metric = [history[n][f'{m}'] for n in range(n_runs)]
-                metric = np.array(metric)
-                means = metric.mean(axis=0)
-                errors = metric.std(axis=0, ddof=1)
-                iterations = range(means.shape[0])
-                if means.shape[0] > max_iterations:
-                    max_iterations = means.shape[0]
-                plt.plot(iterations, means, color=COLORS[ix_f], linewidth=1, label=plt_label, marker=markers[ix], markevery=10)
-                plt.fill_between(iterations, means-errors, means+errors, color=COLORS[ix_f], alpha=0.5)
-        if ix==0:
-            plt.legend(loc=legend_location)
+        for m in metrics:
+            metric = [run[f'{m}'] for run in history]
+            metric = np.array(metric)
+            means = metric.mean(axis=0)
+            errors = metric.std(axis=0, ddof=1)
+            iterations = range(means.shape[0])
+            if means.shape[0] > max_iterations:
+                max_iterations = means.shape[0]
+            plt.plot(iterations, means, linewidth=1, label=plt_label)
+            plt.fill_between(iterations, means-errors, means+errors, alpha=0.5)
+    legend_ncols = len(files) // 3
+    plt.legend(loc=legend_location, ncol=legend_ncols)
     plt.xlim(0, max_iterations)
     plt.xlabel('# of iterations')
     plt.ylabel(metrics[0])
@@ -225,6 +228,9 @@ def acc_attribute_bins(yhat_files_glob, dataset_file, split, attribute, output_f
     yhat_files.sort()
     print(yhat_files)
 
+    fig, ax = plt.subplots(figsize=set_size())
+    set_colors(ax=ax, n_colors=len(yhat_files))
+
     for ix, yhat_file in enumerate(yhat_files):
         plt_label = yhat_file.split('_')[4] + ' channels'
         yhat = np.load(yhat_file)
@@ -233,7 +239,7 @@ def acc_attribute_bins(yhat_files_glob, dataset_file, split, attribute, output_f
         is_correct = yhat==y
         is_correct = np.array_split(is_correct, nbins)
         acc = [sum(subarr) / len(subarr) for subarr in is_correct]
-        plt.plot(attribute_vals, acc, c=COLORS[ix], label=plt_label)
+        plt.plot(attribute_vals, acc, label=plt_label)
     plt.xlabel(attribute)
     plt.ylabel('acc')
     plt.legend(loc='lower left')
@@ -241,6 +247,47 @@ def acc_attribute_bins(yhat_files_glob, dataset_file, split, attribute, output_f
 
 def clear_plot():
     plt.clf()
+
+def set_colors(ax, n_colors):
+    ax.set_prop_cycle(color=sns.color_palette('husl', n_colors=n_colors))
+
+def plot_lowdata(glob_pattern, output_file, metric='val_accuracy', agg_fn=np.max, size_increment=100, n_subsets=20, legend_location=LEGEND_LOCATION):
+    if type(glob_pattern) != list:
+        pattern_lst = [glob_pattern]
+    else:
+        pattern_lst = glob_pattern
+
+    files = []
+    for pattern in pattern_lst:
+        files_tmp = glob(pattern)
+        files = files + files_tmp
+    files.sort()
+    print('nr of files', len(files))
+
+    fig, ax = plt.subplots(figsize=set_size())
+    set_colors(ax=ax, n_colors=len(files))
+
+    for f in files:
+        history = json.load(open(f, 'r'))
+        splt = f.split('_')
+        plt_label = f'{splt[3]}; {splt[2]} channels; {splt[5]}'
+
+        metric_means = []
+        metric_stds = []
+        sample_sizes = [size_increment*n for n in range(1, n_subsets+1)]
+        for run_history in history:
+            metrics = np.array([agg_fn(run[f'{metric}']) for run in run_history])
+            metric_means.append(metrics.mean())
+            metric_stds.append(metrics.std(ddof=1))
+        metric_means = np.array(metric_means)
+        metric_stds = np.array(metric_stds)
+        plt.plot(sample_sizes, metric_means, label=plt_label, linewidth=1)
+        plt.fill_between(sample_sizes, metric_means-metric_stds, metric_means+metric_stds, alpha=0.5)
+        # ax.annotate(plt_label, xy = (sample_sizes[-1]-200, metric_means[-1]), xytext = (sample_sizes[-1]-200, metric_means[-1]))
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.xlabel('# of samples')
+    plt.ylabel(metric)
+    plt.savefig(output_file, format='pdf', bbox_inches='tight')
 
 def make_error_analysis():
     raise NotImplementedError
