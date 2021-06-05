@@ -129,40 +129,22 @@ def make_trainval_curves(glob_pattern, output_file, metric='loss', color_duos=Tr
     plt.savefig(output_file, format='pdf', bbox_inches='tight')
 
 
-def make_metrics_curves(glob_pattern, output_file, metrics=['val_loss'], legend_location=LEGEND_LOCATION):
-    if type(glob_pattern) != list:
-        pattern_lst = [glob_pattern]
-    else:
-        pattern_lst = glob_pattern
-
-    files = []
-    for pattern in pattern_lst:
-        files = files + glob(pattern)
-    files.sort()
-    print('nr of files', len(files), metrics)
-
+def make_metrics_curves(file_list, label_list, output_file, paired=False, metric='val_loss', legend_location=LEGEND_LOCATION)
     max_iterations = -1
     _, ax = plt.subplots(figsize=set_size())
-    set_colors(ax=ax, n_colors=len(files))
+    set_colors(ax=ax, paired=paired)
 
-    for f in files:
-        history = json.load(open(f, 'r'))
-        splt = f.split('_')
-        if len(splt)>4:
-            plt_label = f'{splt[3]}; {splt[2]} channels; {splt[5][2]}'
-        else:
-            plt_label = f'{splt[2]} channels'
-
-        for m in metrics:
-            metric = [run[f'{m}'] for run in history]
-            metric = np.array(metric)
-            means = metric.mean(axis=0)
-            errors = metric.std(axis=0, ddof=1)
-            iterations = range(means.shape[0])
-            if means.shape[0] > max_iterations:
-                max_iterations = means.shape[0]
-            plt.plot(iterations, means, linewidth=1, label=plt_label)
-            plt.fill_between(iterations, means-errors, means+errors, alpha=0.5)
+    for filename in file_list:
+        history = json.load(open(filename, 'r'))
+        metric_ = [run[f'{metric}'] for run in history]
+        metric_ = np.array(metric_)
+        means = metric_.mean(axis=0)
+        errors = metric_.std(axis=0, ddof=1)
+        iterations = range(means.shape[0])
+        if means.shape[0] > max_iterations:
+            max_iterations = means.shape[0]
+        plt.plot(iterations, means, color=, linewidth=1, label=plt_label)
+        plt.fill_between(iterations, means-errors, means+errors, alpha=0.5)
     legend_ncols = len(files) // 3
     plt.legend(loc=legend_location, ncol=legend_ncols)
     plt.xlim(0, max_iterations)
@@ -248,8 +230,21 @@ def acc_attribute_bins(yhat_files_glob, dataset_file, split, attribute, output_f
 def clear_plot():
     plt.clf()
 
-def set_colors(ax, n_colors):
-    ax.set_prop_cycle(color=sns.color_palette('husl', n_colors=n_colors))
+def set_colors(ax, n_colors, paired=False):
+    if paired:
+        pallete = ['#CD0074', '#E667AF', '#1240AB', '#6C8CD5', '#FFAA00', '#FFD073', '#00CC00', '#67E667']
+    else:
+        pallete = ['#CD0074', '#1240AB', '#FFAA00', '#00CC00']
+    ax.set_prop_cycle(color=pallete)
+
+def get_ft_value(filename):
+    return bool(int(filename.split('_ft')[1][0]))
+
+def get_linestyle(filename):
+    is_finetuned = get_ft_value(filename)
+    if is_finetuned:
+        return 'solid'
+    return 'dotted'
 
 def plot_lowdata(glob_pattern, output_file, metric='val_accuracy', agg_fn=np.max, size_increment=100, n_subsets=20, legend_location=LEGEND_LOCATION):
     if type(glob_pattern) != list:
