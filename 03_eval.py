@@ -5,12 +5,30 @@ from time import time
 import yaml
 
 import _base as b
-import geN_PLOTS as p
+from _base import MAG_MAX
+import gen_plots as p
 from utils import glob_re
 
-N_PLOTS = 8
 
-def evaluate(base_dir, timestamp, backbone, n_channels, pretraining_dataset, finetune, split):
+def predict_unlabeled(base_dir, timestamp, backbone, n_channels, pretraining_dataset, split):
+    model_name = f'{timestamp}_{backbone}_{n_channels}_{pretraining_dataset}'
+    weights_file = 'imagenet' if pretraining_dataset=='imagenet' else os.path.join(base_dir, 'trained_models', model_name+'.h5')
+    print(weights_file)
+
+    trainer = b.Trainer(
+        backbone=backbone,
+        n_channels=n_channels,
+        output_type='magnitudes',
+        base_dir=base_dir,
+        model_name=model_name,
+        weights=weights_file
+    )
+    X = trainer.load_data(dataset='clf', split=split, return_y=False)
+    X_features = trainer.extract_features(X)
+    output_name = f'{split}_{timestamp}_{backbone}_{str(n_channels).zfill(2)}_{pretraining_dataset}'
+    np.save(os.path.join(base_dir, 'npy', f'Xf_{output_name}.npy'), X_features)
+
+def predict_clf(base_dir, timestamp, backbone, n_channels, pretraining_dataset, finetune, split):
     model_name = f'{timestamp}_{backbone}_{n_channels}_{pretraining_dataset}_clf_ft{int(finetune)}'
     weights_file = os.path.join(base_dir, 'trained_models', model_name+'.h5')
     print(weights_file)
@@ -23,23 +41,21 @@ def evaluate(base_dir, timestamp, backbone, n_channels, pretraining_dataset, fin
         model_name=model_name,
         weights=weights_file
     )
-    trainer.load_weights(weights_file, skip_mismatch=False)
-    X_test, y_test = trainer.load_data(dataset='clf', split=split)
-
-    start = time()
-    y_hat, X_features = trainer.extract_features_and_predict(X_test)
-    model_name_ = f'yhat_{split}_{timestamp}_{backbone}_{str(n_channels).zfill(2)}_{pretraining_dataset}_clf_ft{int(finetune)}'
-    np.save(os.path.join(base_dir, 'npy', f'yhat_{split}_{model_name_}.npy'), y_hat)
-    np.save(os.path.join(base_dir, 'npy', f'yhat_{split}_{model_name_}.npy'), X_features)
-    trainer.evaluate(X_test, y_test)
-    print('--- minutes taken:', int((time() - start) / 60))
+    X, y = trainer.load_data(dataset='clf', split=split)
+    y_hat, X_features = trainer.extract_features_and_predict(X)
+    output_name = f'{split}_{timestamp}_{backbone}_{str(n_channels).zfill(2)}_{pretraining_dataset}_clf_ft{int(finetune)}'
+    np.save(os.path.join(base_dir, 'npy', f'yhat_{output_name}.npy'), y_hat)
+    np.save(os.path.join(base_dir, 'npy', f'Xf_{output_name}.npy'), X_features)
+    trainer.evaluate(X, y)
 
 def get_dataset_label(filename):
-    dataset = filename.split('_clf')[0].split('_')[-1]
+    dataset = filename.split('_clf')[0].split('_')[-1].split('.')[0]
     if dataset=='imagenet':
         return 'ImageNet'
     elif dataset=='unlabeled':
         return 'magnitudes'
+    elif dataset=='None':
+        return 'from scratch'
     return dataset
 
 def get_finetuning_suffix(filename):
@@ -79,22 +95,34 @@ if __name__ == '__main__':
                     for finetune in finetune_lst:
                         if (not pretraining_dataset and finetune) or (pretraining_dataset=='imagenet' and n_channels!=3):
                             continue
-                        evaluate(base_dir, timestamp, backbone, n_channels, pretraining_dataset, finetune, split)
+                        predict_unlabeled(base_dir, timestamp, backbone, n_channels, pretraining_dataset, split)
+                        predict_clf(base_dir, timestamp, backbone, n_channels, pretraining_dataset, finetune, split)
 
     backbone = backbone_lst[0]
 
     p.set_plt_style()
-    cnt_iterator = iter(range(1, N_PLOTS+1))
+    cnt_iterator = iter(range(100))
 
-    print(f'{next(cnt_iterator)}/{N_PLOTS} plotting pretraining loss curves')
+    print(f'{str(next(cnt_iterator)).zfill(2)} plotting pretraining loss curves')
     file_list = glob_re(os.path.join(base_dir, 'mnt/history'), f'{timestamp}_{backbone}_(12|05|03)_unlabeled.json')
     p.metric_curve(
         file_list=file_list,
         plt_labels=[get_channels_label(f) for f in file_list],
-        output_file='figures/exp_pretraining.pdf',
-        metric='val_loss')
+        output_file='figures/exp_pretraining_loss.pdf',
+        metric='val_loss',
+        metric_scaling_factor=MAG_MAX,
+        legend_location='upper right')
 
-    print(f'{next(cnt_iterator)}/{N_PLOTS} plotting RGB vs imagenet clf')
+    print(f'{str(next(cnt_iterator)).zfill(2)} plotting pretraining times curves')
+    file_list = glob_re(os.path.join(base_dir, 'mnt/history'), f'{timestamp}_{backbone}_(12|05|03)_unlabeled.json')
+    p.metric_curve(
+        file_list=file_list,
+        plt_labels=[get_channels_label(f) for f in file_list],
+        output_file='figures/exp_pretraining_times.pdf',
+        metric='times',
+        legend_location='upper right')
+
+    print(f'{str(next(cnt_iterator)).zfill(2)} plotting RGB vs imagenet clf')
     file_list = glob_re(os.path.join(base_dir, 'mnt/history'), f'{timestamp}_{backbone}_03_(unlabeled|imagenet)_clf_ft(1|0).json')
     p.metric_curve(
         file_list=file_list,
@@ -104,7 +132,7 @@ if __name__ == '__main__':
         paired=True,
         color_pos=2)
 
-    print(f'{next(cnt_iterator)}/{N_PLOTS} plotting RGB vs imagenet clf lowdata')
+    print(f'{str(next(cnt_iterator)).zfill(2)} plotting RGB vs imagenet clf lowdata')
     file_list = glob_re(os.path.join(base_dir, 'mnt/history'), f'{timestamp}_{backbone}_03_(unlabeled|imagenet)_clf_ft(1|0)_lowdata.json')
     p.lowdata_curve(
         file_list=file_list,
@@ -114,25 +142,43 @@ if __name__ == '__main__':
         paired=True,
         color_pos=2)
 
-    print(f'{next(cnt_iterator)}/{N_PLOTS} plotting channels clf')
+    print(f'{str(next(cnt_iterator)).zfill(2)} plotting channels clf')
     file_list = glob_re(os.path.join(base_dir, 'mnt/history'), f'{timestamp}_{backbone}_(12|05|03)_unlabeled_clf_ft(1|0).json')
     p.metric_curve(
         file_list=file_list,
-        plt_labels=[get_channels_label(f) + get_finetuning_suffix(f) for f in file_list],
+        plt_labels=[get_channels_label(f) + ' ' + get_finetuning_suffix(f) for f in file_list],
         output_file='figures/exp_clf_channels.pdf',
         metric='val_accuracy',
         paired=True)
 
-    print(f'{next(cnt_iterator)}/{N_PLOTS} plotting channels clf lowdata')
+    print(f'{str(next(cnt_iterator)).zfill(2)} plotting channels clf lowdata')
     file_list = glob_re(os.path.join(base_dir, 'mnt/history'), f'{timestamp}_{backbone}_(12|05|03)_unlabeled_clf_ft(1|0)_lowdata.json')
     p.lowdata_curve(
         file_list=file_list,
-        plt_labels=[get_channels_label(f) + ' ch ' + get_finetuning_suffix(f) for f in file_list],
+        plt_labels=[get_channels_label(f) + ' ' + get_finetuning_suffix(f) for f in file_list],
         output_file='figures/exp_clf_channels_lowdata.pdf',
         metric='val_accuracy',
         paired=True)
 
-    print(f'{next(cnt_iterator)}/{N_PLOTS} plotting channels clf accuracy vs r-magnitude')
+    print(f'{str(next(cnt_iterator)).zfill(2)} plotting channels ft vs scratch')
+    file_list = glob_re(os.path.join(base_dir, 'mnt/history'), f'{timestamp}_{backbone}_(12|05|03)_(unlabeled_clf_ft1|None_clf_ft0).json')
+    p.metric_curve(
+        file_list=file_list,
+        plt_labels=[get_channels_label(f) + '; ' + get_dataset_label(f) for f in file_list],
+        output_file='figures/exp_clf_channels_scratch.pdf',
+        metric='val_accuracy',
+        paired=True)
+
+    print(f'{str(next(cnt_iterator)).zfill(2)} plotting channels clf ft vs scratch lowdata')
+    file_list = glob_re(os.path.join(base_dir, 'mnt/history'), f'{timestamp}_{backbone}_(12|05|03)_(unlabeled_clf_ft1|None_clf_ft0)_lowdata.json')
+    p.lowdata_curve(
+        file_list=file_list,
+        plt_labels=[get_channels_label(f) + '; ' + get_dataset_label(f) for f in file_list],
+        output_file='figures/exp_clf_channels_scratch_lowdata.pdf',
+        metric='val_accuracy',
+        paired=True)
+
+    print(f'{str(next(cnt_iterator)).zfill(2)} plotting channels clf accuracy vs r-magnitude')
     file_list = glob_re(os.path.join(base_dir, 'npy'), f'yhat_{split}_{timestamp}_{backbone}_(12|05|03)_unlabeled_clf_ft1.npy')
     p.acc_attribute_curve(
         file_list=file_list,
@@ -143,21 +189,46 @@ if __name__ == '__main__':
         attribute='r',
         legend_location='lower left')
 
-    print(f'{next(cnt_iterator)}/{N_PLOTS} plotting umap projections')
-    file_list = glob_re(os.path.join(base_dir, 'npy'), f'Xf_{split}_{timestamp}_{backbone}_(12|05|03)_(imagenet|unlabeled)_clf_ft0.npy')
-    p.umap_scatter(
+    print(f'{str(next(cnt_iterator)).zfill(2)} plotting channels clf accuracy vs fwhm')
+    file_list = glob_re(os.path.join(base_dir, 'npy'), f'yhat_{split}_{timestamp}_{backbone}_(12|05|03)_unlabeled_clf_ft1.npy')
+    p.acc_attribute_curve(
         file_list=file_list,
-        plt_labels=[get_dataset_label(f) + '; ' + get_channels_label(f) for f in file_list],
-        output_file=f'figures/exp_umap_{split}.pdf',
-        n_neighbors=umap__n_neighbors)
+        plt_labels=[get_channels_label(f) for f in file_list],
+        output_file=f'figures/exp_clf_channels_acc-fwhm_{split}.pdf',
+        dataset_file='datasets/clf.csv',
+        split=split,
+        attribute='fwhm',
+        legend_location='lower right')
 
-    print(f'{next(cnt_iterator)}/{N_PLOTS} plotting umap projections colored by class')
-    file_list = glob_re(os.path.join(base_dir, 'npy'), f'Xf_{split}_{timestamp}_{backbone}_(12|05|03)_(imagenet|unlabeled)_clf_ft0.npy')
+    print(f'{str(next(cnt_iterator)).zfill(2)} plotting umap projections colored by class, from pretext model features')
+    file_list = glob_re(os.path.join(base_dir, 'npy'), f'Xf_{split}_{timestamp}_{backbone}_(12|05|03)_(imagenet|unlabeled).npy')
     p.umap_scatter(
         file_list=file_list,
         plt_labels=[get_dataset_label(f) + '; ' + get_channels_label(f) for f in file_list],
-        output_file=f'figures/exp_umap_{split}_classes_neighbours{umap__n_neighbors}.pdf',
+        output_file=f'figures/exp_umap_{split}_classes.pdf',
         dataset_file='datasets/clf.csv',
         split=split,
         color_attribute='class',
+        n_neighbors=umap__n_neighbors)
+
+    print(f'{str(next(cnt_iterator)).zfill(2)} plotting umap projections colored by class, from clf features')
+    file_list = glob_re(os.path.join(base_dir, 'npy'), f'Xf_{split}_{timestamp}_{backbone}_(12|05|03)_(imagenet|unlabeled)_clf_ft1.npy')
+    p.umap_scatter(
+        file_list=file_list,
+        plt_labels=[get_dataset_label(f) + '; ' + get_channels_label(f) for f in file_list],
+        output_file=f'figures/exp_umap_{split}_clf_classes.pdf',
+        dataset_file='datasets/clf.csv',
+        split=split,
+        color_attribute='class',
+        n_neighbors=umap__n_neighbors)
+
+    print(f'{str(next(cnt_iterator)).zfill(2)} plotting umap projection colored by r-magnitude')
+    file_list = glob_re(os.path.join(base_dir, 'npy'), f'Xf_{split}_{timestamp}_{backbone}_12_unlabeled(_clf_ft1.npy|.npy)')
+    p.umap_scatter(
+        file_list=file_list,
+        plt_labels=['classifier', 'magnitudes regression model'],
+        output_file=f'figures/exp_umap_{split}_clf_magnitudes.pdf',
+        dataset_file='datasets/clf.csv',
+        split=split,
+        color_attribute='r',
         n_neighbors=umap__n_neighbors)

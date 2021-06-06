@@ -26,11 +26,11 @@ def set_plt_style():
     nice_fonts = {
             'text.usetex': False,#True,
             'font.family': 'serif',
-            'axes.labelsize': 6,
-            'font.size': 8,
-            'legend.fontsize': 6,
-            'xtick.labelsize': 6,
-            'ytick.labelsize': 6,
+            'axes.labelsize': 4,
+            'font.size': 4,
+            'legend.fontsize': 4,
+            'xtick.labelsize': 4,
+            'ytick.labelsize': 4,
     }
     mpl.rcParams.update(nice_fonts)
 
@@ -67,7 +67,9 @@ def set_colors(ax, paired=False, pos_init=0):
     pallete = pallete[pos:]
     ax.set_prop_cycle(color=pallete)
 
-def metric_curve(file_list, plt_labels, output_file, paired=False, color_pos=0, metric='val_loss', legend_location=LEGEND_LOCATION):
+def metric_curve(
+    file_list, plt_labels, output_file,
+    paired=False, color_pos=0, metric='val_loss', metric_scaling_factor=None, legend_location=LEGEND_LOCATION):
     _, ax = plt.subplots(figsize=set_size(), clear=True)
     set_colors(ax=ax, paired=paired, pos_init=color_pos)
 
@@ -77,6 +79,8 @@ def metric_curve(file_list, plt_labels, output_file, paired=False, color_pos=0, 
         history = json.load(open(filename, 'r'))
         metric_ = [run[f'{metric}'] for run in history]
         metric_ = np.array(metric_)
+        if metric_scaling_factor:
+            metric_ = metric_ * metric_scaling_factor
         means = metric_.mean(axis=0)
         errors = metric_.std(axis=0, ddof=1)
         iterations = range(means.shape[0])
@@ -115,7 +119,7 @@ def score_attribute_scatter(
     for ix, yhat_file in enumerate(yhat_files):
         yhat = np.load(yhat_file)
         yhat_scores = yhat[range(yhat.shape[0]), y] # get scores predicted for ground truth classes
-        plt.scatter(attribute_vals, np.log(yhat_scores), label=plt_labels[ix], alpha=0.05, s=1.5)
+        plt.scatter(attribute_vals, yhat_scores, label=plt_labels[ix], alpha=0.1, marker='.', s=4)
     plt.xlabel(attribute)
     plt.ylabel('yhat')
     plt.legend(loc=legend_location)
@@ -190,37 +194,54 @@ def lowdata_curve(
 
 def umap_scatter(
     file_list, plt_labels, output_file,
-    dataset_file=None, split=None, color_attribute=None, n_neighbors=50, legend_location=LEGEND_LOCATION):
-    ncols, nrows = 2, np.ceil(len(file_list)/2).astype(int)
+    dataset_file=None, split=None, color_attribute=None, n_neighbors=15):
+    if len(file_list) > 1:
+        ncols, nrows = 2, np.ceil(len(file_list)/2).astype(int)
+    else:
+        ncols, nrows = 1, 1
     subplots = [nrows, ncols]
-    _, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=set_size(subplots=subplots), clear=True)
+    fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=set_size(subplots=subplots), clear=True)
 
     if color_attribute:
         df = pd.read_csv(dataset_file)
         df = df[df.split==split]
         y = df[color_attribute].values
-        colors = [COLORS[CLASS_MAP[c]] for c in y]
 
     for ix, f in enumerate(file_list):
         X_f = np.load(f)
         X_umap = UMAP(n_neighbors=n_neighbors, random_state=42).fit_transform(X_f)
-        if color_attribute:
-            ax[ix//2, ix%2].scatter(X_umap[:, 0], X_umap[:, 1], alpha=0.05, s=1.5, c=colors)
+        if len(file_list) > 2:
+            ax_ = ax[ix//2, ix%2]
+        elif len(file_list)==2:
+            ax_ = ax[ix]
         else:
-            ax[ix//2, ix%2].scatter(X_umap[:, 0], X_umap[:, 1], alpha=0.05, s=1.5, c=COLORS[ix])
-        ax[ix//2, ix%2].set_xticks([])
-        ax[ix//2, ix%2].set_yticks([])
-        ax[ix//2, ix%2].set_xlabel(plt_labels[ix])
+            ax_ = ax
+        if color_attribute and color_attribute=='class':
+            # discretized colors
+            colors = [COLORS[CLASS_MAP[c]] for c in y]
+            ax_.scatter(X_umap[:, 0], X_umap[:, 1], alpha=0.1, marker='.', s=4, c=colors)
+        elif color_attribute:
+            # continuous color map
+            im = ax_.scatter(X_umap[:, 0], X_umap[:, 1], alpha=0.1, marker='.', s=4, c=y, cmap='plasma')
+            if ix==len(file_list)-1:
+                cbar = fig.colorbar(im, ax=ax_, pad=0.05)
+                cbar.ax.tick_params(size=0)
+                cbar.set_label(color_attribute)
+                cbar.set_alpha(1)
+                cbar.draw_all()
+        else:
+            ax_.scatter(X_umap[:, 0], X_umap[:, 1], alpha=0.1, marker='.', s=4, c=COLORS[ix])
+        ax_.set_xticks([])
+        ax_.set_yticks([])
+        ax_.set_xlabel(plt_labels[ix])
 
     if color_attribute and color_attribute=='class':
         legend_els = [Line2D(
-            [0], [0], color='w', marker='o', markerfacecolor=COLORS[ix], markersize=3, label=[*CLASS_MAP.keys()][ix]
+            [0], [0], lw=0, marker='.', markerfacecolor=COLORS[ix], markersize=3, label=[*CLASS_MAP.keys()][ix]
             ) for ix in range(len([*CLASS_MAP.keys()]))]
-        ax[ix//2, ix%2].legend(handles=legend_els, loc='lower left', bbox_to_anchor=(0.0, -0.05), ncol=len(CLASS_MAP))
+        ax_ = ax[0, 0] if len(file_list) > 1 else ax
+        ax_.legend(handles=legend_els, loc='upper left')
     plt.savefig(output_file, format='pdf', bbox_inches='tight')
-
-def umap_attribute_scatter(file_list, plt_labels, dataset_file, output_file):
-    raise NotImplementedError
 
 def missclassified_samples(file_list, crops_path, dataset_file, output_file, n=10):
     raise NotImplementedError

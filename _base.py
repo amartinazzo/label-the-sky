@@ -146,21 +146,23 @@ class Trainer:
         if self.backbone is not None:
             self.build_model()
 
-    def load_data(self, dataset, split):
+    def load_data(self, dataset, split, return_y=True):
         channels = 12 if self.n_channels==5 else self.n_channels
 
         X = np.load(os.path.join(
             self.data_dir,
             f'{dataset}_{channels}_X_{split}.npy'))
+        if self.n_channels==5:
+            X = X[:, :, :, BROAD_BANDS]
+
+        if not return_y:
+            return X
 
         y = np.load(os.path.join(
             self.data_dir,
             f'{dataset}_{channels}_y_{split}.npy'))
-
-        if self.n_channels==5:
-            X = X[:, :, :, BROAD_BANDS]
-            if self.output_type in ['magnitudes', 'mockedmagnitudes']:
-                y = y[:, BROAD_BANDS]
+        if self.n_channels==5 and self.output_type in ['magnitudes', 'mockedmagnitudes']:
+            y = y[:, BROAD_BANDS]
 
         return X, y
 
@@ -264,7 +266,7 @@ class Trainer:
         print('weights\t\t', self.weights)
         print('******************************')
 
-    def load_weights(self, weights_file, skip_mismatch=True):
+    def load_weights(self, weights_file, skip_mismatch=False):
         if skip_mismatch: # use for training
             self.model.load_weights(weights_file, by_name=True, skip_mismatch=True)
         else: # use for inference
@@ -294,7 +296,7 @@ class Trainer:
         else:
             if len(y.shape) > 1:
                 yy = np.argmax(y, axis=1)
-            self.class_weights = compute_class_weight('balanced', np.unique(yy), yy)
+            self.class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(yy), y=yy)
             print('set class weights to', self.class_weights)
 
     def train(self, X_train, y_train, X_val, y_val, mode='from_scratch', epochs=100, runs=3):
@@ -347,7 +349,7 @@ class Trainer:
             Xpp_train = Xp_train[rnd <= p]
             ypp_train = yp_train[rnd <= p]
 
-            run_suffix = f'-{p}'
+            run_suffix = f'-{Xpp_train.shape[0]}'
 
             if mode=='from_scratch':
                 ht = self.from_scratch(Xpp_train, ypp_train, Xp_val, yp_val, epochs, runs, run_suffix)

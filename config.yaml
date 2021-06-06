@@ -16,8 +16,8 @@ pretraining_datasets:
   - null
 
 finetune:
-  - 0
+  # - 0
   - 1
 
 umap:
-  n_neighbors: 50
+  n_neighbors: 15
