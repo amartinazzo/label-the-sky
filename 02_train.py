@@ -1,9 +1,10 @@
-import _base as b
 import os
 import sys
 from time import time
 
-b.set_random_seeds()
+from label_the_sky.training.trainer import Trainer, set_random_seeds
+
+set_random_seeds()
 
 if len(sys.argv) != 8:
     print('usage: python {} <dataset> <backbone> <pretraining_dataset> <n_channels> <finetune> <dataset_mode> <timestamp>'.format(
@@ -31,7 +32,7 @@ else:
 
 model_name = f'{timestamp}_{backbone}_{n_channels}_{pretraining_dataset}_clf_ft{int(finetune)}_{dataset_mode}'
 
-trainer = b.Trainer(
+trainer = Trainer(
     backbone=backbone,
     n_channels=n_channels,
     output_type='class',

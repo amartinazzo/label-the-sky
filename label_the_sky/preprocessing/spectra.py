@@ -177,11 +177,3 @@ def normalize(input_folder, output_folder, bound_lower, bound_upper):
             print('{} out of [0,1] range'.format(file.split('/')[-1]))
         np.savetxt('{}{}'.format(output_folder, file.split('/')[-1]), spectra)
     print('minutes taken:', int((time()-start)/60))
-
-
-if __name__=="__main__":
-    # preprocess_matrices('spectra/loglamb.dat', 'spectra/fluxes.dat', 'spectra/object_idx.csv')
-    # preprocess_files('spectra/loglamb/*', 'spectra/flux/*')
-
-    get_min_max('../raw-data/spectra/*')
-    # normalize('../raw-data/spectra/*', '../raw-data/spectra-normalized/')

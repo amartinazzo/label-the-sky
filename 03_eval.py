@@ -4,10 +4,10 @@ import sys
 from time import time
 import yaml
 
-import _base as b
-from _base import MAG_MAX
-import gen_plots as p
-from utils import glob_re
+from label_the_sky.training.trainer import Trainer
+from label_the_sky.training.trainer import MAG_MAX
+from label_the_sky.postprocessing import plot as p
+from label_the_sky.utils import glob_re
 
 
 def predict_unlabeled(base_dir, timestamp, backbone, n_channels, pretraining_dataset, split):
@@ -15,7 +15,7 @@ def predict_unlabeled(base_dir, timestamp, backbone, n_channels, pretraining_dat
     weights_file = 'imagenet' if pretraining_dataset=='imagenet' else os.path.join(base_dir, 'trained_models', model_name+'.h5')
     print(weights_file)
 
-    trainer = b.Trainer(
+    trainer = Trainer(
         backbone=backbone,
         n_channels=n_channels,
         output_type='magnitudes',

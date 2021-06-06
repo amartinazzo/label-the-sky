@@ -55,10 +55,6 @@ def agg_histories(pattern, mode):
             hist_list.append(hist_data)
     return hist_list
 
-
-def kl_divergence(p, q):
-    return np.sum(np.where(p != 0, p * np.log(p / q), 0))
-
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print('usage: python {} "<glob_pattern>" <mode>'.format(sys.argv[0]))

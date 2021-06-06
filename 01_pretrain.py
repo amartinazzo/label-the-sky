@@ -1,9 +1,10 @@
-import _base as b
 import os
 import sys
 from time import time
 
-b.set_random_seeds()
+from label_the_sky.training.trainer import Trainer, set_random_seeds
+
+set_random_seeds()
 
 if len(sys.argv) != 6:
     print('usage: python {} <dataset> <backbone> <n_channels> <target> <timestamp>'.format(
@@ -18,7 +19,7 @@ timestamp = sys.argv[5]
 
 base_dir = os.environ['HOME']
 
-trainer = b.Trainer(
+trainer = Trainer(
     backbone=backbone,
     n_channels=n_channels,
     output_type=target,
