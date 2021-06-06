@@ -8,7 +8,7 @@ import sys
 AGG_FN = {
     'max': lambda arr: np.max(arr).round(4),
     'mean': lambda arr: str(
-        np.mean(arr).round(4)) + '+-' + str(
+        np.mean(arr).round(4)) + '±' + str(
         np.std(arr, ddof=1).round(4)) if np.mean(arr) < 1e3 else 'inf'
 }
 
@@ -73,3 +73,4 @@ if __name__ == '__main__':
     df.drop(columns=['timestamp', 'backbone', 'runs'], inplace=True)
     dfg = df.groupby(['weights', 'finetune', 'n_channels']).first().unstack().unstack().T
     print(dfg)
+    print(dfg.to_latex())

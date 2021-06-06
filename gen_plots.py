@@ -12,9 +12,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from sklearn.metrics import auc
+from umap import UMAP
 
 
-LEGEND_LOCATION = 'upper right'
+COLORS = ['#1240AB', '#FFAA00', '#CD0074', '#00CC00']
+COLORS_PAIRED = ['#1240AB', '#6C8CD5', '#FFAA00', '#FFD073', '#CD0074', '#E667AF', '#00CC00', '#67E667']
+LEGEND_LOCATION = 'lower right'
 
 
 def set_plt_style():
@@ -29,7 +33,6 @@ def set_plt_style():
             'ytick.labelsize': 6,
     }
     mpl.rcParams.update(nice_fonts)
-
 
 def set_size(width='thesis', fraction=1, subplots=[1, 1]):
     if width == 'thesis':
@@ -48,93 +51,26 @@ def set_size(width='thesis', fraction=1, subplots=[1, 1]):
 
     return fig_dim
 
+def clear_plot():
+    plt.clf()
 
-def make_magnitude_histograms(df_arr, df_names, output_file, mag_col='r'):
-    cmap = mpl.cm.get_cmap('rainbow_r', len(df_arr))
-    alpha = np.linspace(1, 0.4, len(df_arr))
-    fig, ax = plt.subplots(figsize=set_size())
-    plt.setp(ax, xticks=[12, 14, 16, 18, 20, 22, 24], yticks=[])
-    for i in range(len(df_arr)):
-        df = pd.read_csv(df_arr[i])
-        mags = df[mag_col].values
-        plt.hist(mags, bins=50, alpha=0.5, color=cmap(i), label=df_names[i], linewidth=0.)
-    plt.legend()
-    plt.savefig(output_file, format='pdf', bbox_inches='tight')
+def set_colors(ax, paired=False, pos_init=0):
+    # blue, yellow, pink, green
+    # 12, 5, 3, imagenet
+    if paired:
+        pallete = COLORS_PAIRED
+    else:
+        pallete = COLORS
+    pos = pos_init*2 if paired else pos_init
+    pallete = pallete[pos:]
+    ax.set_prop_cycle(color=pallete)
 
+def metric_curve(file_list, plt_labels, output_file, paired=False, color_pos=0, metric='val_loss', legend_location=LEGEND_LOCATION):
+    _, ax = plt.subplots(figsize=set_size(), clear=True)
+    set_colors(ax=ax, paired=paired, pos_init=color_pos)
 
-def make_err_histograms(arr, output_file, rows=3, cols=4, xmax=0.5):
-    cmap = mpl.cm.get_cmap('rainbow_r', 12)
-    legend = ['U', 'F378', 'F395', 'F410', 'F430', 'G', 'F515', 'R', 'F660', 'I', 'F861', 'Z']
-    fig, ax = plt.subplots(rows, cols, figsize=set_size(subplots=[rows, cols]))
-    plt.setp(
-        ax,
-        xticks=[0.1, 0.2, 0.3, 0.4, 0.5],
-        yticks=[10000, 20000, 30000, 40000, 50000, 60000, 70000],
-        xticklabels=[0.1, 0.2, 0.3, 0.4, 0.5],
-        yticklabels=[10000, None, None, None, 50000, None, None]
-        )
-    n = 0
-    for i in range(rows):
-        for j in range(cols):
-            a = arr[(arr[:, n] <= xmax), n]
-            ax[i, j].hist(a, bins=25, color=cmap(12-n), edgecolor=cmap(12-n), linewidth=0.0)
-            ax[i, j].set_xlabel(legend[n], labelpad=-5)
-            ax[i, j].set_xlim(0, xmax)
-            n = n+1
-    plt.savefig(output_file, format='pdf', bbox_inches='tight')
-
-
-def make_err_histograms_overlapped(arr, output_file, xmax=0.5):
-    cmap = mpl.cm.get_cmap('rainbow_r', 12)
-    legend = ['U', 'F378', 'F395', 'F410', 'F430', 'G', 'F515', 'R', 'F660', 'I', 'F861', 'Z']
-    legend.reverse()
-    fig, ax = plt.subplots(figsize=set_size())
-    plt.setp(ax, xticks=[0, 0.25, 0.5], yticks=[]) #xticklabels=[])
-    for n in range(11, -1, -1):
-        a = arr[(arr[:,n]<=xmax),n]
-        plt.hist(a, bins=50, color=cmap(n), alpha=0.5, label=legend[n])
-        # ax[i,j].set_xlabel(legend[n])
-        # ax[i,j].set_xlim(0, xmax)
-        # ax[i,j].set_ylim(0, 50000)
-    plt.legend()
-    plt.xticks([], [])
-    plt.savefig(output_file, format='pdf', bbox_inches='tight')
-
-
-def make_trainval_curves(glob_pattern, output_file, metric='loss', color_duos=True):
-    files = glob(glob_pattern)
-    files.sort()
-    print('nr of files', len(files))
-
-    len_cmap = len(files)/2 if color_duos else len(files)
-    cmap = mpl.cm.get_cmap('rainbow_r', len_cmap)
-
-    # ax[0] -> backbone loss
-    # ax[1] -> top classifier accuracy
-
-    plt.subplots(figsize=set_size())
-    for i, f in enumerate(files):
-        history = json.load(open(f, 'r'))[0]
-        label = '_'.join(f.split('/')[-1].split('_')[1:])
-        ft = label[-1]
-        marker = 'x' if ft == '0' else 'None'
-        color_idx = int(i/2) if color_duos else i
-        print(label, '\t', ft, '\t', marker)
-        loss = history[f'{metric}']
-        loss_val = history[f'val_{metric}']
-        plt.plot(range(len(loss)), loss, linewidth=1, color=cmap(color_idx), linestyle='dotted')
-        plt.plot(range(len(loss_val)), loss_val, linewidth=1, alpha=0.9, color=cmap(color_idx), markersize=3, markevery=5, marker=marker, label=label)
-        # ax[0].plot(range(len(loss)), loss, alpha=0.9, color=cmap(i), label=label)
-    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    plt.savefig(output_file, format='pdf', bbox_inches='tight')
-
-
-def make_metrics_curves(file_list, label_list, output_file, paired=False, metric='val_loss', legend_location=LEGEND_LOCATION)
     max_iterations = -1
-    _, ax = plt.subplots(figsize=set_size())
-    set_colors(ax=ax, paired=paired)
-
-    for filename in file_list:
+    for ix, filename in enumerate(file_list):
         history = json.load(open(filename, 'r'))
         metric_ = [run[f'{metric}'] for run in history]
         metric_ = np.array(metric_)
@@ -143,24 +79,27 @@ def make_metrics_curves(file_list, label_list, output_file, paired=False, metric
         iterations = range(means.shape[0])
         if means.shape[0] > max_iterations:
             max_iterations = means.shape[0]
-        plt.plot(iterations, means, color=, linewidth=1, label=plt_label)
+        plt.plot(iterations, means, linewidth=1, label=plt_labels[ix])
         plt.fill_between(iterations, means-errors, means+errors, alpha=0.5)
-    legend_ncols = len(files) // 3
-    plt.legend(loc=legend_location, ncol=legend_ncols)
+    plt.legend(loc=legend_location)
     plt.xlim(0, max_iterations)
     plt.xlabel('# of iterations')
-    plt.ylabel(metrics[0])
+    plt.ylabel(metric)
     plt.savefig(output_file, format='pdf', bbox_inches='tight')
 
-
-def gen_score_vs_attribute_plot(yhat_files_glob, dataset_file, split, attribute, output_file):
+def score_attribute_scatter(
+    yhat_files, plt_labels, output_file, dataset_file, split, attribute,
+    legend_location=LEGEND_LOCATION):
     '''
-        yhat_files_glob:glob pattern for paths of npy files with y_hat outputs, shape (n_samples, n_classes)
+        yhat_files:     list of npy filepaths with y_hat outputs, shape (n_samples, n_classes)
         dataset_file:   path of csv file 
         split:          dataset split from which yhat was computed (train, val, test)
         attribute:      object attribute to plot on x-axis (fwhm, magnitude, magnitude error)
         output_file:    path of output image
     '''
+    _, ax = plt.subplots(figsize=set_size(), clear=True)
+    set_colors(ax=ax)
+
     df = pd.read_csv(dataset_file)
     if attribute not in df.columns:
         raise ValueError('attribute must be one of:', df.columns)
@@ -170,26 +109,24 @@ def gen_score_vs_attribute_plot(yhat_files_glob, dataset_file, split, attribute,
     class_names = df['class'].values
     y = [CLASS_MAP[c] for c in class_names] # ground truth class of each sample
 
-    yhat_files = glob(yhat_files_glob)
-    yhat_files.sort()
-    print(yhat_files)
-
     for ix, yhat_file in enumerate(yhat_files):
         yhat = np.load(yhat_file)
         yhat_scores = yhat[range(yhat.shape[0]), y] # get scores predicted for ground truth classes
-        plt_label = yhat_file.split('_')[4] + ' channels'
-        print(attribute_vals.shape, yhat.shape, yhat_scores.shape)
-        plt.scatter(attribute_vals, np.log(yhat_scores), c=COLORS[ix], label=plt_label, alpha=0.2, s=2)
+        plt.scatter(attribute_vals, np.log(yhat_scores), label=plt_labels[ix], alpha=0.2, s=2)
     plt.xlabel(attribute)
     plt.ylabel('yhat')
-    plt.legend(loc='lower left')
+    plt.legend(loc=legend_location)
     plt.savefig(output_file, format='pdf', bbox_inches='tight')
 
+def acc_attribute_curve(
+    file_list, plt_labels, output_file, dataset_file, split, attribute,
+    paired=False, nbins=100, legend_location=LEGEND_LOCATION):
+    '''
+    plot accuracy vs attribute curve. use bins with approximately uniform number of samples.
+    '''
+    _, ax = plt.subplots(figsize=set_size(), clear=True)
+    set_colors(ax=ax, paired=paired)
 
-def acc_attribute_bins(yhat_files_glob, dataset_file, split, attribute, output_file, nbins=100):
-    '''
-    plot accuracy vs attribute curve. use bins with approximate number of samples.
-    '''
     df = pd.read_csv(dataset_file)
     if attribute not in df.columns:
         raise ValueError('attribute must be one of:', df.columns)
@@ -206,67 +143,30 @@ def acc_attribute_bins(yhat_files_glob, dataset_file, split, attribute, output_f
 
     y = y[sorted_idx]
 
-    yhat_files = glob(yhat_files_glob)
-    yhat_files.sort()
-    print(yhat_files)
-
-    fig, ax = plt.subplots(figsize=set_size())
-    set_colors(ax=ax, n_colors=len(yhat_files))
-
-    for ix, yhat_file in enumerate(yhat_files):
-        plt_label = yhat_file.split('_')[4] + ' channels'
-        yhat = np.load(yhat_file)
+    n = len(file_list)
+    for ix, f in enumerate(file_list):
+        yhat = np.load(f)
         yhat = np.argmax(yhat, axis=1)
         yhat = yhat[sorted_idx]
         is_correct = yhat==y
         is_correct = np.array_split(is_correct, nbins)
         acc = [sum(subarr) / len(subarr) for subarr in is_correct]
-        plt.plot(attribute_vals, acc, label=plt_label)
+        area = round(auc(attribute_vals, acc), 4)
+        plt.plot(attribute_vals, acc, label=plt_labels[ix] + '; AUC: ' + str(area), zorder=n-ix, linewidth=1)
     plt.xlabel(attribute)
-    plt.ylabel('acc')
-    plt.legend(loc='lower left')
+    plt.ylabel('val_accuracy')
+    plt.legend(loc=legend_location)
     plt.savefig(output_file, format='pdf', bbox_inches='tight')
 
-def clear_plot():
-    plt.clf()
+def lowdata_curve(
+    file_list, plt_labels, output_file,
+    paired=False, color_pos=0, metric='val_accuracy', agg_fn=np.max, size_increment=100, n_subsets=20, legend_location=LEGEND_LOCATION):
+    _, ax = plt.subplots(figsize=set_size(), clear=True)
+    set_colors(ax=ax, paired=paired, pos_init=color_pos)
 
-def set_colors(ax, n_colors, paired=False):
-    if paired:
-        pallete = ['#CD0074', '#E667AF', '#1240AB', '#6C8CD5', '#FFAA00', '#FFD073', '#00CC00', '#67E667']
-    else:
-        pallete = ['#CD0074', '#1240AB', '#FFAA00', '#00CC00']
-    ax.set_prop_cycle(color=pallete)
-
-def get_ft_value(filename):
-    return bool(int(filename.split('_ft')[1][0]))
-
-def get_linestyle(filename):
-    is_finetuned = get_ft_value(filename)
-    if is_finetuned:
-        return 'solid'
-    return 'dotted'
-
-def plot_lowdata(glob_pattern, output_file, metric='val_accuracy', agg_fn=np.max, size_increment=100, n_subsets=20, legend_location=LEGEND_LOCATION):
-    if type(glob_pattern) != list:
-        pattern_lst = [glob_pattern]
-    else:
-        pattern_lst = glob_pattern
-
-    files = []
-    for pattern in pattern_lst:
-        files_tmp = glob(pattern)
-        files = files + files_tmp
-    files.sort()
-    print('nr of files', len(files))
-
-    fig, ax = plt.subplots(figsize=set_size())
-    set_colors(ax=ax, n_colors=len(files))
-
-    for f in files:
+    n = len(file_list)
+    for ix, f in enumerate(file_list):
         history = json.load(open(f, 'r'))
-        splt = f.split('_')
-        plt_label = f'{splt[3]}; {splt[2]} channels; {splt[5]}'
-
         metric_means = []
         metric_stds = []
         sample_sizes = [size_increment*n for n in range(1, n_subsets+1)]
@@ -276,16 +176,40 @@ def plot_lowdata(glob_pattern, output_file, metric='val_accuracy', agg_fn=np.max
             metric_stds.append(metrics.std(ddof=1))
         metric_means = np.array(metric_means)
         metric_stds = np.array(metric_stds)
-        plt.plot(sample_sizes, metric_means, label=plt_label, linewidth=1)
+        plt.plot(sample_sizes, metric_means, label=plt_labels[ix], alpha=0.8, zorder=n-ix, linewidth=1)
         plt.fill_between(sample_sizes, metric_means-metric_stds, metric_means+metric_stds, alpha=0.5)
-        # ax.annotate(plt_label, xy = (sample_sizes[-1]-200, metric_means[-1]), xytext = (sample_sizes[-1]-200, metric_means[-1]))
-    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    plt.legend(loc=legend_location)
     plt.xlabel('# of samples')
     plt.ylabel(metric)
     plt.savefig(output_file, format='pdf', bbox_inches='tight')
 
-def make_error_analysis():
-    raise NotImplementedError
+def umap_scatter(
+    file_list, plt_labels, output_file,
+    dataset_file=None, split=None, color_attribute=None, n_neighbors=200, legend_location=LEGEND_LOCATION):
+    ncols, nrows = 2, np.ceil(len(file_list)/2).astype(int)
+    subplots = [nrows, ncols]
+    _, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=set_size(subplots=subplots), clear=True)
 
-def gen_2d_projection(X_features_path, dataset_path):
+    if color_attribute:
+        df = pd.read_csv(dataset_file)
+        df = df[df.split==split]
+        y = df[color_attribute].values
+        colors = [COLORS[CLASS_MAP[c]] for c in y]
+
+    for ix, f in enumerate(file_list):
+        X_f = np.load(f)
+        X_umap = UMAP(n_neighbors=n_neighbors, random_state=42).fit_transform(X_f)
+        if color_attribute:
+            ax[ix//2, ix%2].scatter(X_umap[:, 0], X_umap[:, 1], alpha=0.1, s=1.5, c=colors)
+        else:
+            ax[ix//2, ix%2].scatter(X_umap[:, 0], X_umap[:, 1], alpha=0.1, s=1.5, c=COLORS[ix])
+        ax[ix//2, ix%2].set_xticks([])
+        ax[ix//2, ix%2].set_yticks([])
+        ax[ix//2, ix%2].set_xlabel(plt_labels[ix])
+
+    if color_attribute and color_attribute=='class':
+        plt.legend(loc=legend_location)
+    plt.savefig(output_file, format='pdf', bbox_inches='tight')
+
+def missclassified_samples(yhat, crops_path, dataset_file, output_file, n=10):
     raise NotImplementedError
