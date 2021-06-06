@@ -29,6 +29,8 @@ def evaluate(base_dir, timestamp, backbone, n_channels, pretraining_dataset, fin
 
     start = time()
 
+    # update model_name in order to pad n_channels
+    model_name = f'{timestamp}_{backbone}_{str(n_channels).zfill(2)}_{pretraining_dataset}_clf_ft{int(finetune)}'
     y_hat, X_features = trainer.extract_features_and_predict(X_test)
     np.save(os.path.join(base_dir, 'npy', f'yhat_{split}_{model_name}'), y_hat)
     np.save(os.path.join(base_dir, 'npy', f'Xf_{split}_{model_name}'), X_features)
@@ -36,7 +38,7 @@ def evaluate(base_dir, timestamp, backbone, n_channels, pretraining_dataset, fin
     print('--- minutes taken:', int((time() - start) / 60))
 
 def get_dataset_label(filename):
-    dataset = filename.split('_')[-3]
+    dataset = filename.split('_clf')[0].split('_')[-1]
     if dataset=='imagenet':
         return 'ImageNet'
     elif dataset=='unlabeled':
@@ -60,8 +62,8 @@ if __name__ == '__main__':
         exit(1)
 
     config_file = sys.argv[1]
-    skip_predictions = bool(int(sys.argv[2])) if sys.argv[2] else True
-    config = yaml.load(open(config_file))
+    skip_predictions = bool(int(sys.argv[2])) if len(sys.argv)>2 else True
+    config = yaml.load(open(config_file), Loader=yaml.FullLoader)
 
     base_dir = os.environ['HOME']
     timestamp = config['timestamp']
@@ -70,6 +72,8 @@ if __name__ == '__main__':
     pretraining_dataset_lst = config['pretraining_datasets']
     finetune_lst = config['finetune']
     split = config['eval_split']
+
+    umap__n_neighbors = config['umap']['n_neighbors']
 
     if not skip_predictions:
         print('computing feature vectors and predictions')
@@ -148,15 +152,16 @@ if __name__ == '__main__':
     p.umap_scatter(
         file_list=file_list,
         plt_labels=[get_dataset_label(f) + '; ' + get_nr_channels(f) for f in file_list],
-        output_file=f'figures/exp_umap_{split}.pdf')
+        output_file=f'figures/exp_umap_{split}.pdf',
+        n_neighbors=umap__n_neighbors)
 
     print(f'8/{n_plots} plotting umap projections colored by class')
     file_list = glob_re(os.path.join(base_dir, 'npy'), f'Xf_{split}_{timestamp}_{backbone}_(12|05|03)_(imagenet|unlabeled)_clf_ft1.npy')
-    for neigh in [50, 100, 200, 500]:
-        p.umap_scatter(
-            file_list=file_list,
-            plt_labels=[get_dataset_label(f) + '; ' + get_nr_channels(f) for f in file_list],
-            output_file=f'figures/exp_umap_{split}_classes_neighbours{neigh}.pdf',
-            dataset_file='datasets/clf.csv',
-            split=split,
-            color_attribute='class')
+    p.umap_scatter(
+        file_list=file_list,
+        plt_labels=[get_dataset_label(f) + '; ' + get_nr_channels(f) for f in file_list],
+        output_file=f'figures/exp_umap_{split}_classes_neighbours{umap__n_neighbors}.pdf',
+        dataset_file='datasets/clf.csv',
+        split=split,
+        color_attribute='class',
+        n_neighbors=umap__n_neighbors)
