@@ -2,7 +2,6 @@ import efficientnet
 from efficientnet.tfkeras import EfficientNetB0
 import json
 from keras_applications import vgg16, resnext
-from models.callbacks import TimeHistory
 import numpy as np
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # info and warning messages are not printed
@@ -17,6 +16,8 @@ from tensorflow.keras.constraints import max_norm
 from tensorflow.keras.layers import Input, Dense, Dropout, GlobalAveragePooling2D, LeakyReLU
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
+
+from label_the_sky.training.callbacks import TimeHistory
 
 
 BACKBONES = ['efficientnet', 'resnext', 'vgg', None]

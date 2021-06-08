@@ -1,10 +1,10 @@
 from albumentations import Compose, Flip, HorizontalFlip
-from constants import CLASS_MAP
 from cv2 import imread
 import numpy as np
 from tensorflow.keras.utils import Sequence, to_categorical
 import os
 
+from label_the_sky.config import CLASS_MAP
 
 def get_dataset(df, target='class', n_bands=12, filters=None):
     """

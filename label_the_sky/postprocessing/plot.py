@@ -1,4 +1,4 @@
-from constants import CLASS_MAP
+from label_the_sky.config import CLASS_MAP
 from glob import glob
 import json
 import matplotlib as mpl
@@ -26,11 +26,11 @@ def set_plt_style():
     nice_fonts = {
             'text.usetex': False,#True,
             'font.family': 'serif',
-            'axes.labelsize': 4,
-            'font.size': 4,
-            'legend.fontsize': 4,
-            'xtick.labelsize': 4,
-            'ytick.labelsize': 4,
+            'axes.labelsize': 8,
+            'font.size': 8,
+            'legend.fontsize': 8,
+            'xtick.labelsize': 8,
+            'ytick.labelsize': 8,
     }
     mpl.rcParams.update(nice_fonts)
 

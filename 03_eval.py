@@ -4,7 +4,7 @@ import sys
 from time import time
 import yaml
 
-from label_the_sky.training.trainer import Trainer
+from label_the_sky.training.trainer import Trainer, set_random_seeds
 from label_the_sky.training.trainer import MAG_MAX
 from label_the_sky.postprocessing import plot as p
 from label_the_sky.utils import glob_re
@@ -23,9 +23,11 @@ def predict_unlabeled(base_dir, timestamp, backbone, n_channels, pretraining_dat
         model_name=model_name,
         weights=weights_file
     )
-    X = trainer.load_data(dataset='clf', split=split, return_y=False)
+
+    dataset='unlabeled'
+    X = trainer.load_data(dataset=dataset, split=split, return_y=False)
     X_features = trainer.extract_features(X)
-    output_name = f'{split}_{timestamp}_{backbone}_{str(n_channels).zfill(2)}_{pretraining_dataset}'
+    output_name = f'{dataset}-{split}_{timestamp}_{backbone}_{str(n_channels).zfill(2)}_{pretraining_dataset}'
     np.save(os.path.join(base_dir, 'npy', f'Xf_{output_name}.npy'), X_features)
 
 def predict_clf(base_dir, timestamp, backbone, n_channels, pretraining_dataset, finetune, split):
@@ -33,7 +35,7 @@ def predict_clf(base_dir, timestamp, backbone, n_channels, pretraining_dataset, 
     weights_file = os.path.join(base_dir, 'trained_models', model_name+'.h5')
     print(weights_file)
 
-    trainer = b.Trainer(
+    trainer = Trainer(
         backbone=backbone,
         n_channels=n_channels,
         output_type='class',
@@ -68,7 +70,7 @@ def get_channels_label(filename):
     return ''.join(filter(str.isdigit, filename.split('/')[-1].split('_ft')[0]))[-2:].strip('0') + ' ch'
 
 if __name__ == '__main__':
-    b.set_random_seeds()
+    set_random_seeds()
 
     if len(sys.argv) < 2:
         print('usage: python {} <yaml_file> <skip_predictions>'.format(sys.argv[0]))
@@ -200,15 +202,15 @@ if __name__ == '__main__':
         attribute='fwhm',
         legend_location='lower right')
 
-    print(f'{str(next(cnt_iterator)).zfill(2)} plotting umap projections colored by class, from pretext model features')
-    file_list = glob_re(os.path.join(base_dir, 'npy'), f'Xf_{split}_{timestamp}_{backbone}_(12|05|03)_(imagenet|unlabeled).npy')
+    print(f'{str(next(cnt_iterator)).zfill(2)} plotting umap projections colored by r-magnitude, from pretext model features')
+    file_list = glob_re(os.path.join(base_dir, 'npy'), f'Xf_unlabeled-{split}_{timestamp}_{backbone}_(12|05|03)_unlabeled.npy')
     p.umap_scatter(
         file_list=file_list,
         plt_labels=[get_dataset_label(f) + '; ' + get_channels_label(f) for f in file_list],
-        output_file=f'figures/exp_umap_{split}_classes.pdf',
-        dataset_file='datasets/clf.csv',
+        output_file=f'figures/exp_umap_{split}_pretraining_magnitudes.pdf',
+        dataset_file='datasets/unlabeled.csv',
         split=split,
-        color_attribute='class',
+        color_attribute='r',
         n_neighbors=umap__n_neighbors)
 
     print(f'{str(next(cnt_iterator)).zfill(2)} plotting umap projections colored by class, from clf features')
