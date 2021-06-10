@@ -26,8 +26,9 @@ def predict_unlabeled(base_dir, timestamp, backbone, n_channels, pretraining_dat
 
     dataset='unlabeled'
     X = trainer.load_data(dataset=dataset, split=split, return_y=False)
-    X_features = trainer.extract_features(X)
+    X_features = trainer.extract_features_and_predict(X)
     output_name = f'{dataset}-{split}_{timestamp}_{backbone}_{str(n_channels).zfill(2)}_{pretraining_dataset}'
+    np.save(os.path.join(base_dir, 'npy', f'yhat_{output_name}.npy'), y_hat)
     np.save(os.path.join(base_dir, 'npy', f'Xf_{output_name}.npy'), X_features)
 
 def predict_clf(base_dir, timestamp, backbone, n_channels, pretraining_dataset, finetune, split):
@@ -104,6 +105,20 @@ if __name__ == '__main__':
 
     p.set_plt_style()
     cnt_iterator = iter(range(100))
+
+    print(f'{str(next(cnt_iterator)).zfill(2)} plotting r-magnitude distributions, unlabeled')
+    p.hist(
+        output_file=f'figures/exp_dist_r_unlabeled.pdf',
+        dataset_file='datasets/unlabeled.csv',
+        attribute='r',
+        color_pos=3)
+
+    print(f'{str(next(cnt_iterator)).zfill(2)} plotting r-magnitude distributions, clf')
+    p.hist(
+        output_file=f'figures/exp_dist_r_clf.pdf',
+        dataset_file='datasets/clf.csv',
+        attribute='r',
+        color_attribute='class')
 
     print(f'{str(next(cnt_iterator)).zfill(2)} plotting pretraining loss curves')
     file_list = glob_re(os.path.join(base_dir, 'mnt/history'), f'{timestamp}_{backbone}_(12|05|03)_unlabeled.json')
@@ -191,6 +206,17 @@ if __name__ == '__main__':
         attribute='r',
         legend_location='lower left')
 
+    print(f'{str(next(cnt_iterator)).zfill(2)} plotting channels clf accuracy vs r-magnitude error')
+    file_list = glob_re(os.path.join(base_dir, 'npy'), f'yhat_{split}_{timestamp}_{backbone}_(12|05|03)_unlabeled_clf_ft1.npy')
+    p.acc_attribute_curve(
+        file_list=file_list,
+        plt_labels=[get_channels_label(f) for f in file_list],
+        output_file=f'figures/exp_clf_channels_acc-r-err_{split}.pdf',
+        dataset_file='datasets/clf.csv',
+        split=split,
+        attribute='r',
+        legend_location='lower left')
+
     print(f'{str(next(cnt_iterator)).zfill(2)} plotting channels clf accuracy vs fwhm')
     file_list = glob_re(os.path.join(base_dir, 'npy'), f'yhat_{split}_{timestamp}_{backbone}_(12|05|03)_unlabeled_clf_ft1.npy')
     p.acc_attribute_curve(
@@ -211,6 +237,7 @@ if __name__ == '__main__':
         dataset_file='datasets/unlabeled.csv',
         split=split,
         color_attribute='r',
+        n_cols=3,
         n_neighbors=umap__n_neighbors)
 
     print(f'{str(next(cnt_iterator)).zfill(2)} plotting umap projections colored by class, from clf features')

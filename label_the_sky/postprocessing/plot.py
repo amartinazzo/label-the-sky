@@ -192,11 +192,29 @@ def lowdata_curve(
     plt.ylabel(metric)
     plt.savefig(output_file, format='pdf', bbox_inches='tight')
 
+def hist(dataset_file, output_file, attribute, color_attribute=None, color_pos=0, paired=False):
+    _, ax = plt.subplots(figsize=set_size(), clear=True)
+    df = pd.read_csv(dataset_file)
+
+    set_colors(ax=ax, paired=paired, pos_init=3)
+    sns.kdeplot(df[attribute].values, ax=ax, alpha=0.5, fill=True, label='all', linewidth=1)
+
+    set_colors(ax=ax, paired=paired, pos_init=color_pos)
+    if color_attribute:
+        colors = sorted(df[color_attribute].unique())
+        for c in colors:
+            sns.kdeplot(df[df[color_attribute]==c][attribute].values, ax=ax, alpha=0.2, fill=True, label=c.lower(), linewidth=1)
+        plt.legend(loc='upper left')
+    plt.xlabel(attribute)
+    plt.ylabel('density')
+    plt.ylim(0, 1)
+    plt.savefig(output_file, format='pdf', bbox_inches='tight')
+
 def umap_scatter(
     file_list, plt_labels, output_file,
-    dataset_file=None, split=None, color_attribute=None, n_neighbors=15):
+    dataset_file=None, split=None, color_attribute=None, n_cols=2, n_neighbors=15):
     if len(file_list) > 1:
-        ncols, nrows = 2, np.ceil(len(file_list)/2).astype(int)
+        ncols, nrows = n_cols, np.ceil(len(file_list)/n_cols).astype(int)
     else:
         ncols, nrows = 1, 1
     subplots = [nrows, ncols]
@@ -210,9 +228,9 @@ def umap_scatter(
     for ix, f in enumerate(file_list):
         X_f = np.load(f)
         X_umap = UMAP(n_neighbors=n_neighbors, random_state=42).fit_transform(X_f)
-        if len(file_list) > 2:
-            ax_ = ax[ix//2, ix%2]
-        elif len(file_list)==2:
+        if len(file_list) > n_cols:
+            ax_ = ax[ix//n_cols, ix%n_cols]
+        elif len(file_list) == n_cols:
             ax_ = ax[ix]
         else:
             ax_ = ax
@@ -237,7 +255,7 @@ def umap_scatter(
 
     if color_attribute and color_attribute=='class':
         legend_els = [Line2D(
-            [0], [0], lw=0, marker='.', markerfacecolor=COLORS[ix], markersize=3, label=[*CLASS_MAP.keys()][ix]
+            [0], [0], lw=0, marker='.', markerfacecolor=COLORS[ix], markersize=3, label=[*CLASS_MAP.keys()][ix].lower()
             ) for ix in range(len([*CLASS_MAP.keys()]))]
         ax_ = ax[0, 0] if len(file_list) > 1 else ax
         ax_.legend(handles=legend_els, loc='upper left')
