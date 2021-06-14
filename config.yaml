@@ -1,5 +1,6 @@
 base_dir: '~'
 eval_split: 'test'
+eval_backbone: 'vgg'
 timestamp: '0206'
 
 backbones:

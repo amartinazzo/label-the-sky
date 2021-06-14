@@ -2,12 +2,12 @@ import numpy as np
 import os
 import sys
 from time import time
-import yaml
 
+from label_the_sky.config import config
 from label_the_sky.training.trainer import Trainer, set_random_seeds
 from label_the_sky.training.trainer import MAG_MAX
 from label_the_sky.postprocessing import plot as p
-from label_the_sky.utils import glob_re
+from label_the_sky.utils import glob_re, get_dataset_label, get_channels_label, get_finetuning_suffix
 
 
 def predict_unlabeled(base_dir, timestamp, backbone, n_channels, pretraining_dataset, split):
@@ -26,7 +26,7 @@ def predict_unlabeled(base_dir, timestamp, backbone, n_channels, pretraining_dat
 
     dataset='unlabeled'
     X = trainer.load_data(dataset=dataset, split=split, return_y=False)
-    X_features = trainer.extract_features_and_predict(X)
+    y_hat, X_features = trainer.extract_features_and_predict(X)
     output_name = f'{dataset}-{split}_{timestamp}_{backbone}_{str(n_channels).zfill(2)}_{pretraining_dataset}'
     np.save(os.path.join(base_dir, 'npy', f'yhat_{output_name}.npy'), y_hat)
     np.save(os.path.join(base_dir, 'npy', f'Xf_{output_name}.npy'), X_features)
@@ -51,35 +51,9 @@ def predict_clf(base_dir, timestamp, backbone, n_channels, pretraining_dataset, 
     np.save(os.path.join(base_dir, 'npy', f'Xf_{output_name}.npy'), X_features)
     trainer.evaluate(X, y)
 
-def get_dataset_label(filename):
-    dataset = filename.split('_clf')[0].split('_')[-1].split('.')[0]
-    if dataset=='imagenet':
-        return 'ImageNet'
-    elif dataset=='unlabeled':
-        return 'magnitudes'
-    elif dataset=='None':
-        return 'from scratch'
-    return dataset
-
-def get_finetuning_suffix(filename):
-    ft = bool(int(filename.split('_ft')[1][0]))
-    if ft:
-        return 'w/ finetuning'
-    return 'w/o finetuning'
-
-def get_channels_label(filename):
-    return ''.join(filter(str.isdigit, filename.split('/')[-1].split('_ft')[0]))[-2:].strip('0') + ' ch'
-
 if __name__ == '__main__':
     set_random_seeds()
-
-    if len(sys.argv) < 2:
-        print('usage: python {} <yaml_file> <skip_predictions>'.format(sys.argv[0]))
-        exit(1)
-
-    config_file = sys.argv[1]
     skip_predictions = bool(int(sys.argv[2])) if len(sys.argv)>2 else True
-    config = yaml.load(open(config_file), Loader=yaml.FullLoader)
 
     base_dir = os.environ['HOME']
     data_dir = os.environ['DATA_PATH']
@@ -108,6 +82,17 @@ if __name__ == '__main__':
     p.set_plt_style()
     cnt_iterator = iter(range(100))
 
+    try:
+        print(f'{str(next(cnt_iterator)).zfill(2)} plotting nr of missing values vs r-magnitude, dr1')
+        p.attributes_scatter(
+            attribute_x='r_auto', label_x='r',
+            attribute_y='nDet_auto', label_y='# missing magnitudes',
+            transform_fn=lambda y: 12 - y,
+            output_file=f'figures/exp_missingdata-r_dr1.pdf',
+            dataset_file=os.path.join(data_dir, 'dr1/dr1_master.csv'))
+    except FileNotFoundError as e:
+        print(e)
+
     print(f'{str(next(cnt_iterator)).zfill(2)} plotting r-magnitude distributions, unlabeled')
     p.hist(
         output_file=f'figures/exp_dist_r_unlabeled.pdf',
@@ -121,14 +106,6 @@ if __name__ == '__main__':
         dataset_file='datasets/clf.csv',
         attribute='r',
         color_attribute='class')
-
-    print(f'{str(next(cnt_iterator)).zfill(2)} plotting nr of missing values vs r-magnitude, dr1')
-    p.attributes_scatter(
-        attribute_x='r_auto', label_x='r',
-        attribute_y='nDet_auto', label_y='# missing magnitudes',
-        transform_fn=lambda y: 12 - y,
-        output_file=f'figures/exp_missingdata-r_dr1.pdf',
-        dataset_file=os.path.join(data_dir, 'dr1/dr1_master.csv'))
 
     print(f'{str(next(cnt_iterator)).zfill(2)} plotting pretraining loss curves')
     file_list = glob_re(os.path.join(base_dir, 'mnt/history'), f'{timestamp}_{backbone}_(12|05|03)_unlabeled.json')

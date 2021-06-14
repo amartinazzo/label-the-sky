@@ -1,72 +1,49 @@
-from glob import glob
 import json
-import pandas as pd
 import numpy as np
-import sys
+import pandas as pd
+
+from label_the_sky.training.trainer import MAG_MAX
 
 
 AGG_FN = {
     'max': lambda arr: np.max(arr).round(4),
     'mean': lambda arr: str(
-        np.mean(arr).round(4)) + '±' + str(
-        np.std(arr, ddof=1).round(4)) if np.mean(arr) < 1e3 else 'inf'
+        np.mean(arr).round(4)) + ' ± ' + str(
+        np.std(arr, ddof=1).round(4)) if np.mean(arr) < 1e3 else 'inf',
+    'min': lambda arr: np.min(arr).round(4)
 }
 
 
-def agg_histories(pattern, mode):
-    agg_fn = AGG_FN.get(mode)
-    hist_list = []
-    files = glob(pattern)
-    for f in files:
+def agg_histories(file_list, metric='val_loss', mode='min', agg_mode='mean', rescale_factor=1):
+    agg_fn = AGG_FN.get(agg_mode)
+    run_fn = np.max if mode=='max' else np.min
+    history_lst = []
+    for f in file_list:
         split_str = f.split('/')[-1][:-5].split('_')
         timestamp = split_str[0]
         backbone = split_str[1]
         n_channels = split_str[2]
         weights = split_str[3]
-        finetune = split_str[5][-1]
+        finetune = split_str[5][-1] if len(split_str) > 4 else None
         with open(f) as json_file:
-            data = json.load(json_file)
-            if type(data) == list:
-                val_acc = []
-                val_loss = []
-                for hist in data:
-                    arg = np.argmax(hist['val_accuracy'])
-                    val_acc.append(hist['val_accuracy'][arg])
-                    val_loss.append(hist['val_loss'][arg])
-                hist_data = {
-                    'val_acc': agg_fn(val_acc),
-                    'val_loss': agg_fn(val_loss),
-                    'runs': len(val_acc)
-                }
-            else:
-                arg = np.argmax(data['val_accuracy'])
-                hist_data = {
-                    'val_acc': data['val_accuracy'][arg],
-                    'val_loss': data['val_loss'][arg],
-                    'runs': 1
-                }
-            hist_data.update({
+            history = json.load(json_file)
+            if type(history) == dict:
+                history = [history]
+            lst = [run_fn(history_run[metric])*rescale_factor for history_run in history]
+            history_data = {
+                f'{metric}': agg_fn(lst),
+                'runs': len(lst)
+            }
+            history_data.update({
                 'timestamp': timestamp,
                 'backbone': backbone,
                 'n_channels': n_channels,
                 'weights': weights,
                 'finetune': finetune
             })
-            hist_list.append(hist_data)
-    return hist_list
+            history_lst.append(history_data)
+    return history_lst
 
-if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print('usage: python {} "<glob_pattern>" <mode>'.format(sys.argv[0]))
-        exit()
-
-    glob_pattern = sys.argv[1]
-    mode = sys.argv[2] if len(sys.argv)>2 else 'mean'
-
-    history_dict = agg_histories(glob_pattern, mode=mode)
-
-    df = pd.DataFrame.from_dict(history_dict)
-    df.drop(columns=['timestamp', 'backbone', 'runs'], inplace=True)
-    dfg = df.groupby(['weights', 'finetune', 'n_channels']).first().unstack().unstack().T
-    print(dfg)
-    print(dfg.to_latex())
+def print_latex(history_lst, cols):
+    df = pd.DataFrame.from_dict(history_lst)
+    print(df[cols].to_latex(index=False))
