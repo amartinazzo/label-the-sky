@@ -82,6 +82,8 @@ if __name__ == '__main__':
     config = yaml.load(open(config_file), Loader=yaml.FullLoader)
 
     base_dir = os.environ['HOME']
+    data_dir = os.environ['DATA_PATH']
+
     timestamp = config['timestamp']
     backbone_lst = config['backbones']
     n_channels_lst =config['n_channels']
@@ -119,6 +121,14 @@ if __name__ == '__main__':
         dataset_file='datasets/clf.csv',
         attribute='r',
         color_attribute='class')
+
+    print(f'{str(next(cnt_iterator)).zfill(2)} plotting nr of missing values vs r-magnitude, dr1')
+    p.attributes_scatter(
+        attribute_x='r_auto', label_x='r',
+        attribute_y='nDet_auto', label_y='# missing magnitudes',
+        transform_fn=lambda y: 12 - y,
+        output_file=f'figures/exp_missingdata-r_dr1.pdf',
+        dataset_file=os.path.join(data_dir, 'dr1/dr1_master.csv'))
 
     print(f'{str(next(cnt_iterator)).zfill(2)} plotting pretraining loss curves')
     file_list = glob_re(os.path.join(base_dir, 'mnt/history'), f'{timestamp}_{backbone}_(12|05|03)_unlabeled.json')

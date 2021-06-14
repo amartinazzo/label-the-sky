@@ -94,6 +94,23 @@ def metric_curve(
     plt.ylabel(metric)
     plt.savefig(output_file, format='pdf', bbox_inches='tight')
 
+def attributes_scatter(
+    attribute_x, attribute_y, label_x, label_y, output_file, dataset_file,
+    transform_fn=lambda y: y):
+    _, ax = plt.subplots(figsize=set_size(), clear=True)
+    set_colors(ax=ax)
+
+    df = pd.read_csv(dataset_file)
+    if attribute_x not in df.columns or attribute_y not in df.columns:
+        raise ValueError('attribute must be one of:', df.columns)
+
+    x = df[attribute_x].values
+    y = df[attribute_y].apply(transform_fn).values
+    plt.scatter(x, y, alpha=0.5, marker='.', s=4)
+    plt.xlabel(label_x)
+    plt.ylabel(label_y)
+    plt.savefig(output_file, format='pdf', bbox_inches='tight')
+
 def score_attribute_scatter(
     yhat_files, plt_labels, output_file, dataset_file, split, attribute,
     legend_location=LEGEND_LOCATION):
