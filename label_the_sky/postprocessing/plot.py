@@ -211,9 +211,9 @@ def lowdata_curve(
 
 def hist(dataset_file, output_file, attribute, color_attribute=None, color_pos=0, paired=False):
     _, ax = plt.subplots(figsize=set_size(), clear=True)
-    df = pd.read_csv(dataset_file)
-
     set_colors(ax=ax, paired=paired, pos_init=3)
+
+    df = pd.read_csv(dataset_file)
     sns.kdeplot(df[attribute].values, ax=ax, alpha=0.5, fill=True, label='all', linewidth=1)
 
     set_colors(ax=ax, paired=paired, pos_init=color_pos)
@@ -222,6 +222,19 @@ def hist(dataset_file, output_file, attribute, color_attribute=None, color_pos=0
         for c in colors:
             sns.kdeplot(df[df[color_attribute]==c][attribute].values, ax=ax, alpha=0.2, fill=True, label=c.lower(), linewidth=1)
         plt.legend(loc='upper left')
+    plt.xlabel(attribute)
+    plt.ylabel('density')
+    plt.ylim(0, 1)
+    plt.savefig(output_file, format='pdf', bbox_inches='tight')
+
+def hist_datasets(dataset_files, output_file, attribute, plt_labels, color_pos=0, paired=False):
+    _, ax = plt.subplots(figsize=set_size(), clear=True)
+    set_colors(ax=ax, paired=paired, pos_init=color_pos)
+
+    for ix, dataset in enumerate(dataset_files):
+        df = pd.read_csv(dataset)
+        sns.kdeplot(df[attribute].values, ax=ax, alpha=0.5, fill=True, label=plt_labels[ix], linewidth=1)
+    plt.legend(loc='upper right')
     plt.xlabel(attribute)
     plt.ylabel('density')
     plt.ylim(0, 1)

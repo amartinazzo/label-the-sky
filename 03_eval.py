@@ -107,6 +107,14 @@ if __name__ == '__main__':
         attribute='r',
         color_attribute='class')
 
+    print(f'{str(next(cnt_iterator)).zfill(2)} plotting fwhm distributions, unlabeled vs clf')
+    file_list = glob_re(os.path.join(base_dir, 'mnt/label-the-sky/datasets'), f'(unlabeled|clf).csv')
+    p.hist_datasets(
+        output_file=f'figures/exp_dist_fwhm.pdf',
+        dataset_files=file_list,
+        plt_labels=['$X_{u}$', '$X$'],
+        attribute='fwhm')
+
     print(f'{str(next(cnt_iterator)).zfill(2)} plotting pretraining loss curves')
     file_list = glob_re(os.path.join(base_dir, 'mnt/history'), f'{timestamp}_{backbone}_(12|05|03)_unlabeled.json')
     p.metric_curve(
