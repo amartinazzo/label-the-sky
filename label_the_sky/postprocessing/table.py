@@ -44,6 +44,12 @@ def agg_histories(file_list, metric='val_loss', mode='min', agg_mode='mean', res
             history_lst.append(history_data)
     return history_lst
 
-def print_latex(history_lst, cols):
+def print_latex(history_lst, cols, groupby_cols=None):
     df = pd.DataFrame.from_dict(history_lst)
-    print(df[cols].to_latex(index=False))
+    df = df[cols]
+    if groupby_cols:
+        df = df.groupby(groupby_cols).first()
+        for _ in range(len(groupby_cols)-1):
+            df = df.unstack()
+    index = True if groupby_cols else False
+    print(df.to_latex(index=index))
