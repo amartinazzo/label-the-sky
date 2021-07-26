@@ -180,7 +180,7 @@ def acc_attribute_curve(
         area = round(auc(attribute_vals, acc)/area_max, 4) # area normalized to (0, 1)
         plt.plot(attribute_vals, acc, label=plt_labels[ix] + '; AUC: ' + str(area), zorder=n-ix, linewidth=1)
     plt.xlabel(attribute)
-    plt.ylabel('val_accuracy')
+    plt.ylabel(f'{split} accuracy')
     plt.legend(loc=legend_location)
     plt.savefig(output_file, format='pdf', bbox_inches='tight')
 
