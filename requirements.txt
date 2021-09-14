@@ -1,6 +1,7 @@
 astropy
 astroquery
 efficientnet
+multicoretsne
 matplotlib
 pandas
 pyyaml

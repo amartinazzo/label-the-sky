@@ -20,5 +20,7 @@ finetune:
   # - 0
   - 1
 
+projection_algorithm: 'tsne'
+
 umap:
   n_neighbors: 15

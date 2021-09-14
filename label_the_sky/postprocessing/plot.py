@@ -4,10 +4,12 @@ import json
 import matplotlib as mpl
 from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
+import multiprocessing
 import numpy as np
 import pandas as pd
 import seaborn as sns
 from sklearn.metrics import auc
+from MulticoreTSNE import MulticoreTSNE as TSNE
 from umap import UMAP
 
 
@@ -16,6 +18,7 @@ color picker: http://colorschemedesigner.com/csd-3.5
 blue, yellow, pink, green
 12, 5, 3, imagenet
 '''
+COLORS_U = ['#1240AB', '#FFAA00', '#CD0074', '#808080']
 COLORS = ['#1240AB', '#FFAA00', '#CD0074', '#009100']
 COLORS_PAIRED = ['#1240AB', '#6C8CD5', '#FFAA00', '#FFD073', '#CD0074', '#E667AF', '#009100', '#00cc00']
 LEGEND_LOCATION = 'lower right'
@@ -106,7 +109,7 @@ def attributes_scatter(
 
     x = df[attribute_x].values
     y = df[attribute_y].apply(transform_fn).values
-    plt.scatter(x, y, alpha=0.5, marker='.', s=4)
+    plt.scatter(x, y, alpha=0.5, marker='.', s=4, edgecolors='none')
     plt.xlabel(label_x)
     plt.ylabel(label_y)
     plt.savefig(output_file, format='pdf', bbox_inches='tight')
@@ -136,7 +139,7 @@ def score_attribute_scatter(
     for ix, yhat_file in enumerate(yhat_files):
         yhat = np.load(yhat_file)
         yhat_scores = yhat[range(yhat.shape[0]), y] # get scores predicted for ground truth classes
-        plt.scatter(attribute_vals, yhat_scores, label=plt_labels[ix], alpha=0.1, marker='.', s=4)
+        plt.scatter(attribute_vals, yhat_scores, label=plt_labels[ix], alpha=0.2, marker='.', s=4, edgecolors='none')
     plt.xlabel(attribute)
     plt.ylabel('yhat')
     plt.legend(loc=legend_location)
@@ -144,7 +147,7 @@ def score_attribute_scatter(
 
 def acc_attribute_curve(
     file_list, plt_labels, output_file, dataset_file, split, attribute,
-    paired=False, nbins=100, legend_location=LEGEND_LOCATION):
+    paired=False, nbins=150, legend_location=LEGEND_LOCATION):
     '''
     plot accuracy vs attribute curve. use bins with approximately uniform number of samples.
     '''
@@ -240,12 +243,14 @@ def hist_datasets(dataset_files, output_file, attribute, plt_labels, color_pos=0
     plt.ylim(0, 1)
     plt.savefig(output_file, format='pdf', bbox_inches='tight')
 
-def umap_scatter(
-    file_list, plt_labels, output_file,
+def projection_scatter(
+    file_list, plt_labels, output_file, algorithm='umap',
     dataset_file=None, split=None, color_attribute=None, n_cols=2, n_neighbors=15):
     if len(file_list) > 1:
+        marker_size = 6
         ncols, nrows = n_cols, np.ceil(len(file_list)/n_cols).astype(int)
     else:
+        marker_size = 12
         ncols, nrows = 1, 1
     subplots = [nrows, ncols]
     fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=set_size(subplots=subplots), clear=True)
@@ -257,7 +262,10 @@ def umap_scatter(
 
     for ix, f in enumerate(file_list):
         X_f = np.load(f)
-        X_umap = UMAP(n_neighbors=n_neighbors, random_state=42).fit_transform(X_f)
+        if algorithm=='umap':
+            X_projected = UMAP(n_neighbors=n_neighbors, random_state=42).fit_transform(X_f)
+        elif algorithm=='tsne':
+            X_projected = TSNE(n_jobs=multiprocessing.cpu_count(), random_state=42).fit_transform(X_f)
         if len(file_list) > n_cols:
             ax_ = ax[ix//n_cols, ix%n_cols]
         elif len(file_list) == n_cols:
@@ -266,11 +274,12 @@ def umap_scatter(
             ax_ = ax
         if color_attribute and color_attribute=='class':
             # discretized colors
-            colors = [COLORS[CLASS_MAP[c]] for c in y]
-            ax_.scatter(X_umap[:, 0], X_umap[:, 1], alpha=0.1, marker='.', s=4, c=colors)
+            y = list(y) + ['UNKNOWN'] * (X_projected.shape[0] - len(y)) # pad
+            colors = [COLORS_U[CLASS_MAP[c]] for c in y]
+            ax_.scatter(X_projected[:, 0], X_projected[:, 1], alpha=0.2, marker='.', s=marker_size, edgecolors='none', c=colors)
         elif color_attribute:
             # continuous color map
-            im = ax_.scatter(X_umap[:, 0], X_umap[:, 1], alpha=0.1, marker='.', s=4, c=y, cmap='plasma')
+            im = ax_.scatter(X_projected[:, 0], X_projected[:, 1], alpha=0.2, marker='.', s=marker_size, edgecolors='none', c=y, cmap='plasma')
             if ix==len(file_list)-1:
                 cbar = fig.colorbar(im, ax=ax_, pad=0.05)
                 cbar.ax.tick_params(size=0)
@@ -278,15 +287,15 @@ def umap_scatter(
                 cbar.set_alpha(1)
                 cbar.draw_all()
         else:
-            ax_.scatter(X_umap[:, 0], X_umap[:, 1], alpha=0.1, marker='.', s=4, c=COLORS[ix])
+            ax_.scatter(X_projected[:, 0], X_projected[:, 1], alpha=0.2, marker='.', s=marker_size, edgecolors='none', c=COLORS[ix])
         ax_.set_xticks([])
         ax_.set_yticks([])
         ax_.set_xlabel(plt_labels[ix])
 
     if color_attribute and color_attribute=='class':
         legend_els = [Line2D(
-            [0], [0], lw=0, marker='.', markerfacecolor=COLORS[ix], markersize=3, label=[*CLASS_MAP.keys()][ix].lower()
-            ) for ix in range(len([*CLASS_MAP.keys()]))]
+            [0], [0], lw=0, marker='.', markerfacecolor=COLORS_U[ix], markersize=6, label=[*CLASS_MAP.keys()][ix].lower()
+            ) for ix in range(len(np.unique(y)))]
         ax_ = ax[0, 0] if len(file_list) > 1 else ax
         ax_.legend(handles=legend_els, loc='upper left')
     plt.savefig(output_file, format='pdf', bbox_inches='tight')
