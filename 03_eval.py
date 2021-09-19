@@ -10,7 +10,7 @@ from label_the_sky.postprocessing import plot as p
 from label_the_sky.utils import glob_re, get_dataset_label, get_channels_label, get_finetuning_suffix
 
 
-def predict_unlabeled(base_dir, timestamp, backbone, n_channels, pretraining_dataset, split):
+def predict_unlabeled(base_dir, timestamp, backbone, n_channels, pretraining_dataset, split, dataset='unlabeled'):
     model_name = f'{timestamp}_{backbone}_{n_channels}_{pretraining_dataset}'
     weights_file = 'imagenet' if pretraining_dataset=='imagenet' else os.path.join(base_dir, 'trained_models', model_name+'.h5')
     print(weights_file)
@@ -24,12 +24,13 @@ def predict_unlabeled(base_dir, timestamp, backbone, n_channels, pretraining_dat
         weights=weights_file
     )
 
-    dataset='unlabeled'
     X = trainer.load_data(dataset=dataset, split=split, return_y=False)
     y_hat, X_features = trainer.extract_features_and_predict(X)
-    output_name = f'{dataset}-{split}_{timestamp}_{backbone}_{str(n_channels).zfill(2)}_{pretraining_dataset}'
-    np.save(os.path.join(base_dir, 'npy', f'yhat_{output_name}.npy'), y_hat)
-    np.save(os.path.join(base_dir, 'npy', f'Xf_{output_name}.npy'), X_features)
+    
+    suffix = 'u' if dataset=='unlabeled' else ''
+    output_name = f'{split}_{timestamp}_{backbone}_{str(n_channels).zfill(2)}_{pretraining_dataset}'
+    np.save(os.path.join(base_dir, 'npy', f'y{suffix}hat_{output_name}.npy'), y_hat)
+    np.save(os.path.join(base_dir, 'npy', f'X{suffix}f_{output_name}.npy'), X_features)
 
 def predict_clf(base_dir, timestamp, backbone, n_channels, pretraining_dataset, finetune, split, dataset='clf'):
     model_name = f'{timestamp}_{backbone}_{n_channels}_{pretraining_dataset}_clf_ft{int(finetune)}'
@@ -54,7 +55,7 @@ def predict_clf(base_dir, timestamp, backbone, n_channels, pretraining_dataset, 
     # trainer.evaluate(X, y)
 
 def concat_vectors(base_dir, timestamp, backbone, n_channels, pretraining_dataset, finetune, split):
-    output_name = f'{split}_{timestamp}_{backbone}_{str(n_channels).zfill(2)}_{pretraining_dataset}_clf_ft{int(finetune)}'
+    output_name = f'{split}_{timestamp}_{backbone}_{str(n_channels).zfill(2)}_{pretraining_dataset}'#_clf_ft{int(finetune)}'
     X = np.load(os.path.join(base_dir, 'npy', f'Xf_{output_name}.npy'))
     Xu = np.load(os.path.join(base_dir, 'npy', f'Xuf_{output_name}.npy'))
 
@@ -88,7 +89,7 @@ if __name__ == '__main__':
                             continue
                         predict_unlabeled(base_dir, timestamp, backbone, n_channels, pretraining_dataset, split)
                         for dataset in ['unlabeled', 'clf']:
-                            predict_clf(base_dir, timestamp, backbone, n_channels, pretraining_dataset, finetune, split, dataset=dataset)
+                            predict_unlabeled(base_dir, timestamp, backbone, n_channels, pretraining_dataset, split)
                         concat_vectors(base_dir, timestamp, backbone, n_channels, pretraining_dataset, finetune, split)
 
     backbone = backbone_lst[0]
@@ -274,12 +275,23 @@ if __name__ == '__main__':
         color_attribute='r',
         n_neighbors=umap__n_neighbors)
 
-    print(f'{str(next(cnt_iterator)).zfill(2)} plotting X + Xu projection colored by class')
+    print(f'{str(next(cnt_iterator)).zfill(2)} plotting X + Xu projection (extracted from classifier) colored by class')
     file_list = [os.path.join(base_dir, 'npy', f'Xf-Xuf_{split}_{timestamp}_{backbone}_12_unlabeled_clf_ft1.npy')]
     p.projection_scatter(
         file_list=file_list,
         plt_labels=['X + Xu features'],
         output_file=f'figures/exp_{projection_algo}_{split}_clf_X-Xu.pdf',
+        dataset_file='datasets/clf.csv',
+        algorithm=projection_algo,
+        split=split,
+        color_attribute='class')
+
+    print(f'{str(next(cnt_iterator)).zfill(2)} plotting X + Xu projection (extracted from regression model) colored by class')
+    file_list = [os.path.join(base_dir, 'npy', f'Xf-Xuf_{split}_{timestamp}_{backbone}_12_unlabeled.npy')]
+    p.projection_scatter(
+        file_list=file_list,
+        plt_labels=['X + Xu features'],
+        output_file=f'figures/exp_{projection_algo}_{split}_clf_X-Xu_regression-model.pdf',
         dataset_file='datasets/clf.csv',
         algorithm=projection_algo,
         split=split,
