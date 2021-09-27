@@ -263,36 +263,36 @@ if __name__ == '__main__':
         color_attribute='class',
         n_neighbors=umap__n_neighbors)
 
-    print(f'{str(next(cnt_iterator)).zfill(2)} plotting projection colored by r-magnitude')
-    file_list = glob_re(os.path.join(base_dir, 'npy'), f'Xf_{split}_{timestamp}_{backbone}_12_unlabeled(_clf_ft1.npy|.npy)')
-    p.projection_scatter(
-        file_list=file_list,
-        plt_labels=['classifier', 'magnitudes regression model'],
-        output_file=f'figures/exp_{projection_algo}_{split}_clf_magnitudes.pdf',
-        dataset_file='datasets/clf.csv',
-        algorithm=projection_algo,
-        split=split,
-        color_attribute='r',
-        n_neighbors=umap__n_neighbors)
+    # print(f'{str(next(cnt_iterator)).zfill(2)} plotting projection colored by r-magnitude')
+    # file_list = glob_re(os.path.join(base_dir, 'npy'), f'Xf_{split}_{timestamp}_{backbone}_12_unlabeled(_clf_ft1.npy|.npy)')
+    # p.projection_scatter(
+    #     file_list=file_list,
+    #     plt_labels=['classifier', 'magnitudes regression model'],
+    #     output_file=f'figures/exp_{projection_algo}_{split}_clf_magnitudes.pdf',
+    #     dataset_file='datasets/clf.csv',
+    #     algorithm=projection_algo,
+    #     split=split,
+    #     color_attribute='r',
+    #     n_neighbors=umap__n_neighbors)
 
-    print(f'{str(next(cnt_iterator)).zfill(2)} plotting X + Xu projection (extracted from classifier) colored by class')
-    file_list = [os.path.join(base_dir, 'npy', f'Xf-Xuf_{split}_{timestamp}_{backbone}_12_unlabeled_clf_ft1.npy')]
-    p.projection_scatter(
-        file_list=file_list,
-        plt_labels=['X + Xu features'],
-        output_file=f'figures/exp_{projection_algo}_{split}_clf_X-Xu.pdf',
-        dataset_file='datasets/clf.csv',
-        algorithm=projection_algo,
-        split=split,
-        color_attribute='class')
+    # print(f'{str(next(cnt_iterator)).zfill(2)} plotting X + Xu projection (extracted from classifier) colored by class')
+    # file_list = [os.path.join(base_dir, 'npy', f'Xf-Xuf_{split}_{timestamp}_{backbone}_12_unlabeled_clf_ft1.npy')]
+    # p.projection_scatter(
+    #     file_list=file_list,
+    #     plt_labels=['X + Xu features'],
+    #     output_file=f'figures/exp_{projection_algo}_{split}_clf_X-Xu.pdf',
+    #     dataset_file='datasets/clf.csv',
+    #     algorithm=projection_algo,
+    #     split=split,
+    #     color_attribute='class')
 
-    print(f'{str(next(cnt_iterator)).zfill(2)} plotting X + Xu projection (extracted from regression model) colored by class')
-    file_list = [os.path.join(base_dir, 'npy', f'Xf-Xuf_{split}_{timestamp}_{backbone}_12_unlabeled.npy')]
-    p.projection_scatter(
-        file_list=file_list,
-        plt_labels=['X + Xu features'],
-        output_file=f'figures/exp_{projection_algo}_{split}_clf_X-Xu_regression-model.pdf',
-        dataset_file='datasets/clf.csv',
-        algorithm=projection_algo,
-        split=split,
-        color_attribute='class')
+    # print(f'{str(next(cnt_iterator)).zfill(2)} plotting X + Xu projection (extracted from regression model) colored by class')
+    # file_list = [os.path.join(base_dir, 'npy', f'Xf-Xuf_{split}_{timestamp}_{backbone}_12_unlabeled.npy')]
+    # p.projection_scatter(
+    #     file_list=file_list,
+    #     plt_labels=['X + Xu features'],
+    #     output_file=f'figures/exp_{projection_algo}_{split}_clf_X-Xu_regression-model.pdf',
+    #     dataset_file='datasets/clf.csv',
+    #     algorithm=projection_algo,
+    #     split=split,
+    #     color_attribute='class')

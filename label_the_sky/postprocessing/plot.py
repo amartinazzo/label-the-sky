@@ -265,7 +265,7 @@ def projection_scatter(
         if algorithm=='umap':
             X_projected = UMAP(n_neighbors=n_neighbors, random_state=42).fit_transform(X_f)
         elif algorithm=='tsne':
-            X_projected = TSNE(n_jobs=multiprocessing.cpu_count(), random_state=42).fit_transform(X_f)
+            X_projected = TSNE(n_jobs=multiprocessing.cpu_count(), perplexity=50, n_iter=5000, random_state=42).fit_transform(X_f)
         if len(file_list) > n_cols:
             ax_ = ax[ix//n_cols, ix%n_cols]
         elif len(file_list) == n_cols:
