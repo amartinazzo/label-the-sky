@@ -194,7 +194,7 @@ class Trainer:
             yp = y
         return yp
 
-    def build_model(self, learning_rate=1e-4, freeze_backbone=False):
+    def build_model(self, learning_rate=1e-4, freeze_backbone=False, skip_mismatch=False):
         tf.keras.backend.clear_session()
 
         architecture_fn = BACKBONE_FN.get(self.backbone)
@@ -228,7 +228,7 @@ class Trainer:
         self.embedder_yx = Model(inputs=self.model.input, outputs=[y, x])
 
         if self.weights not in [None, 'imagenet']:
-            self.load_weights(self.weights)
+            self.load_weights(self.weights, skip_mismatch)
 
         if freeze_backbone:
             for layer in self.model.layers[:self.top_layer_idx]:
@@ -397,7 +397,7 @@ class Trainer:
 
         for run in range(runs):
             self.run = f'{run}{run_suffix}'
-            self.build_model(freeze_backbone=True)
+            self.build_model(freeze_backbone=True, skip_mismatch=True)
             self.set_callbacks()
             history0 = self.model.fit(
                 X_train, y_train,
