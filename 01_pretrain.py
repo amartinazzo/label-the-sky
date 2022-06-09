@@ -39,7 +39,7 @@ start = time()
 
 print('pretraining model')
 trainer.train(X_train, y_train, X_val, y_val, epochs=100)
-trainer.dump_history()
+trainer.dump_history('history')
 print('--- minutes taken:', int((time() - start) / 60))
 
 print('evaluating model on validation set')

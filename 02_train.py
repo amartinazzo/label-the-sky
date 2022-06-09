@@ -62,7 +62,7 @@ if dataset_mode == 'full':
 else:
     trainer.train_lowdata(X_train, y_train, X_val, y_val, mode=mode)
 
-trainer.dump_history('mnt/history')
+trainer.dump_history('history')
 print('--- minutes taken:', int((time() - start) / 60))
 
 if dataset_mode == 'full':
